@@ -1,0 +1,8 @@
+node_modules/
+dist/
+config.json
+.env
+*.exe
+.idea/
+*.bun-build
+linking.json

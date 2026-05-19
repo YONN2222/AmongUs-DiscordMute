@@ -1,0 +1,13 @@
+{
+  "token": "YOUR_BOT_TOKEN",
+  "clientId": "YOUR_CLIENT_ID",
+  "guildId": "YOUR_GUILD_ID",
+  "channelIds": ["CHANNEL_ID_1", "CHANNEL_ID_2"],
+  "secret": "change-me",
+  "botIp": "127.0.0.1",
+  "botPort": 7264,
+  "plugin": {
+    "ip": "127.0.0.1",
+    "port": 7263
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "name": "amongus-discordmute",
+  "private": true,
+  "scripts": {
+    "build": "powershell -NoProfile -ExecutionPolicy Bypass -File update.ps1"
+  }
+}

@@ -1,0 +1,5 @@
+<Solution>
+  <Folder Name="/DLL/">
+    <Project Path="DLL/DiscordMute.csproj" />
+  </Folder>
+</Solution>

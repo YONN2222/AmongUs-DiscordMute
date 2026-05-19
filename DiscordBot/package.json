@@ -1,0 +1,31 @@
+{
+  "name": "discord-mute-bot",
+  "version": "1.0.0",
+  "description": "DiscordMute Bot - Among Us voice mute controller",
+  "main": "dist/index.js",
+  "scripts": {
+    "generate:commands": "bun run src/Scripts/generate-command-registry.ts",
+    "dev": "bun run generate:commands && bun run --watch src/index.ts",
+    "build": "bun run generate:commands && bun build src/index.ts --compile --target=bun-windows-x64 --outfile bot.exe",
+    "typecheck": "bun run generate:commands && tsc --noEmit",
+    "deploy": "bun run generate:commands && bun run src/deploy-commands.ts",
+    "lint": "biome check src/",
+    "lint:fix": "biome check --write src/"
+  },
+  "dependencies": {
+    "chalk": "^5.6.2",
+    "discord.js": "14.26.3",
+    "express": "^5.2.1",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.12",
+    "@types/bun": "^1.3.12",
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.6.0",
+    "tsdown": "^0.21.9",
+    "typescript": "^6.0.3"
+  },
+  "private": true,
+  "packageManager": "bun@1.3.13"
+}
