@@ -20,7 +20,7 @@ export class ForceLinkCommand implements Command {
     async execute(interaction: ChatInputCommandInteraction) {
         const user = interaction.options.getUser("user", true);
         const displayName = interaction.options.getString("display-name", true);
-        const url = `http://${config.plugin.ip}:${config.plugin.port}/force-link?secret=${encodeURIComponent(config.secret)}`;
+        const url = `http://${config.plugin.ip}:${config.plugin.port}/force-link`;
 
         try {
             linkingService.forceLink(user.id, displayName);
@@ -30,7 +30,7 @@ export class ForceLinkCommand implements Command {
                 const response = await fetch(url, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ accountName: displayName, discordId: user.id }),
+                    body: JSON.stringify({ accountName: displayName, discordId: user.id, secret: config.secret }),
                     signal: AbortSignal.timeout(5000),
                 });
 
