@@ -1,0 +1,62 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.13"
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "6.0.x"
+
+      - name: Build Discord bot
+        working-directory: DiscordBot
+        run: |
+          bun install --frozen-lockfile
+          bun run build
+
+      - name: Build plugin DLL
+        working-directory: DLL
+        run: dotnet build -c Release -f net6.0
+
+      - name: Package release
+        id: package
+        env:
+          TAG_NAME: ${{ github.event.release.tag_name }}
+        run: |
+          VERSION="${TAG_NAME#v}"
+          NAME="AmongUsDiscordMute-${VERSION}"
+
+          mkdir -p "$NAME/DiscordBot"
+          cp DiscordBot/bot.exe "$NAME/DiscordBot/"
+          cp DiscordBot/config.example.json "$NAME/DiscordBot/"
+          cp DiscordBot/start.bat "$NAME/DiscordBot/"
+          cp DLL/bin/Release/net6.0/DiscordMute.dll "$NAME/"
+          cp LICENSE "$NAME/LICENSE.md"
+          cp README.md "$NAME/"
+
+          zip -r "${NAME}.zip" "$NAME"
+
+          echo "zip_path=${NAME}.zip" >> "$GITHUB_OUTPUT"
+
+      - name: Attach zip to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ github.event.release.tag_name }}" "${{ steps.package.outputs.zip_path }}" --clobber
