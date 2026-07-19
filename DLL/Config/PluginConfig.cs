@@ -5,10 +5,10 @@ namespace DiscordMute.Config;
 internal sealed class PluginConfig
 {
     [JsonPropertyName("ip")]
-    public string Ip { get; set; } = "127.0.0.1";
+    public string Ip { get; set; } = "localhost";
 
     [JsonPropertyName("pluginIp")]
-    public string PluginIp { get; set; } = "127.0.0.1";
+    public string PluginIp { get; set; } = "localhost";
 
     [JsonPropertyName("pluginPort")]
     public int PluginPort { get; set; } = 7263;

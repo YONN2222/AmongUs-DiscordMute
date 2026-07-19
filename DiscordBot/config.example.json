@@ -4,10 +4,10 @@
   "guildId": "YOUR_GUILD_ID",
   "channelIds": ["CHANNEL_ID_1", "CHANNEL_ID_2"],
   "secret": "change-me",
-  "botIp": "127.0.0.1",
+  "botIp": "localhost",
   "botPort": 7264,
   "plugin": {
-    "ip": "127.0.0.1",
+    "ip": "localhost",
     "port": 7263
   }
 }

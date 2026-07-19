@@ -47,8 +47,8 @@ Open `config.json` in that folder and configure it.
 
 | Field                    | Meaning                                                                                                                     |
 |--------------------------|-----------------------------------------------------------------------------------------------------------------------------|
-| `ip`                     | IP address of the machine running the Discord bot. Use `127.0.0.1` when the bot runs on the same PC.                        |
-| `pluginIp`               | IP address on which the plugin listens locally. Usually keep `127.0.0.1`.                                                   |
+| `ip`                     | IP address of the machine running the Discord bot. Use `localhost` when the bot runs on the same PC.                        |
+| `pluginIp`               | IP address on which the plugin listens locally. Usually keep `localhost`.                                                   |
 | `pluginPort`             | Port used by the Among Us plugin HTTP server. Default: `7263`.                                                              |
 | `botPort`                | Port used by the Discord bot HTTP server. Default: `7264`.                                                                  |
 | `secret`                 | Shared secret used by the plugin and the bot. Set the same value in both configs.                                           |
@@ -59,8 +59,8 @@ Example:
 
 ```json
 {
-  "ip": "127.0.0.1",
-  "pluginIp": "127.0.0.1",
+  "ip": "localhost",
+  "pluginIp": "localhost",
   "pluginPort": 7263,
   "botPort": 7264,
   "secret": "replace-this-with-your-own-secret",
@@ -87,9 +87,9 @@ The included `bot.exe` is expected to be relatively large. It is compiled with B
 | `guildId`     | ID of the Discord server where the bot should be used.                  |
 | `channelIds`  | Voice channel IDs used for Among Us sessions. Add one or more channels. |
 | `secret`      | Must be exactly the same shared secret as in the plugin config.         |
-| `botIp`       | IP address on which the bot listens. Usually `127.0.0.1`.               |
+| `botIp`       | IP address on which the bot listens. Usually `localhost`.               |
 | `botPort`     | Port used by the Discord bot HTTP server. Default: `7264`.              |
-| `plugin.ip`   | IP address of the Among Us plugin. Usually `127.0.0.1`.                 |
+| `plugin.ip`   | IP address of the Among Us plugin. Usually `localhost`.                 |
 | `plugin.port` | Port used by the Among Us plugin HTTP server. Default: `7263`.          |
 
 Example:
@@ -101,10 +101,10 @@ Example:
   "guildId": "YOUR_GUILD_ID",
   "channelIds": ["CHANNEL_ID_1"],
   "secret": "replace-this-with-your-own-secret",
-  "botIp": "127.0.0.1",
+  "botIp": "localhost",
   "botPort": 7264,
   "plugin": {
-    "ip": "127.0.0.1",
+    "ip": "localhost",
     "port": 7263
   }
 }
