@@ -1,15 +1,29 @@
-# DiscordMute - Among Us Mod
+<div align="center">
+  <img src="assets/AmongUsDiscordMuteLarge.png" alt="DiscordMute" width="600" />
 
-DiscordMute is a small Among Us companion mod that automatically mutes and unmutes players in Discord during a game. It keeps voice chat aligned with the round state and also supports EHR Blackmailer behavior, so blackmailed players stay muted during meetings instead of speaking normally in Discord.
+  <p><strong>Automatic Discord voice muting for Among Us.</strong></p>
 
-I built it because my friend group kept talking during live rounds and did not want to manually mute and unmute themselves every game. The project contains two parts:
+  <p>
+    <img src="https://img.shields.io/badge/C%23-239120?style=for-the-badge&logo=csharp&logoColor=white" alt="C#" />
+    <img src="https://img.shields.io/badge/BepInEx-1f1f1f?style=for-the-badge" alt="BepInEx" />
+    <img src="https://img.shields.io/badge/Bun-000000?style=for-the-badge&logo=bun&logoColor=white" alt="Bun" />
+    <img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
+    <img src="https://img.shields.io/badge/discord.js-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="discord.js" />
+    <img src="https://img.shields.io/badge/GPLv3-blue?style=for-the-badge" alt="License" />
+  </p>
+</div>
 
-- `DLL` - the Among Us plugin
-- `DiscordBot` - the Discord bot that controls voice mute state
+<br />
 
-## Installation
+> DiscordMute is an Among Us companion mod that automatically mutes and unmutes players in Discord during a game, keeping voice chat aligned with the round state. It also supports EHR Blackmailer behavior, so blackmailed players stay muted during meetings instead of speaking normally in Discord.
 
-### 1. Install BepInEx
+## 1. Overview
+
+I built DiscordMute because my friend group kept talking during live rounds and didn't want to manually mute and unmute themselves every game. It's made up of two pieces you install together: an Among Us plugin (`DLL`) and a Discord bot (`DiscordBot`).
+
+## 2. Installation
+
+### 2.1 Install BepInEx
 
 DiscordMute requires BepInEx.
 
@@ -25,7 +39,7 @@ If the Steam version does not start or cannot connect to Steam correctly, make s
 945360
 ```
 
-### 2. Install the DiscordMute plugin
+### 2.2 Install the DiscordMute plugin
 
 1. Open your Among Us folder.
 2. Go to `BepInEx/plugins`.
@@ -43,7 +57,7 @@ C:\Steam\steamapps\common\Among Us-Modded\BepInEx\DiscordMute
 
 Open `config.json` in that folder and configure it.
 
-### Plugin config
+#### Plugin config
 
 | Field                    | Meaning                                                                                                                     |
 |--------------------------|-----------------------------------------------------------------------------------------------------------------------------|
@@ -69,16 +83,14 @@ Example:
 }
 ```
 
-## Discord bot setup
+### 2.3 Discord bot setup
 
 1. Open the `DiscordBot` folder from the downloaded ZIP.
 2. Rename `config.example.json` to `config.json`.
 3. Create a Discord application and bot in the [Discord Developer Portal](https://discord.com/developers/applications).
 4. Fill in the bot config.
 
-The included `bot.exe` is expected to be relatively large. It is compiled with Bun and includes the runtime plus all bot dependencies, so users do not need to install Bun or Node.js just to run the release build.
-
-### Bot config
+#### Bot config
 
 | Field         | Meaning                                                                 |
 |---------------|-------------------------------------------------------------------------|
@@ -110,7 +122,7 @@ Example:
 }
 ```
 
-## First start
+### 2.4 First start
 
 Once both configs are set up:
 
@@ -119,7 +131,7 @@ Once both configs are set up:
 3. The Discord bot should start automatically through the `exe` path configured in the plugin.
 4. Join the configured Discord voice channel and play.
 
-## Linking Discord users to Among Us players
+## 3. Linking Discord users to Among Us players
 
 DiscordMute needs to know which Discord user belongs to which Among Us player name before it can mute the correct person.
 
@@ -149,7 +161,7 @@ Link phrases expire after 5 minutes. Once a link succeeds, the bot stores it in 
 - You normally do not need to edit either file by hand.
 - If a player changes their Among Us name, they should run `/link` again or an admin can use `/force-link`.
 
-## Optional mod integration
+## 4. Optional mod integration
 
 DiscordMute also integrates with supported host mods when they are installed:
 
@@ -157,3 +169,41 @@ DiscordMute also integrates with supported host mods when they are installed:
 - `Endless Host Roles` additionally enables Blackmailer support. When an EHR Blackmailer silences a player during a meeting, DiscordMute treats that player like a muted/dead player for the Discord voice sync and keeps them muted instead of allowing them to speak normally in the meeting.
 
 If EHR is not installed, DiscordMute still works normally; only EHR-specific Blackmailer support is disabled.
+
+## 5. Features
+
+- **Automatic mute sync**: players are muted and unmuted in Discord in step with the Among Us round state.
+- **EHR Blackmailer support**: when installed alongside Endless Host Roles, a blackmailed player stays muted during meetings instead of being able to speak.
+- **Host mod integration**: Town Of Host Enhanced and Endless Host Roles improve player-name resolution when present.
+- **Self-service linking**: players link their Discord account to their Among Us name in-game with a one-time phrase, no manual admin setup required.
+- **Log bridging**: optionally forward plugin/BepInEx logs to the bot console for easier debugging.
+
+<details>
+<summary><h2 style="display:inline;">6. Technical details</h2></summary>
+
+### Tech Stack
+
+| Component    | Stack                                                                                 |
+|--------------|---------------------------------------------------------------------------------------|
+| `DLL`        | C# (.NET 6) + [BepInEx](https://github.com/BepInEx/BepInEx) IL2CPP plugin             |
+| `DiscordBot` | [Bun](https://bun.sh/) + TypeScript + [discord.js](https://discord.js.org/) + Express |
+
+The bot is distributed as a compiled `bot.exe` (via `bun build --compile`), so end users don't need Bun or Node.js installed to run a release build.
+
+### Repository Structure
+
+```text
+AmongUs-DiscordMute/
+├── DLL/           # C# / BepInEx Among Us plugin
+├── DiscordBot/     # Bun + TypeScript Discord bot
+├── assets/         # Logos and images
+└── update.example.ps1
+```
+
+</details>
+
+---
+
+<div align="center">
+  <sub>Licensed under <a href="LICENSE">GPLv3</a>.</sub>
+</div>
