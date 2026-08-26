@@ -1,7 +1,8 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { logger, logModules } from "../Logging/logger";
+import { LinkModel } from "../Models/LinkModel";
+import { sequelize } from "../Models/sequelize";
+import { describePhrase, formatQuickChatCode, pickQuickChatPhrases } from "./QuickChatCatalog";
 
-const LINKING_PATH = "./linking.json";
 const PENDING_TTL_MS = 5 * 60 * 1000;
 
 const LINK_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -14,9 +15,16 @@ function generateLinkCode(): string {
     return code;
 }
 
+function pendingKey(guildId: string, discordId: string): string {
+    return `${guildId}:${discordId}`;
+}
+
 interface PendingLink {
+    guildId: string;
     discordId: string;
     phrase: string;
+    quickChatCode: string;
+    quickChatIds: [number, number];
     expiresAt: number;
     applicationId?: string;
     interactionToken?: string;
@@ -29,14 +37,21 @@ interface LinkEntry {
 }
 
 interface ConfirmedLink {
+    guildId: string;
     discordId: string;
     accountName: string;
     applicationId?: string;
     interactionToken?: string;
 }
 
-interface LinkingData {
-    links: LinkEntry[];
+interface PendingLinkCodes {
+    phrase: string;
+    quickChatCode: string;
+    quickChatLabels: [string, string];
+}
+
+function toEntry(row: LinkModel): LinkEntry {
+    return { discordId: row.discordId, accountName: row.accountName, linkedAt: row.linkedAt };
 }
 
 const HISTORY_WINDOW = 5;
@@ -44,18 +59,11 @@ const HISTORY_WINDOW = 5;
 class LinkingService {
     private readonly pending = new Map<string, PendingLink>();
     private readonly recentPhrases: string[] = [];
+    private readonly recentQuickChatCodes = new Set<string>();
 
-    private loadData(): LinkingData {
-        if (!existsSync(LINKING_PATH)) return { links: [] };
-        try {
-            return JSON.parse(readFileSync(LINKING_PATH, "utf-8")) as LinkingData;
-        } catch {
-            return { links: [] };
-        }
-    }
-
-    private saveData(data: LinkingData): void {
-        writeFileSync(LINKING_PATH, JSON.stringify(data, null, 2), "utf-8");
+    async init(): Promise<void> {
+        await sequelize.sync();
+        logger.success(logModules.Database, "Database is ready!");
     }
 
     private pickPhrase(): string {
@@ -68,33 +76,76 @@ class LinkingService {
         return code;
     }
 
-    createPendingLink(discordId: string): string {
-        const existing = this.pending.get(discordId);
-        if (existing && existing.expiresAt > Date.now()) return existing.phrase;
+    private pickQuickChat(): { code: string; ids: [number, number]; labels: [string, string] } {
+        const phrases = pickQuickChatPhrases(2, this.recentQuickChatCodes);
+        const ids = phrases.map((p) => p.id) as [number, number];
+        const code = formatQuickChatCode(ids);
 
-        const phrase = this.pickPhrase();
-        this.pending.set(discordId, { discordId, phrase, expiresAt: Date.now() + PENDING_TTL_MS });
-        logger.debug(logModules.Command, `Pending link created for ${discordId}: "${phrase}"`);
-        return phrase;
+        this.recentQuickChatCodes.add(code);
+        if (this.recentQuickChatCodes.size > HISTORY_WINDOW) {
+            const oldest = this.recentQuickChatCodes.values().next().value;
+            if (oldest !== undefined) this.recentQuickChatCodes.delete(oldest);
+        }
+
+        return { code, ids, labels: [describePhrase(ids[0]), describePhrase(ids[1])] };
     }
 
-    attachInteractionResponse(discordId: string, applicationId: string, interactionToken: string): void {
-        const existing = this.pending.get(discordId);
+    createPendingLink(guildId: string, discordId: string): PendingLinkCodes {
+        const key = pendingKey(guildId, discordId);
+        const existing = this.pending.get(key);
+        if (existing && existing.expiresAt > Date.now()) {
+            return {
+                phrase: existing.phrase,
+                quickChatCode: existing.quickChatCode,
+                quickChatLabels: [describePhrase(existing.quickChatIds[0]), describePhrase(existing.quickChatIds[1])],
+            };
+        }
+
+        const phrase = this.pickPhrase();
+        const quickChat = this.pickQuickChat();
+        this.pending.set(key, {
+            guildId,
+            discordId,
+            phrase,
+            quickChatCode: quickChat.code,
+            quickChatIds: quickChat.ids,
+            expiresAt: Date.now() + PENDING_TTL_MS,
+        });
+        logger.debug(
+            logModules.Command,
+            `Pending link created for ${discordId} in guild ${guildId}: "${phrase}" / quick chat "${quickChat.code}"`,
+        );
+        return { phrase, quickChatCode: quickChat.code, quickChatLabels: quickChat.labels };
+    }
+
+    attachInteractionResponse(
+        guildId: string,
+        discordId: string,
+        applicationId: string,
+        interactionToken: string,
+    ): void {
+        const key = pendingKey(guildId, discordId);
+        const existing = this.pending.get(key);
         if (!existing) return;
 
-        this.pending.set(discordId, {
-            ...existing,
-            applicationId,
-            interactionToken,
+        this.pending.set(key, { ...existing, applicationId, interactionToken });
+    }
+
+    private async upsertLink(guildId: string, discordId: string, accountName: string): Promise<void> {
+        await LinkModel.upsert({
+            guildId,
+            discordId,
+            accountName,
+            linkedAt: new Date().toISOString(),
         });
     }
 
-    confirmLink(phrase: string, accountName: string): ConfirmedLink | null {
+    async confirmLink(phrase: string, accountName: string): Promise<ConfirmedLink | null> {
         const now = Date.now();
         let matched: PendingLink | undefined;
 
         for (const entry of this.pending.values()) {
-            if (entry.phrase === phrase && entry.expiresAt > now) {
+            if ((entry.phrase === phrase || entry.quickChatCode === phrase) && entry.expiresAt > now) {
                 matched = entry;
                 break;
             }
@@ -102,21 +153,15 @@ class LinkingService {
 
         if (!matched) return null;
 
-        this.pending.delete(matched.discordId);
+        this.pending.delete(pendingKey(matched.guildId, matched.discordId));
+        await this.upsertLink(matched.guildId, matched.discordId, accountName);
+        logger.info(
+            logModules.Command,
+            `Linked Discord ${matched.discordId} -> Among Us "${accountName}" in guild ${matched.guildId}`,
+        );
 
-        const data = this.loadData();
-        const existing = data.links.findIndex((l) => l.discordId === matched.discordId);
-        const newEntry: LinkEntry = { discordId: matched.discordId, accountName, linkedAt: new Date().toISOString() };
-
-        if (existing >= 0) {
-            data.links[existing] = newEntry;
-        } else {
-            data.links.push(newEntry);
-        }
-
-        this.saveData(data);
-        logger.info(logModules.Command, `Linked Discord ${matched.discordId} → Among Us "${accountName}"`);
         return {
+            guildId: matched.guildId,
             discordId: matched.discordId,
             accountName,
             applicationId: matched.applicationId,
@@ -124,27 +169,30 @@ class LinkingService {
         };
     }
 
-    forceLink(discordId: string, accountName: string): void {
-        const data = this.loadData();
-        const existing = data.links.findIndex((l) => l.discordId === discordId);
-        const newEntry: LinkEntry = { discordId, accountName, linkedAt: new Date().toISOString() };
+    async forceLink(guildId: string, discordId: string, accountName: string): Promise<void> {
+        await this.upsertLink(guildId, discordId, accountName);
+        logger.info(
+            logModules.Command,
+            `Force Linked Discord ${discordId} -> Among Us "${accountName}" in guild ${guildId}`,
+        );
+    }
 
-        if (existing >= 0) {
-            data.links[existing] = newEntry;
-        } else {
-            data.links.push(newEntry);
+    async removeLink(guildId: string, discordId: string): Promise<boolean> {
+        const deleted = await LinkModel.destroy({ where: { guildId, discordId } });
+        if (deleted > 0) {
+            logger.info(logModules.Command, `Unlinked Discord ${discordId} in guild ${guildId}`);
         }
-
-        this.saveData(data);
-        logger.info(logModules.Command, `Force Linked Discord ${discordId} → Among Us "${accountName}"`);
+        return deleted > 0;
     }
 
-    getLink(discordId: string): LinkEntry | undefined {
-        return this.loadData().links.find((l) => l.discordId === discordId);
+    async getLink(guildId: string, discordId: string): Promise<LinkEntry | undefined> {
+        const row = await LinkModel.findOne({ where: { guildId, discordId } });
+        return row ? toEntry(row) : undefined;
     }
 
-    getAllLinks(): LinkEntry[] {
-        return this.loadData().links;
+    async getAllLinks(guildId: string): Promise<LinkEntry[]> {
+        const rows = await LinkModel.findAll({ where: { guildId } });
+        return rows.map(toEntry);
     }
 }
 

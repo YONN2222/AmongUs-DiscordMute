@@ -11,7 +11,7 @@ export class MuteService {
 
     async mutePlayers(playerNames: string[]): Promise<void> {
         const linkedDiscordIds = new Set<string>();
-        const allLinks = linkingService.getAllLinks();
+        const allLinks = await linkingService.getAllLinks(this.config.guildId);
 
         for (const name of playerNames) {
             const nameLower = name.toLowerCase();
@@ -45,7 +45,7 @@ export class MuteService {
 
     private async unmutePlayers(playerNames: string[]): Promise<void> {
         const linkedDiscordIds = new Set<string>();
-        const allLinks = linkingService.getAllLinks();
+        const allLinks = await linkingService.getAllLinks(this.config.guildId);
 
         for (const name of playerNames) {
             const nameLower = name.toLowerCase();

@@ -6,8 +6,5 @@
   "secret": "change-me",
   "botIp": "localhost",
   "botPort": 7264,
-  "plugin": {
-    "ip": "localhost",
-    "port": 7263
-  }
+  "databaseDialect": "sqlite"
 }

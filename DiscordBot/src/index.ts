@@ -1,10 +1,12 @@
 import { Client, Events, GatewayIntentBits, MessageFlags } from "discord.js";
 import { commandRegistry } from "./commands/Command";
+import { handleLinkSelfUnlinkButton, LINK_SELF_UNLINK_BUTTON_ID } from "./commands/Link/LinkCommand";
 import { config, DISCORD_GUILD_ID, DISCORD_TOKEN } from "./config";
 import { deployCommands } from "./deploy-commands";
 import { logger, logModules } from "./Logging/logger";
 import { ContainerBuilder } from "./Utils/ContainerBuilder";
 import { HttpServer } from "./Utils/HttpServer";
+import { linkingService } from "./Utils/LinkingService";
 import { MuteService } from "./Utils/MuteService";
 
 const client = new Client({
@@ -16,7 +18,9 @@ const muteService = new MuteService(client, config);
 client.once(Events.ClientReady, async (readyClient) => {
     logger.success(logModules.Discord, `Logged in as ${readyClient.user.tag}`);
 
-    const httpServer = new HttpServer(config, muteService);
+    await linkingService.init();
+
+    const httpServer = new HttpServer(config, muteService, client);
     await httpServer.start();
 
     if (DISCORD_GUILD_ID) {
@@ -31,6 +35,15 @@ client.once(Events.ClientReady, async (readyClient) => {
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
+    if (interaction.isButton() && interaction.customId === LINK_SELF_UNLINK_BUTTON_ID) {
+        try {
+            await handleLinkSelfUnlinkButton(interaction);
+        } catch (error) {
+            logger.error(logModules.Command, `Failed to handle unlink button for ${interaction.user.tag}`, error);
+        }
+        return;
+    }
+
     if (!interaction.isChatInputCommand()) return;
 
     const { commandName } = interaction;

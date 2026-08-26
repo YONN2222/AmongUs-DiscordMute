@@ -102,7 +102,7 @@ bun run typecheck
 - Keep compatibility with the supported Among Us / BepInEx environment.
 - Prefer graceful fallbacks when optional host mods such as TOHE or EHR are not installed.
 - Avoid silent exception handling. If something fails, log a useful warning or error.
-- Treat the plugin HTTP endpoints as security-sensitive and keep secret validation intact.
+- The plugin is stateless and doesn't run its own HTTP server anymore — it connects out to the bot over a WebSocket (`DLL/Core/PluginSocket.cs`). Treat that connection and the bot's HTTP endpoints as security-sensitive and keep secret validation intact.
 
 ### TypeScript bot
 

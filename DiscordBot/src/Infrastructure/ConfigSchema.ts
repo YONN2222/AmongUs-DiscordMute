@@ -1,12 +1,5 @@
 import { z } from "zod";
 
-export const ConfigPlugin = z.object({
-    ip: z.string().default("localhost"),
-    port: z.number().int().positive().default(7263),
-});
-
-export type ConfigPlugin = z.infer<typeof ConfigPlugin>;
-
 export const Config = z.object({
     token: z.string().min(1),
     clientId: z.string().min(1),
@@ -15,7 +8,7 @@ export const Config = z.object({
     secret: z.string().min(1),
     botIp: z.string().default("0.0.0.0"),
     botPort: z.number().int().positive().default(7264),
-    plugin: ConfigPlugin.default({ ip: "localhost", port: 7263 }),
+    databaseDialect: z.enum(["sqlite", "postgres"]).default("sqlite"),
 });
 
 export type Config = z.infer<typeof Config>;
