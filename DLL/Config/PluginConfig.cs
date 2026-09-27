@@ -6,13 +6,6 @@ internal sealed class PluginConfig
 {
     [JsonPropertyName("ip")]
     public string Ip { get; set; } = "localhost";
-
-    [JsonPropertyName("pluginIp")]
-    public string PluginIp { get; set; } = "localhost";
-
-    [JsonPropertyName("pluginPort")]
-    public int PluginPort { get; set; } = 7263;
-
     [JsonPropertyName("botPort")]
     public int BotPort { get; set; } = 7264;
 

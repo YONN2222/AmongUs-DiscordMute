@@ -1,11 +1,12 @@
 import { timingSafeEqual } from "node:crypto";
-import { MessageFlags } from "discord.js";
+import { type Client, MessageFlags, Routes } from "discord.js";
 import express, { type Express, type Request, type Response } from "express";
 import type { Config } from "../Infrastructure/ConfigSchema";
 import { logger, logModules } from "../Logging/logger";
 import { ContainerBuilder } from "./ContainerBuilder";
 import { linkingService } from "./LinkingService";
 import type { MuteService } from "./MuteService";
+import { pluginSocket } from "./PluginSocket";
 
 type GameEvent = "lobby" | "game-start" | "meeting-start" | "meeting-end";
 
@@ -22,6 +23,7 @@ export class HttpServer {
     constructor(
         private readonly config: Config,
         private readonly muteService: MuteService,
+        private readonly client: Client,
     ) {
         this.app = express();
         this.app.disable("x-powered-by");
@@ -107,7 +109,7 @@ export class HttpServer {
             });
         }
 
-        this.app.post("/link-chat", (req: Request, res: Response) => {
+        this.app.post("/link-chat", async (req: Request, res: Response) => {
             const body = req.body as { secret?: unknown; phrase?: unknown; accountName?: unknown };
 
             if (!this.validateSecret(body.secret)) {
@@ -121,11 +123,11 @@ export class HttpServer {
                 return;
             }
 
-            const confirmedLink = linkingService.confirmLink(body.phrase, body.accountName);
+            const confirmedLink = await linkingService.confirmLink(body.phrase, body.accountName);
             if (confirmedLink) {
                 logger.info(
                     logModules.WebServer,
-                    `Link confirmed: "${body.accountName}" → Discord ${confirmedLink.discordId}`,
+                    `Link confirmed: "${body.accountName}" -> Discord ${confirmedLink.discordId}`,
                 );
                 void this.updateOriginalLinkReply(confirmedLink);
                 res.status(200).json({ status: "linked", discordId: confirmedLink.discordId });
@@ -178,6 +180,7 @@ export class HttpServer {
     async start(): Promise<void> {
         return new Promise((resolve, reject) => {
             const server = this.app.listen(this.config.botPort, this.config.botIp, () => {
+                pluginSocket.attach(server, this.config);
                 logger.success(
                     logModules.WebServer,
                     `HTTP server running on ${this.config.botIp}:${this.config.botPort}`,
@@ -215,26 +218,16 @@ export class HttpServer {
             .success();
 
         try {
-            const response = await fetch(
-                `https://discord.com/api/v10/webhooks/${link.applicationId}/${link.interactionToken}/messages/@original`,
+            await this.client.rest.patch(
+                Routes.webhookMessage(link.applicationId, link.interactionToken, "@original"),
                 {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
+                    body: {
                         content: " ",
                         components: [container.toJSON()],
                         flags: MessageFlags.IsComponentsV2,
-                    }),
+                    },
                 },
             );
-
-            if (!response.ok) {
-                const body = await response.text();
-                logger.warn(
-                    logModules.WebServer,
-                    `Failed to update original /link reply for Discord ${link.discordId}: HTTP ${response.status} ${body}`,
-                );
-            }
         } catch (error) {
             logger.error(
                 logModules.WebServer,

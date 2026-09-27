@@ -6,3 +6,4 @@ config.json
 .idea/
 *.bun-build
 linking.json
+linking.sqlite

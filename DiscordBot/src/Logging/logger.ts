@@ -21,6 +21,7 @@ export const logTheme = {
     amongUs: "#602027",
     timestamp: "#f7f7f8",
     divider: "#303034",
+    database: "#22d3ee",
     embeds: {
         blue: "#4f5cc8",
         red: "#e84d50",
@@ -36,6 +37,7 @@ export const logModules = {
     WebServer: { name: "web-server", tint: logTheme.webServer } as LogModule,
     Mute: { name: "mute", tint: logTheme.mute } as LogModule,
     AmongUs: { name: "among-us", tint: logTheme.amongUs } as LogModule,
+    Database: { name: "database", tint: logTheme.database } as LogModule,
 };
 
 const levelLabels: Record<LogLevel, string> = {

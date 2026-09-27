@@ -23,6 +23,7 @@
     "moduleResolution": "bundler",
     "ignoreDeprecations": "6.0",
     "resolveJsonModule": true,
+    "types": ["bun-types"],
     "declaration": true,
     "sourceMap": false
   },

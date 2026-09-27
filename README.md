@@ -62,9 +62,7 @@ Open `config.json` in that folder and configure it.
 | Field                    | Meaning                                                                                                                     |
 |--------------------------|-----------------------------------------------------------------------------------------------------------------------------|
 | `ip`                     | IP address of the machine running the Discord bot. Use `localhost` when the bot runs on the same PC.                        |
-| `pluginIp`               | IP address on which the plugin listens locally. Usually keep `localhost`.                                                   |
-| `pluginPort`             | Port used by the Among Us plugin HTTP server. Default: `7263`.                                                              |
-| `botPort`                | Port used by the Discord bot HTTP server. Default: `7264`.                                                                  |
+| `botPort`                | Port used by the Discord bot. Default: `7264`.                                                                   |
 | `secret`                 | Shared secret used by the plugin and the bot. Set the same value in both configs.                                           |
 | `exe`                    | Full path to the bot start file. This should point to `start.bat` inside the `DiscordBot` folder from the downloaded ZIP.   |
 | `bridgeLogsToBotConsole` | When `true`, forwards all plugin/BepInEx logs to the bot console. Own DiscordMute warnings and errors are always forwarded. |
@@ -74,8 +72,6 @@ Example:
 ```json
 {
   "ip": "localhost",
-  "pluginIp": "localhost",
-  "pluginPort": 7263,
   "botPort": 7264,
   "secret": "replace-this-with-your-own-secret",
   "exe": "C:\\Path\\To\\DiscordBot\\start.bat",
@@ -92,17 +88,16 @@ Example:
 
 #### Bot config
 
-| Field         | Meaning                                                                 |
-|---------------|-------------------------------------------------------------------------|
-| `token`       | Bot token from the Discord Developer Portal.                            |
-| `clientId`    | Application / client ID of your Discord bot.                            |
-| `guildId`     | ID of the Discord server where the bot should be used.                  |
-| `channelIds`  | Voice channel IDs used for Among Us sessions. Add one or more channels. |
-| `secret`      | Must be exactly the same shared secret as in the plugin config.         |
-| `botIp`       | IP address on which the bot listens. Usually `localhost`.               |
-| `botPort`     | Port used by the Discord bot HTTP server. Default: `7264`.              |
-| `plugin.ip`   | IP address of the Among Us plugin. Usually `localhost`.                 |
-| `plugin.port` | Port used by the Among Us plugin HTTP server. Default: `7263`.          |
+| Field             | Meaning                                                                 |
+|-------------------|-------------------------------------------------------------------------|
+| `token`           | Bot token from the Discord Developer Portal.                            |
+| `clientId`        | Application / client ID of your Discord bot.                            |
+| `guildId`         | ID of the Discord server where the bot should be used.                  |
+| `channelIds`      | Voice channel IDs used for Among Us sessions. Add one or more channels. |
+| `secret`          | Must be exactly the same shared secret as in the plugin config.         |
+| `botIp`           | IP address on which the bot listens. Usually `localhost`.               |
+| `botPort`         | Port used by the Discord bot. Default: `7264`.                          |
+| `databaseDialect` | Storage backend for links, `sqlite` (default, self-host).               |
 
 Example:
 
@@ -115,10 +110,7 @@ Example:
   "secret": "replace-this-with-your-own-secret",
   "botIp": "localhost",
   "botPort": 7264,
-  "plugin": {
-    "ip": "localhost",
-    "port": 7263
-  }
+  "databaseDialect": "sqlite"
 }
 ```
 
@@ -175,7 +167,7 @@ If EHR is not installed, DiscordMute still works normally; only EHR-specific Bla
 - **Automatic mute sync**: players are muted and unmuted in Discord in step with the Among Us round state.
 - **EHR Blackmailer support**: when installed alongside Endless Host Roles, a blackmailed player stays muted during meetings instead of being able to speak.
 - **Host mod integration**: Town Of Host Enhanced and Endless Host Roles improve player-name resolution when present.
-- **Self-service linking**: players link their Discord account to their Among Us name in-game with a one-time phrase, no manual admin setup required.
+- **Self-service linking**: players link their Discord account to their Among Us name in-game with a one-time Free Chat phrase or, if Free Chat isn't available, a pair of Quick Chat phrases — no manual admin setup required.
 - **Log bridging**: optionally forward plugin/BepInEx logs to the bot console for easier debugging.
 
 <details>
@@ -194,7 +186,7 @@ The bot is distributed as a compiled `bot.exe` (via `bun build --compile`), so e
 
 ```text
 AmongUs-DiscordMute/
-├── DLL/           # C# / BepInEx Among Us plugin
+├── DLL/            # C# / BepInEx Among Us plugin
 ├── DiscordBot/     # Bun + TypeScript Discord bot
 ├── assets/         # Logos and images
 └── update.example.ps1

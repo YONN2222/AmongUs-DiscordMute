@@ -2,8 +2,7 @@
 // Do not edit manually.
 
 import type { Command } from "./Command";
-import { ForceLinkCommand } from "./Link/ForceLinkCommand";
 import { LinkCommand } from "./Link/LinkCommand";
 import { TestConnectionCommand } from "./TestConnection/TestConnectionCommand";
 
-export const commandConstructors: Array<new () => Command> = [ForceLinkCommand, LinkCommand, TestConnectionCommand];
+export const commandConstructors: Array<new () => Command> = [LinkCommand, TestConnectionCommand];

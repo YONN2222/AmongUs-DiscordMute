@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.IO;
 using System.Net.Http;
 using System.Text.Json;
@@ -27,7 +26,7 @@ public class DiscordMutePlugin : BasePlugin
     private Harmony _harmony;
 
     public override void Load()
-    {
+{
         PluginLog = Log;
         try
         {
@@ -39,11 +38,7 @@ public class DiscordMutePlugin : BasePlugin
             if (!IsEhrInstalled)
                 PluginLog.LogWarning("EHR not detected. Blackmailer support is disabled.");
 
-            System.Threading.Tasks.Task.Run(() =>
-            {
-                try { HttpServer.Start(); }
-                catch (Exception ex) { PluginLog.LogError($"Listener task error: {ex.Message}"); }
-            });
+            PluginSocket.Start();
 
             BepInEx.Logging.Logger.Listeners.Add(new BotLogListener());
 
@@ -56,6 +51,8 @@ public class DiscordMutePlugin : BasePlugin
             _harmony.PatchAll(typeof(MeetingEndPatch));
             _harmony.PatchAll(typeof(ChatCommandPatch));
             _harmony.PatchAll(typeof(RemoteChatInterceptPatch));
+            _harmony.PatchAll(typeof(QuickChatLinkSendPatch));
+            _harmony.PatchAll(typeof(QuickChatLinkReceivePatch));
 
             PluginLog.LogInfo($"{PluginInfo.Name} v{PluginInfo.Version} loaded.");
         }
@@ -64,7 +61,6 @@ public class DiscordMutePlugin : BasePlugin
             PluginLog.LogError($"Error loading plugin: {ex.Message}");
         }
     }
-
     private void LoadConfig()
     {
         var dir = Path.Combine(Paths.BepInExRootPath, "DiscordMute");
@@ -89,24 +85,5 @@ public class DiscordMutePlugin : BasePlugin
             PluginLog.LogWarning($"Failed to read plugin config, using defaults: {ex.Message}");
             Cfg = new PluginConfig();
         }
-    }
-
-    internal static void SavePluginLink(string accountName, string discordId)
-    {
-        var path = Path.Combine(Paths.BepInExRootPath, "DiscordMute", "linking.json");
-        var links = new List<Dictionary<string, string>>();
-        if (File.Exists(path))
-            try
-            {
-                links.AddRange(JsonSerializer.Deserialize<LinkingFile>(File.ReadAllText(path)).Links);
-            }
-            catch (Exception ex)
-            {
-                PluginLog.LogWarning($"Failed to read linking file, rebuilding it: {ex.Message}");
-            }
-
-        links.RemoveAll(l => l["accountName"] == accountName);
-        links.Add(new Dictionary<string, string> { ["accountName"] = accountName, ["discordId"] = discordId });
-        File.WriteAllText(path, JsonSerializer.Serialize(new { links }, new JsonSerializerOptions { WriteIndented = true }));
     }
 }
