@@ -68,7 +68,8 @@ export type GatewayMessage =
           quickChatCode: string;
           discordId: string;
       }
-    | ({ type: "notice" } & GatewayNotice);
+    | ({ type: "notice" } & GatewayNotice)
+    | { type: "link-result"; status: "linked" | "not-found"; accountName: string };
 
 export function parsePluginMessage(raw: string): PluginMessage | null {
     let json: unknown;

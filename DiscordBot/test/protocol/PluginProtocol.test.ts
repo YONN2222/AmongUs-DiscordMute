@@ -93,6 +93,8 @@ describe("serialize and constants", () => {
             message: "m",
         } as const;
         expect(JSON.parse(serialize(notice))).toEqual(notice);
+        const linkResult = { type: "link-result", status: "not-found", accountName: "Crew" } as const;
+        expect(JSON.parse(serialize(linkResult))).toEqual(linkResult);
     });
 
     it("exposes versions and close codes", () => {

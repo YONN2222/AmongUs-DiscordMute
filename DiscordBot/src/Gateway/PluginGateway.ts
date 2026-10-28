@@ -251,7 +251,7 @@ export class PluginGateway {
                 await this.onGameEvent(conn, session, message);
                 return;
             case "link-chat":
-                await this.onLinkChat(message);
+                await this.onLinkChat(conn, message);
                 return;
             case "plugin-log":
                 this.onPluginLog(message);
@@ -280,8 +280,13 @@ export class PluginGateway {
         }
     }
 
-    private async onLinkChat(message: LinkChatMessage): Promise<void> {
+    private async onLinkChat(conn: Connection, message: LinkChatMessage): Promise<void> {
         const confirmed = await this.deps.linking.confirmLink(message.code, message.accountName);
+        this.send(conn, {
+            type: "link-result",
+            status: confirmed ? "linked" : "not-found",
+            accountName: message.accountName,
+        });
         if (!confirmed) {
             logger.warn(logModules.WebServer, `No pending link found for code "${message.code}"`);
             return;

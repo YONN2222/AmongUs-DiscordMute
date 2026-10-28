@@ -292,6 +292,21 @@ describe("PluginGateway", () => {
         expect(sentOfKind("link-confirmed")).toHaveLength(0);
     });
 
+    it("answers link-chat with link-result linked", async () => {
+        const codes = await linking.createPendingLink(GUILD, "user-1");
+        const ws = await authenticate();
+        const result = nextMessage(ws);
+        ws.send(JSON.stringify({ type: "link-chat", code: codes.phrase, accountName: "Crew" }));
+        expect(await result).toEqual({ type: "link-result", status: "linked", accountName: "Crew" });
+    });
+
+    it("answers an unknown link code with link-result not-found", async () => {
+        const ws = await authenticate();
+        const result = nextMessage(ws);
+        ws.send(JSON.stringify({ type: "link-chat", code: "link-ZZZZ", accountName: "Crew" }));
+        expect(await result).toEqual({ type: "link-result", status: "not-found", accountName: "Crew" });
+    });
+
     it("plugin-log goes to the AmongUs logger with the old level mapping", async () => {
         const ws = await authenticate();
         ws.send(JSON.stringify({ type: "plugin-log", level: "warning", source: "Mod", message: "careful" }));
