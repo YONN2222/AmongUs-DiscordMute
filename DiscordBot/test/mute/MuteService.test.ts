@@ -387,6 +387,18 @@ describe("MuteService", () => {
             expect(await ledgerIds()).toEqual(["u1"]);
         });
 
+        it("checks the ledger entry of the member only", async () => {
+            await db.muteLedger.add(GUILD, "u1");
+            voice.channels.set("c1", ["u1"]);
+            voice.muted.add("u1");
+            const listByGuild = vi.spyOn(db.muteLedger, "listByGuild");
+
+            await createService().releaseIfIdle(GUILD, "u1");
+
+            expect(listByGuild).not.toHaveBeenCalled();
+            expect(voice.muted.size).toBe(0);
+        });
+
         it("leaves members outside the ledger alone", async () => {
             voice.channels.set("c1", ["u2"]);
             voice.muted.add("u2");

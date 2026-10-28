@@ -37,6 +37,13 @@ describe.each(backends)("MuteLedgerRepository (%s)", (backend) => {
             expect((await db.muteLedger.listByGuild(g1)).map((e) => e.discordId)).toEqual(["u2"]);
         });
 
+        it("has reports a guild-scoped entry", async () => {
+            await db.muteLedger.add(g1, "u1");
+            expect(await db.muteLedger.has(g1, "u1")).toBe(true);
+            expect(await db.muteLedger.has(g2, "u1")).toBe(false);
+            expect(await db.muteLedger.has(g1, "u2")).toBe(false);
+        });
+
         it("listByGuilds returns entries of all requested guilds", async () => {
             await db.muteLedger.add(g1, "u1");
             await db.muteLedger.add(g2, "u2");

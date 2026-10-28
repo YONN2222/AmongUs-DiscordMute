@@ -11,6 +11,7 @@ export interface MuteLedgerEntry {
 export interface MuteLedgerRepository {
     add(guildId: string, discordId: string): Promise<void>;
     remove(guildId: string, discordId: string): Promise<void>;
+    has(guildId: string, discordId: string): Promise<boolean>;
     listByGuild(guildId: string): Promise<MuteLedgerEntry[]>;
     listByGuilds(guildIds: string[]): Promise<MuteLedgerEntry[]>;
 }
@@ -26,6 +27,9 @@ export function createMuteLedgerRepository(model: typeof MuteLedgerModel): MuteL
         },
         async remove(guildId, discordId) {
             await model.destroy({ where: { guildId, discordId } });
+        },
+        async has(guildId, discordId) {
+            return (await model.count({ where: { guildId, discordId } })) > 0;
         },
         async listByGuild(guildId) {
             const rows = await model.findAll({ where: { guildId } });

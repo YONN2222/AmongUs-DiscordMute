@@ -80,8 +80,7 @@ export class MuteService {
         return this.enqueue(guildId, async () => {
             if (this.activeSessions.has(guildId)) return;
             await this.guarded(guildId, discordId, async () => {
-                const entries = await this.deps.ledger.listByGuild(guildId);
-                if (!entries.some((entry) => entry.discordId === discordId)) return;
+                if (!(await this.deps.ledger.has(guildId, discordId))) return;
                 const member = await this.deps.voice.findVoiceMember(guildId, discordId);
                 if (member) await this.unmute(guildId, member);
             });
