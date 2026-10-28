@@ -1,0 +1,22 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "discordmute-website",
+  "main": ".output/server/index.mjs",
+  "compatibility_date": "2026-10-23",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": { "directory": ".output/public", "binding": "ASSETS" },
+  "secrets": { "required": ["HOSTED_TELEMETRY_TOKEN"] },
+  "observability": { "enabled": true },
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [
+    { "pattern": "mute.yonn2222.com", "custom_domain": true },
+    { "pattern": "amongus-mute.yonn2222.com", "custom_domain": true }
+  ],
+  "d1_databases": [
+    { "binding": "DB", "database_name": "discordmute-website", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }
+  ],
+  "ratelimits": [
+    { "name": "INGEST_LIMITER", "namespace_id": "4101", "simple": { "limit": 20, "period": 60 } }
+  ]
+}
