@@ -1,0 +1,362 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Database } from "../../src/Data/database";
+import { logger } from "../../src/Logging/logger";
+import { MuteService, type VoiceAdapter, type VoiceMember } from "../../src/Mute/MuteService";
+import type { VoiceTarget } from "../../src/Mute/VoiceTarget";
+import type { GameEventName } from "../../src/Protocol/PluginProtocol";
+import type { ClusterRequest } from "../../src/Routing/messages";
+import { createTestDatabase } from "../helpers/testDatabase";
+
+type GameEventRequest = Extract<ClusterRequest, { kind: "game-event" }>;
+
+const GUILD = "g1";
+
+class FakeVoice implements VoiceAdapter {
+    readonly channels = new Map<string, string[]>();
+    readonly muted = new Set<string>();
+    readonly failing = new Set<string>();
+    readonly failingChannels = new Set<string>();
+    readonly calls: Array<{ discordId: string; mute: boolean }> = [];
+    delay: () => number = () => 0;
+    beforeSetMute: (discordId: string, mute: boolean) => Promise<void> = async () => {};
+    afterSetMute: (discordId: string, mute: boolean) => void = () => {};
+
+    private async wait(): Promise<void> {
+        const ms = this.delay();
+        if (ms > 0) await new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    private member(discordId: string): VoiceMember {
+        return { discordId, serverMuted: this.muted.has(discordId) };
+    }
+
+    async membersInChannel(_guildId: string, channelId: string): Promise<VoiceMember[]> {
+        await this.wait();
+        if (this.failingChannels.has(channelId)) throw new Error("Unknown Channel");
+        return (this.channels.get(channelId) ?? []).map((id) => this.member(id));
+    }
+
+    async findVoiceMember(_guildId: string, discordId: string): Promise<VoiceMember | null> {
+        await this.wait();
+        const inVoice = [...this.channels.values()].some((members) => members.includes(discordId));
+        return inVoice ? this.member(discordId) : null;
+    }
+
+    async setServerMute(_guildId: string, discordId: string, mute: boolean): Promise<void> {
+        await this.wait();
+        await this.beforeSetMute(discordId, mute);
+        this.calls.push({ discordId, mute });
+        if (this.failing.has(discordId)) throw new Error("Missing Permissions");
+        if (mute) this.muted.add(discordId);
+        else this.muted.delete(discordId);
+        this.afterSetMute(discordId, mute);
+    }
+
+    leave(discordId: string): void {
+        for (const [channelId, members] of this.channels) {
+            this.channels.set(
+                channelId,
+                members.filter((id) => id !== discordId),
+            );
+        }
+    }
+}
+
+function gameEvent(event: GameEventName, players: string[], deadPlayers: string[] = []): GameEventRequest {
+    return { kind: "game-event", guildId: GUILD, sessionId: "s1", hostAccountName: "Red", event, players, deadPlayers };
+}
+
+describe("MuteService", () => {
+    let db: Database;
+    let voice: FakeVoice;
+    let target: VoiceTarget;
+
+    function createService(): MuteService {
+        return new MuteService({
+            voice,
+            links: db.links,
+            ledger: db.muteLedger,
+            resolveTarget: async () => target,
+        });
+    }
+
+    async function ledgerIds(): Promise<string[]> {
+        return (await db.muteLedger.listByGuild(GUILD)).map((e) => e.discordId).sort();
+    }
+
+    beforeEach(async () => {
+        for (const level of ["info", "warn", "error", "debug", "success"] as const) {
+            vi.spyOn(logger, level).mockImplementation(() => {});
+        }
+        db = await createTestDatabase();
+        voice = new FakeVoice();
+        target = { channelIds: ["c1"] };
+        await db.links.upsert(GUILD, "u1", "Red");
+        await db.links.upsert(GUILD, "u2", "Blue");
+        await db.links.upsert(GUILD, "u3", "Green");
+    });
+
+    afterEach(async () => {
+        await db.close();
+        vi.restoreAllMocks();
+    });
+
+    it("mutes only members in the target channel", async () => {
+        voice.channels.set("c1", ["u1", "u2"]);
+        voice.channels.set("c2", ["u3"]);
+        const reply = await createService().handleGameEvent(gameEvent("game-start", ["Red", "Blue", "Green"]));
+
+        expect(reply).toEqual({ ok: true });
+        expect([...voice.muted].sort()).toEqual(["u1", "u2"]);
+        expect(await ledgerIds()).toEqual(["u1", "u2"]);
+    });
+
+    it("spans every target channel", async () => {
+        target = { channelIds: ["c1", "c2"] };
+        voice.channels.set("c1", ["u1"]);
+        voice.channels.set("c2", ["u3"]);
+        await createService().handleGameEvent(gameEvent("game-start", ["Red", "Green"]));
+        expect([...voice.muted].sort()).toEqual(["u1", "u3"]);
+    });
+
+    it("does not unmute a member muted by a moderator", async () => {
+        voice.channels.set("c1", ["u1", "u2"]);
+        voice.muted.add("u2");
+        const service = createService();
+
+        await service.handleGameEvent(gameEvent("game-start", ["Red", "Blue"]));
+        expect(await ledgerIds()).toEqual(["u1"]);
+
+        await service.handleGameEvent(gameEvent("meeting-start", ["Red", "Blue"]));
+        expect([...voice.muted]).toEqual(["u2"]);
+        expect(voice.calls.filter((c) => c.discordId === "u2")).toEqual([]);
+
+        await service.endSession(GUILD, "s1");
+        expect([...voice.muted]).toEqual(["u2"]);
+    });
+
+    it("returns the target notice and changes nothing", async () => {
+        voice.channels.set("c1", ["u1"]);
+        target = { notice: { code: "host-not-in-voice", message: "Join a voice channel" } };
+        const reply = await createService().handleGameEvent(gameEvent("game-start", ["Red"]));
+
+        expect(reply).toEqual({ ok: true, notice: target.notice });
+        expect(voice.calls).toEqual([]);
+        expect(await ledgerIds()).toEqual([]);
+    });
+
+    it("ledger survives restart and recover unmutes", async () => {
+        voice.channels.set("c1", ["u1", "u2"]);
+        await createService().handleGameEvent(gameEvent("game-start", ["Red", "Blue"]));
+        expect(await ledgerIds()).toEqual(["u1", "u2"]);
+
+        voice.leave("u2");
+        const restarted = createService();
+        await restarted.recover([GUILD]);
+
+        expect([...voice.muted]).toEqual(["u2"]);
+        expect(await ledgerIds()).toEqual(["u2"]);
+    });
+
+    it("events apply in order under burst", async () => {
+        voice.channels.set("c1", ["u1", "u2"]);
+        voice.delay = () => Math.floor(Math.random() * 4);
+        const service = createService();
+
+        const events = Array.from({ length: 20 }, (_, i) =>
+            gameEvent(i % 2 === 0 ? "game-start" : "meeting-start", ["Red"], ["Blue"]),
+        );
+        const replies = await Promise.all(events.map((e) => service.handleGameEvent(e)));
+
+        expect(replies.every((r) => r.ok)).toBe(true);
+        expect([...voice.muted]).toEqual(["u2"]);
+        expect(await ledgerIds()).toEqual(["u2"]);
+        const u1Calls = voice.calls.filter((c) => c.discordId === "u1").map((c) => c.mute);
+        expect(u1Calls).toEqual(Array.from({ length: 20 }, (_, i) => i % 2 === 0));
+    });
+
+    it("endSession unmutes ledger members in voice", async () => {
+        voice.channels.set("c1", ["u1", "u2"]);
+        voice.channels.set("c2", ["u3"]);
+        const service = createService();
+        await service.handleGameEvent(gameEvent("game-start", ["Red", "Blue"]));
+        voice.leave("u2");
+        voice.leave("u1");
+        voice.channels.set("c2", ["u1", "u3"]);
+
+        await service.endSession(GUILD, "s1");
+
+        expect([...voice.muted]).toEqual(["u2"]);
+        expect(await ledgerIds()).toEqual(["u2"]);
+        expect(service.hasActiveSession(GUILD)).toBe(false);
+    });
+
+    it("lobby unmutes every ledger member in voice", async () => {
+        voice.channels.set("c1", ["u1", "u2"]);
+        const service = createService();
+        await service.handleGameEvent(gameEvent("game-start", ["Red", "Blue"]));
+
+        await service.handleGameEvent(gameEvent("lobby", []));
+
+        expect(voice.muted.size).toBe(0);
+        expect(await ledgerIds()).toEqual([]);
+    });
+
+    it("drops a ledger entry whose member was already unmuted elsewhere", async () => {
+        voice.channels.set("c1", ["u1"]);
+        const service = createService();
+        await service.handleGameEvent(gameEvent("game-start", ["Red"]));
+        voice.muted.delete("u1");
+        voice.calls.length = 0;
+
+        await service.handleGameEvent(gameEvent("meeting-start", ["Red"]));
+
+        expect(voice.calls).toEqual([]);
+        expect(await ledgerIds()).toEqual([]);
+    });
+
+    it("one failing member does not stop the others", async () => {
+        voice.channels.set("c1", ["u1", "u2", "u3"]);
+        voice.failing.add("u2");
+        const service = createService();
+
+        const reply = await service.handleGameEvent(gameEvent("game-start", ["Red", "Blue", "Green"]));
+
+        expect(reply).toEqual({ ok: true });
+        expect([...voice.muted].sort()).toEqual(["u1", "u3"]);
+        expect(await ledgerIds()).toEqual(["u1", "u3"]);
+        expect(logger.error).toHaveBeenCalledWith(
+            expect.anything(),
+            expect.stringMatching(new RegExp(`${GUILD}.*u2`)),
+            expect.any(Error),
+        );
+
+        voice.failing.clear();
+        voice.failing.add("u1");
+        await service.endSession(GUILD, "s1");
+        expect([...voice.muted]).toEqual(["u1"]);
+        expect(await ledgerIds()).toEqual(["u1"]);
+    });
+
+    it("tracks the active session", async () => {
+        voice.channels.set("c1", ["u1"]);
+        const service = createService();
+        expect(service.hasActiveSession(GUILD)).toBe(false);
+
+        await service.handleGameEvent(gameEvent("game-start", ["Red"]));
+        expect(service.hasActiveSession(GUILD)).toBe(true);
+        expect(service.hasActiveSession("other")).toBe(false);
+
+        await service.handleGameEvent(gameEvent("lobby", ["Red"]));
+        expect(service.hasActiveSession(GUILD)).toBe(false);
+
+        await service.handleGameEvent(gameEvent("meeting-start", ["Red"]));
+        expect(service.hasActiveSession(GUILD)).toBe(true);
+        await service.endSession(GUILD, "s1");
+        expect(service.hasActiveSession(GUILD)).toBe(false);
+    });
+
+    it("ignores endSession of a replaced session", async () => {
+        voice.channels.set("c1", ["u1"]);
+        const service = createService();
+        await service.handleGameEvent({ ...gameEvent("game-start", ["Red"]), sessionId: "s2" });
+
+        await service.endSession(GUILD, "s1");
+
+        expect(service.hasActiveSession(GUILD)).toBe(true);
+        expect([...voice.muted]).toEqual(["u1"]);
+    });
+
+    it("returns an error reply and logs when the database is closed", async () => {
+        voice.channels.set("c1", ["u1"]);
+        const service = createService();
+        await db.close();
+
+        const reply = await service.handleGameEvent(gameEvent("game-start", ["Red"]));
+
+        expect(reply).toEqual({ ok: false, error: "mute update failed" });
+        expect(logger.error).toHaveBeenCalledWith(expect.anything(), expect.stringContaining(GUILD), expect.anything());
+        expect(voice.calls).toEqual([]);
+        db = await createTestDatabase();
+    });
+
+    it("writes the ledger row before muting", async () => {
+        voice.channels.set("c1", ["u1"]);
+        const seen: string[][] = [];
+        voice.beforeSetMute = async (_id, mute) => {
+            if (mute) seen.push(await ledgerIds());
+        };
+
+        await createService().handleGameEvent(gameEvent("game-start", ["Red"]));
+
+        expect(seen).toEqual([["u1"]]);
+    });
+
+    it("a failing mute leaves no stale ledger row", async () => {
+        voice.channels.set("c1", ["u1"]);
+        voice.failing.add("u1");
+
+        await createService().handleGameEvent(gameEvent("game-start", ["Red"]));
+
+        expect(voice.muted.size).toBe(0);
+        expect(await ledgerIds()).toEqual([]);
+    });
+
+    it("recover reads the ledger after earlier queued work", async () => {
+        voice.channels.set("c1", ["u1"]);
+        const service = createService();
+        await service.handleGameEvent(gameEvent("game-start", ["Red"]));
+        voice.afterSetMute = (id, mute) => {
+            if (!mute) voice.muted.add(id);
+        };
+
+        await Promise.all([service.handleGameEvent(gameEvent("lobby", [])), service.recover([GUILD])]);
+
+        expect([...voice.muted]).toEqual(["u1"]);
+        expect(voice.calls.filter((c) => !c.mute)).toHaveLength(1);
+        expect(await ledgerIds()).toEqual([]);
+    });
+
+    it("lobby and recover leave moderator mutes alone", async () => {
+        voice.channels.set("c1", ["u1", "u2"]);
+        voice.muted.add("u2");
+        const service = createService();
+        await service.handleGameEvent(gameEvent("game-start", ["Red", "Blue"]));
+
+        await service.handleGameEvent(gameEvent("lobby", ["Red", "Blue"]));
+        expect([...voice.muted]).toEqual(["u2"]);
+
+        await service.handleGameEvent(gameEvent("game-start", ["Red", "Blue"]));
+        await createService().recover([GUILD]);
+        expect([...voice.muted]).toEqual(["u2"]);
+        expect(voice.calls.filter((c) => c.discordId === "u2")).toEqual([]);
+    });
+
+    it("a newer session takes over and a late endSession of the old session is ignored", async () => {
+        voice.channels.set("c1", ["u1"]);
+        const service = createService();
+        await service.handleGameEvent(gameEvent("game-start", ["Red"]));
+        await service.handleGameEvent({ ...gameEvent("meeting-end", ["Red"]), sessionId: "s2" });
+
+        await service.endSession(GUILD, "s1");
+        expect(service.hasActiveSession(GUILD)).toBe(true);
+        expect([...voice.muted]).toEqual(["u1"]);
+        expect(voice.calls.filter((c) => !c.mute)).toEqual([]);
+
+        await service.endSession(GUILD, "s2");
+        expect(service.hasActiveSession(GUILD)).toBe(false);
+        expect(voice.muted.size).toBe(0);
+    });
+
+    it("a failing channel does not stop the other channels", async () => {
+        target = { channelIds: ["bad", "c1"] };
+        voice.failingChannels.add("bad");
+        voice.channels.set("c1", ["u1"]);
+
+        const reply = await createService().handleGameEvent(gameEvent("game-start", ["Red"]));
+
+        expect(reply).toEqual({ ok: true });
+        expect([...voice.muted]).toEqual(["u1"]);
+        expect(logger.error).toHaveBeenCalledWith(expect.anything(), expect.stringContaining("bad"), expect.any(Error));
+    });
+});

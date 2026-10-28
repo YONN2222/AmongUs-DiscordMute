@@ -6,12 +6,14 @@ import { initLinkModel } from "./models/LinkModel";
 import { initMuteLedgerModel } from "./models/MuteLedgerModel";
 import { initPendingLinkModel } from "./models/PendingLinkModel";
 import { createLinkRepository, type LinkRepository } from "./repositories/LinkRepository";
+import { createMuteLedgerRepository, type MuteLedgerRepository } from "./repositories/MuteLedgerRepository";
 import { createPendingLinkRepository, type PendingLinkRepository } from "./repositories/PendingLinkRepository";
 
 export interface Database {
     sequelize: Sequelize;
     links: LinkRepository;
     pendingLinks: PendingLinkRepository;
+    muteLedger: MuteLedgerRepository;
     close(): Promise<void>;
 }
 
@@ -60,12 +62,13 @@ export async function openDatabase(
     }
     const linkModel = initLinkModel(sequelize);
     const pendingLinkModel = initPendingLinkModel(sequelize);
-    initMuteLedgerModel(sequelize);
+    const muteLedgerModel = initMuteLedgerModel(sequelize);
 
     return {
         sequelize,
         links: createLinkRepository(linkModel),
         pendingLinks: createPendingLinkRepository(pendingLinkModel),
+        muteLedger: createMuteLedgerRepository(muteLedgerModel),
         close: () => sequelize.close(),
     };
 }

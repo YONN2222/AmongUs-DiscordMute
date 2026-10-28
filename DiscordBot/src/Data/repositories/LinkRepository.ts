@@ -1,3 +1,4 @@
+import { matchesAccountName } from "../accountNameMatch";
 import type { LinkModel } from "../models/LinkModel";
 
 export interface LinkEntry {
@@ -41,8 +42,8 @@ export function createLinkRepository(model: typeof LinkModel): LinkRepository {
             return rows.map(toEntry);
         },
         async findByAccountName(guildId, accountName) {
-            const rows = await model.findAll({ where: { guildId, accountName: accountName.trim() } });
-            return rows.map(toEntry);
+            const rows = await model.findAll({ where: { guildId } });
+            return rows.filter((row) => matchesAccountName(row.accountName, accountName)).map(toEntry);
         },
     };
 }

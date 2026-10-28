@@ -1,0 +1,40 @@
+import { Op } from "sequelize";
+import type { MuteLedgerModel } from "../models/MuteLedgerModel";
+
+export interface MuteLedgerEntry {
+    guildId: string;
+    discordId: string;
+    mutedAt: number;
+}
+
+/** Members the bot itself server-muted; only these may ever be unmuted by the bot. */
+export interface MuteLedgerRepository {
+    add(guildId: string, discordId: string): Promise<void>;
+    remove(guildId: string, discordId: string): Promise<void>;
+    listByGuild(guildId: string): Promise<MuteLedgerEntry[]>;
+    listByGuilds(guildIds: string[]): Promise<MuteLedgerEntry[]>;
+}
+
+function toEntry(row: MuteLedgerModel): MuteLedgerEntry {
+    return { guildId: row.guildId, discordId: row.discordId, mutedAt: Number(row.mutedAt) };
+}
+
+export function createMuteLedgerRepository(model: typeof MuteLedgerModel): MuteLedgerRepository {
+    return {
+        async add(guildId, discordId) {
+            await model.upsert({ guildId, discordId, mutedAt: Date.now() });
+        },
+        async remove(guildId, discordId) {
+            await model.destroy({ where: { guildId, discordId } });
+        },
+        async listByGuild(guildId) {
+            const rows = await model.findAll({ where: { guildId } });
+            return rows.map(toEntry);
+        },
+        async listByGuilds(guildIds) {
+            if (guildIds.length === 0) return [];
+            const rows = await model.findAll({ where: { guildId: { [Op.in]: guildIds } } });
+            return rows.map(toEntry);
+        },
+    };
+}
