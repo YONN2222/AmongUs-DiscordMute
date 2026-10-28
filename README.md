@@ -79,6 +79,19 @@ Example:
 }
 ```
 
+> [!IMPORTANT]
+> **Use double backslashes (`\\`) or forward slashes (`/`) in the `exe` path.**
+> In JSON a single backslash is an escape character, so `"C:\Users\Me\start.bat"` makes the whole file invalid.
+> The plugin then silently falls back to its default values (including the secret `change-me`), and every request
+> between plugin and bot fails with "Unauthorized", even if your secrets are identical.
+>
+> | Correct                              | Wrong                              |
+> |--------------------------------------|------------------------------------|
+> | `"C:\\Users\\Me\\DiscordBot\\start.bat"` | `"C:\Users\Me\DiscordBot\start.bat"` |
+> | `"C:/Users/Me/DiscordBot/start.bat"`     |                                    |
+>
+> If something doesn't work, check `BepInEx/LogOutput.log` for `Failed to read plugin config`.
+
 ### 2.3 Discord bot setup
 
 1. Open the `DiscordBot` folder from the downloaded ZIP.
