@@ -4,6 +4,7 @@ import type { CommandContext } from "../commands/Command";
 import { config, DISCORD_GUILD_ID } from "../config";
 import { databaseOptionsFrom, openDatabase } from "../Data/database";
 import { deployCommands } from "../deploy-commands";
+import { SHUTDOWN_SIGNALS } from "../Gateway/shutdown";
 import { logger, logModules } from "../Logging/logger";
 import { MuteService } from "../Mute/MuteService";
 import { createVoiceTargetResolver } from "../Mute/VoiceTargetResolver";
@@ -60,9 +61,10 @@ async function onReady(
 /** A cluster process runs the Discord client for its shards and serves the requests the gateway routes to it. */
 export async function runCluster(): Promise<void> {
     const cluster = Cluster.initial<Client>();
-    // Ctrl+C and a process-group SIGTERM reach every process; the gateway alone drives shutdown so the clusters
-    // still lift every mute. A cluster exits through SELF_DESTRUCT from the gateway or a lost IPC channel.
-    for (const signal of ["SIGINT", "SIGTERM"] as const) {
+    // Ctrl+C, a process-group SIGTERM and closing the console reach every process; the gateway alone drives
+    // shutdown so the clusters still lift every mute. A cluster exits through SELF_DESTRUCT from the gateway or a
+    // lost IPC channel.
+    for (const signal of SHUTDOWN_SIGNALS) {
         process.removeAllListeners(signal);
         process.on(signal, () => {});
     }

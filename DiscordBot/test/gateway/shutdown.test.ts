@@ -4,7 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WebSocket } from "ws";
 import { PluginGateway } from "../../src/Gateway/PluginGateway";
 import { SelfHostSecretResolver } from "../../src/Gateway/SecretResolver";
-import { createClusterExitHandler, shutdownGateway } from "../../src/Gateway/shutdown";
+import {
+    createClusterExitHandler,
+    onShutdownSignal,
+    SHUTDOWN_SIGNALS,
+    shutdownGateway,
+} from "../../src/Gateway/shutdown";
 import { logger } from "../../src/Logging/logger";
 import { CLUSTER_EXIT_LOGIN_FAILED } from "../../src/Process/processRole";
 import { PROTOCOL_VERSION } from "../../src/Protocol/PluginProtocol";
@@ -56,6 +61,9 @@ describe("shutdownGateway", () => {
         await welcome;
 
         await shutdownGateway({
+            stopRespawning: () => {
+                order.push("respawning stopped");
+            },
             closePluginSessions: () => gateway.close(),
             stopClusters: async () => {
                 order.push("clusters stopped");
@@ -69,12 +77,21 @@ describe("shutdownGateway", () => {
             },
         });
 
-        expect(order).toEqual(["cluster applied session-ended", "clusters stopped", "http closed", "database closed"]);
+        expect(order).toEqual([
+            "respawning stopped",
+            "cluster applied session-ended",
+            "clusters stopped",
+            "http closed",
+            "database closed",
+        ]);
     });
 
     it("keeps going when a step fails", async () => {
         const closeDatabase = vi.fn(async () => {});
         await shutdownGateway({
+            stopRespawning: () => {
+                throw new Error("not started");
+            },
             closePluginSessions: async () => {
                 throw new Error("boom");
             },
@@ -83,7 +100,27 @@ describe("shutdownGateway", () => {
             closeDatabase,
         });
         expect(closeDatabase).toHaveBeenCalledOnce();
-        expect(logger.error).toHaveBeenCalled();
+        expect(logger.error).toHaveBeenCalledTimes(2);
+    });
+});
+
+describe("onShutdownSignal", () => {
+    it("reacts to Ctrl+C, SIGTERM and the Windows console being closed", () => {
+        const before = Object.fromEntries(
+            SHUTDOWN_SIGNALS.map((signal) => [signal, process.listeners(signal)] as const),
+        );
+        const handler = vi.fn();
+        onShutdownSignal(handler);
+        try {
+            for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) process.emit(signal, signal);
+            expect(handler.mock.calls).toEqual([["SIGINT"], ["SIGTERM"], ["SIGHUP"]]);
+        } finally {
+            for (const signal of SHUTDOWN_SIGNALS) {
+                for (const listener of process.listeners(signal)) {
+                    if (!before[signal]?.includes(listener)) process.off(signal, listener);
+                }
+            }
+        }
     });
 });
 

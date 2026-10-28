@@ -1,7 +1,16 @@
 import { logger, logModules } from "../Logging/logger";
 import { CLUSTER_EXIT_LOGIN_FAILED } from "../Process/processRole";
 
+/** SIGHUP is what Windows sends when the console window is closed. */
+export const SHUTDOWN_SIGNALS = ["SIGINT", "SIGTERM", "SIGHUP"] as const;
+
+export function onShutdownSignal(handler: (signal: NodeJS.Signals) => void): void {
+    for (const signal of SHUTDOWN_SIGNALS) process.on(signal, () => handler(signal));
+}
+
 export interface GatewayShutdownSteps {
+    /** Keeps galactic from respawning the clusters that the later steps stop. */
+    stopRespawning: () => void;
     /** Routes session-ended for every open plugin session, so the clusters lift the mutes. */
     closePluginSessions: () => Promise<void>;
     stopClusters: () => Promise<void>;
@@ -11,7 +20,8 @@ export interface GatewayShutdownSteps {
 
 /** Runs the steps strictly in order; a failing step is logged and does not skip the ones after it. */
 export async function shutdownGateway(steps: GatewayShutdownSteps): Promise<void> {
-    const ordered: [string, () => Promise<void>][] = [
+    const ordered: [string, () => void | Promise<void>][] = [
+        ["stop respawning clusters", steps.stopRespawning],
         ["close plugin sessions", steps.closePluginSessions],
         ["stop clusters", steps.stopClusters],
         ["close the HTTP server", steps.closeHttpServer],

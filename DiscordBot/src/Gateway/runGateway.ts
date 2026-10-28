@@ -11,7 +11,7 @@ import { createGatewayRequestHandler } from "./gatewayRequestHandler";
 import { createGatewayHttpServer } from "./httpServer";
 import { PluginGateway } from "./PluginGateway";
 import { SelfHostSecretResolver } from "./SecretResolver";
-import { createClusterExitHandler, shutdownGateway } from "./shutdown";
+import { createClusterExitHandler, onShutdownSignal, shutdownGateway } from "./shutdown";
 
 const SHUTDOWN_TIMEOUT_MS = 20000;
 
@@ -87,6 +87,7 @@ export async function runGateway(): Promise<void> {
         stopping = true;
         setTimeout(() => process.exit(exitCode), SHUTDOWN_TIMEOUT_MS).unref();
         await shutdownGateway({
+            stopRespawning: () => instance.stopRespawning(),
             closePluginSessions: () => pluginGateway.close(),
             stopClusters: () => instance.shutdown(),
             closeHttpServer: () => closeServer(server),
@@ -95,12 +96,10 @@ export async function runGateway(): Promise<void> {
         process.exit(exitCode);
     };
 
-    for (const signal of ["SIGINT", "SIGTERM"] as const) {
-        process.on(signal, () => {
-            logger.warn(logModules.Bot, `${signal} received, shutting down...`);
-            void shutdown(0);
-        });
-    }
+    onShutdownSignal((signal) => {
+        logger.warn(logModules.Bot, `${signal} received, shutting down...`);
+        void shutdown(0);
+    });
 
     logClusterEvents(
         instance,
