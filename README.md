@@ -62,7 +62,7 @@ Open `config.json` in that folder and configure it.
 | Field                    | Meaning                                                                                                                     |
 |--------------------------|-----------------------------------------------------------------------------------------------------------------------------|
 | `ip`                     | IP address of the machine running the Discord bot. Use `localhost` when the bot runs on the same PC.                        |
-| `botPort`                | Port used by the Discord bot. Default: `7264`.                                                                   |
+| `botPort`                | Port used by the Discord bot. Default: `7264`.                                                                              |
 | `secret`                 | Shared secret used by the plugin and the bot. Set the same value in both configs.                                           |
 | `exe`                    | Full path to the bot start file. This should point to `start.bat` inside the `DiscordBot` folder from the downloaded ZIP.   |
 | `bridgeLogsToBotConsole` | When `true`, forwards all plugin/BepInEx logs to the bot console. Own DiscordMute warnings and errors are always forwarded. |
@@ -86,7 +86,7 @@ Example:
 > **Use double backslashes (`\\`) or forward slashes (`/`) in the `exe` path.**
 > In JSON a single backslash is an escape character, so `"C:\Users\Me\start.bat"` makes the whole file invalid.
 > The plugin then silently falls back to its default values (including the secret `change-me`), and the connection
-> to the bot is refused, even if your secrets are identical.
+> to the bot is rejected, even if your secrets are identical. The bot console shows a hint and `BepInEx/LogOutput.log` contains "Bot rejected the secret".
 >
 > | Correct                              | Wrong                              |
 > |--------------------------------------|------------------------------------|
@@ -104,19 +104,19 @@ Example:
 
 #### Bot config
 
-| Field             | Meaning                                                                 |
-|-------------------|-------------------------------------------------------------------------|
-| `token`           | Bot token from the Discord Developer Portal.                            |
-| `clientId`        | Application / client ID of your Discord bot.                            |
-| `guildId`         | ID of the Discord server where the bot should be used.                  |
+| Field             | Meaning                                                                                            |
+|-------------------|----------------------------------------------------------------------------------------------------|
+| `token`           | Bot token from the Discord Developer Portal.                                                       |
+| `clientId`        | Application / client ID of your Discord bot.                                                       |
+| `guildId`         | ID of the Discord server where the bot should be used.                                             |
 | `channelIds`      | Optional. Fallback voice channels, used only when the bot can't tell which channel the host is in. |
-| `secret`          | Must be exactly the same shared secret as in the plugin config.         |
-| `botIp`           | IP address on which the bot listens. Usually `localhost`.               |
-| `botPort`         | Port used by the Discord bot. Default: `7264`.                          |
-| `databaseDialect` | Storage backend for links: `sqlite` (default) or `postgres`.            |
-| `databaseUrl`     | Optional. Connection URL, required when `databaseDialect` is `postgres`. |
-| `sqlitePath`      | Optional. Location of the SQLite file. Default: `./data/linking.sqlite`. |
-| `clusters`        | Optional. `{ "total": 1, "shardsPerCluster": 1 }`. The defaults suit a single server. |
+| `secret`          | Must be exactly the same shared secret as in the plugin config.                                    |
+| `botIp`           | IP address the bot binds to. Default: `0.0.0.0` (all interfaces).                                  |
+| `botPort`         | Port used by the Discord bot. Default: `7264`.                                                     |
+| `databaseDialect` | Storage backend for links: `sqlite` (default) or `postgres`.                                       |
+| `databaseUrl`     | Optional. Connection URL, required when `databaseDialect` is `postgres`.                           |
+| `sqlitePath`      | Optional. Location of the SQLite file. Default: `./data/linking.sqlite`.                           |
+| `clusters`        | Optional. `{ "total": 1, "shardsPerCluster": 1 }`. The defaults suit a single server.              |
 
 Example:
 
@@ -142,7 +142,7 @@ Once both configs are set up:
 3. The Discord bot should start automatically through the `exe` path configured in the plugin.
 4. Link your account with `/link self` (see below) and join a Discord voice channel.
 
-DiscordMute mutes the voice channel the lobby host is sitting in, so the host must be linked. If the host can't be resolved, the bot falls back to the channels in `channelIds`. The bot keeps a record of the players it muted and unmutes them again after a crash or restart. Mutes set by moderators are never lifted.
+DiscordMute mutes the voice channel the lobby host is sitting in, so the host must be linked. If the host can't be resolved, the bot falls back to the channels in `channelIds`. The bot keeps a record of the players it muted and unmutes them again after a crash or restart. It only lifts mutes it applied itself and leaves mutes that were already in place alone.
 
 You can check that the bot is running with `GET /health` on the bot's port.
 
@@ -189,7 +189,7 @@ If EHR is not installed, DiscordMute still works normally; only EHR-specific Bla
 - **EHR Blackmailer support**: when installed alongside Endless Host Roles, a blackmailed player stays muted during meetings instead of being able to speak.
 - **Host mod integration**: Town Of Host Enhanced and Endless Host Roles improve player-name resolution when present.
 - **Self-service linking**: players link their Discord account to their Among Us name in-game with a one-time Free Chat phrase or, if Free Chat isn't available, a pair of Quick Chat phrases — no manual admin setup required.
-- **Crash-safe mutes**: the bot unmutes the players it muted after a crash or restart and leaves moderator mutes alone.
+- **Crash-safe mutes**: the bot unmutes the players it muted after a crash or restart and only lifts mutes it applied itself.
 - **Log bridging**: optionally forward plugin/BepInEx logs to the bot console for easier debugging.
 
 <details>
