@@ -18,6 +18,7 @@ import {
 import type { ClusterRouter } from "../Routing/ClusterRouter";
 import type { ClusterRequest, RouterReply } from "../Routing/messages";
 import type { LinkingService } from "../Utils/LinkingService";
+import { unauthorizedMessage } from "../Utils/UnauthorizedHint";
 import { createGameSession, type GameSession } from "./GameSession";
 import type { ResolvedSecret, SecretResolver } from "./SecretResolver";
 
@@ -209,7 +210,7 @@ export class PluginGateway {
         const resolved = await this.resolveSecret(hello.secret);
         if (conn.ws.readyState !== WebSocket.OPEN) return;
         if (!resolved) {
-            logger.warn(logModules.WebServer, "Rejected plugin connection: invalid secret");
+            logger.warn(logModules.WebServer, unauthorizedMessage("Rejected plugin connection", hello.secret));
             conn.ws.close(CLOSE_UNAUTHORIZED, "Unauthorized");
             return;
         }
@@ -281,7 +282,12 @@ export class PluginGateway {
     }
 
     private async onLinkChat(conn: Connection, message: LinkChatMessage): Promise<void> {
-        const confirmed = await this.deps.linking.confirmLink(message.code, message.accountName);
+        let confirmed: Awaited<ReturnType<LinkingService["confirmLink"]>> = null;
+        try {
+            confirmed = await this.deps.linking.confirmLink(message.code, message.accountName);
+        } catch (error) {
+            logger.error(logModules.WebServer, `Could not confirm link code "${message.code}"`, error);
+        }
         this.send(conn, {
             type: "link-result",
             status: confirmed ? "linked" : "not-found",

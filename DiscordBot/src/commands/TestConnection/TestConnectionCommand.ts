@@ -1,7 +1,6 @@
 import { type ChatInputCommandInteraction, MessageFlags, SlashCommandBuilder } from "discord.js";
 import { ContainerBuilder } from "../../Utils/ContainerBuilder";
-import { pluginSocket } from "../../Utils/PluginSocket";
-import type { Command } from "../Command";
+import type { Command, CommandContext } from "../Command";
 
 export class TestConnectionCommand implements Command {
     name = "testconnection";
@@ -10,8 +9,8 @@ export class TestConnectionCommand implements Command {
         .setName("testconnection")
         .setDescription("Test the connection to the Among Us DiscordMute plugin");
 
-    async execute(interaction: ChatInputCommandInteraction): Promise<void> {
-        const connected = pluginSocket.isConnected();
+    async execute(interaction: ChatInputCommandInteraction, ctx: CommandContext): Promise<void> {
+        const connected = interaction.guildId !== null && (await ctx.isPluginConnected(interaction.guildId));
 
         const container = connected
             ? new ContainerBuilder()

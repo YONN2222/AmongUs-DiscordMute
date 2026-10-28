@@ -300,6 +300,15 @@ describe("PluginGateway", () => {
         expect(await result).toEqual({ type: "link-result", status: "linked", accountName: "Crew" });
     });
 
+    it("answers link-result not-found and logs when confirming the link fails", async () => {
+        vi.spyOn(linking, "confirmLink").mockRejectedValueOnce(new Error("database is locked"));
+        const ws = await authenticate();
+        const result = nextMessage(ws);
+        ws.send(JSON.stringify({ type: "link-chat", code: "link-AAAA", accountName: "Crew" }));
+        expect(await result).toEqual({ type: "link-result", status: "not-found", accountName: "Crew" });
+        expect(logger.error).toHaveBeenCalledWith(expect.anything(), expect.any(String), expect.any(Error));
+    });
+
     it("answers an unknown link code with link-result not-found", async () => {
         const ws = await authenticate();
         const result = nextMessage(ws);

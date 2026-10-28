@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { type GameEventName, type GatewayNotice, NOTICE_CODES } from "../Protocol/PluginProtocol";
+import { GAME_EVENT_NAMES, type GameEventName, type GatewayNotice, NOTICE_CODES } from "../Protocol/PluginProtocol";
 
 export type ClusterRequest =
     | {
@@ -49,4 +49,46 @@ const replySchema = z.union([
 export function toRouterReply(value: unknown): RouterReply {
     const result = replySchema.safeParse(value);
     return result.success ? result.data : { ok: false, error: "invalid reply" };
+}
+
+const clusterRequestSchema: z.ZodType<ClusterRequest> = z.discriminatedUnion("kind", [
+    z.object({
+        kind: z.literal("game-event"),
+        guildId: z.string(),
+        sessionId: z.string(),
+        hostAccountName: z.string(),
+        event: z.enum(GAME_EVENT_NAMES),
+        players: z.array(z.string()),
+        deadPlayers: z.array(z.string()),
+    }),
+    z.object({ kind: z.literal("session-ended"), guildId: z.string(), sessionId: z.string() }),
+    z.object({
+        kind: z.literal("link-confirmed"),
+        guildId: z.string(),
+        discordId: z.string(),
+        accountName: z.string(),
+        applicationId: z.string().optional(),
+        interactionToken: z.string().optional(),
+    }),
+]);
+
+const gatewayRequestSchema: z.ZodType<GatewayRequest> = z.discriminatedUnion("kind", [
+    z.object({
+        kind: z.literal("push-link-pending"),
+        guildId: z.string(),
+        phrase: z.string(),
+        quickChatCode: z.string(),
+        discordId: z.string(),
+    }),
+    z.object({ kind: z.literal("is-plugin-connected"), guildId: z.string() }),
+]);
+
+export function parseClusterRequest(value: unknown): ClusterRequest | null {
+    const result = clusterRequestSchema.safeParse(value);
+    return result.success ? result.data : null;
+}
+
+export function parseGatewayRequest(value: unknown): GatewayRequest | null {
+    const result = gatewayRequestSchema.safeParse(value);
+    return result.success ? result.data : null;
 }

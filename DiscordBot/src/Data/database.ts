@@ -1,5 +1,7 @@
+import pg from "pg";
 import { Sequelize } from "sequelize";
 import { SequelizeStorage, Umzug } from "umzug";
+import type { Config } from "../Infrastructure/ConfigSchema";
 import { bunSqliteDriver } from "./bunSqliteDriver";
 import { initialMigration } from "./migrations/0001-initial";
 import { initLinkModel } from "./models/LinkModel";
@@ -19,9 +21,18 @@ export interface Database {
 
 export type DatabaseOptions = { dialect: "sqlite"; storage: string } | { dialect: "postgres"; url: string };
 
+export function databaseOptionsFrom(
+    config: Pick<Config, "databaseDialect" | "databaseUrl" | "sqlitePath">,
+): DatabaseOptions {
+    return config.databaseDialect === "postgres"
+        ? { dialect: "postgres", url: config.databaseUrl as string }
+        : { dialect: "sqlite", storage: config.sqlitePath };
+}
+
 function createSequelize(opts: DatabaseOptions): Sequelize {
     if (opts.dialect === "postgres") {
-        return new Sequelize(opts.url, { dialect: "postgres", logging: false });
+        // Passed in directly so `bun build --compile` bundles pg instead of Sequelize requiring it at runtime.
+        return new Sequelize(opts.url, { dialect: "postgres", dialectModule: pg, logging: false });
     }
     return new Sequelize({
         dialect: "sqlite",

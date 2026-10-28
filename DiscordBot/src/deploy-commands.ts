@@ -3,14 +3,16 @@ import { commandRegistry } from "./commands/Command";
 import { DISCORD_CLIENT_ID, DISCORD_TOKEN } from "./config";
 import { logger, logModules } from "./Logging/logger";
 
-const rest = new REST({ version: "10" }).setToken(DISCORD_TOKEN);
-
 type DeployCommandsProps = {
     guildId: string;
-    clusterId?: number;
+    /** A cluster passes its logged-in client's REST so deploys share its rate limits. */
+    rest?: REST;
 };
 
-export async function deployCommands({ guildId }: DeployCommandsProps) {
+export async function deployCommands({
+    guildId,
+    rest = new REST({ version: "10" }).setToken(DISCORD_TOKEN),
+}: DeployCommandsProps): Promise<void> {
     const commandsData = commandRegistry.getCommandData();
 
     const totalSubcommands = commandsData.reduce((sum: number, cmd) => {

@@ -2,9 +2,10 @@ import { Database as BunDatabase } from "bun:sqlite";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Sequelize } from "sequelize";
+import { QueryTypes, Sequelize } from "sequelize";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { type Database, openDatabase } from "../../src/Data/database";
+import { writeRepeatedly } from "../helpers/sqliteWriter";
 import {
     type Backend,
     backendAvailable,
@@ -118,6 +119,44 @@ describe("openDatabase (sqlite specifics)", () => {
         await b.links.upsert("g1", "u3", "StillWorks");
         expect(await b.links.listByGuild("g1")).toHaveLength(3);
     });
+
+    it("uses WAL with a busy timeout for file databases", async () => {
+        const db = await track(openDatabase({ dialect: "sqlite", storage: tempStorage() }));
+        const [journal] = (await db.sequelize.query("PRAGMA journal_mode", { type: QueryTypes.SELECT })) as {
+            journal_mode: string;
+        }[];
+        const [busy] = (await db.sequelize.query("PRAGMA busy_timeout", { type: QueryTypes.SELECT })) as {
+            timeout: number;
+        }[];
+        expect(journal?.journal_mode).toBe("wal");
+        expect(busy?.timeout).toBe(5000);
+    });
+
+    it("lets two processes write to the same file at once without SQLITE_BUSY", async () => {
+        const storage = tempStorage();
+        const db = await track(openDatabase({ dialect: "sqlite", storage }));
+        const iterations = 150;
+        const child = Bun.spawn(
+            [process.execPath, join(__dirname, "../helpers/sqliteWriterProcess.ts"), storage, "child", `${iterations}`],
+            { stdout: "ignore", stderr: "pipe" },
+        );
+
+        const local = writeRepeatedly(db, "local", iterations).then(
+            () => null,
+            (error: unknown) => error,
+        );
+        const [exitCode, stderr, localError] = await Promise.all([
+            child.exited,
+            new Response(child.stderr).text(),
+            local,
+        ]);
+
+        expect(localError).toBeNull();
+        expect(stderr).toBe("");
+        expect(exitCode).toBe(0);
+        expect(await db.muteLedger.listByGuild("child-guild")).toEqual([]);
+        expect(await db.muteLedger.listByGuild("local-guild")).toEqual([]);
+    }, 60_000);
 
     it("closes the connection and rethrows when authenticate fails", async () => {
         const closeSpy = vi.spyOn(Sequelize.prototype, "close");

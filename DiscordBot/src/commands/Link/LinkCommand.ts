@@ -114,7 +114,7 @@ export class LinkCommand implements Command {
         );
         const pluginReady = await ctx.pushLinkPending(guildId, phrase, quickChatCode, interaction.user.id);
         if (!pluginReady) {
-            logger.warn(logModules.Command, "Plugin is not connected via WebSocket; cannot send pending link");
+            logger.warn(logModules.Command, "Plugin is not connected for this server; cannot send pending link");
 
             const container = new ContainerBuilder()
                 .title("Link Failed", "⚠️")

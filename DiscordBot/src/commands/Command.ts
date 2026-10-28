@@ -6,6 +6,7 @@ import { commandConstructors } from "./generated";
 export interface CommandContext {
     linking: LinkingService;
     pushLinkPending(guildId: string, phrase: string, quickChatCode: string, discordId: string): Promise<boolean>;
+    isPluginConnected(guildId: string): Promise<boolean>;
 }
 
 export interface Command {

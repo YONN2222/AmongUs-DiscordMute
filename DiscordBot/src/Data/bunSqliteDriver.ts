@@ -2,6 +2,7 @@ import { Database as BunDatabase } from "bun:sqlite";
 
 const OPEN_READWRITE = 0x00000002;
 const OPEN_CREATE = 0x00000004;
+const BUSY_TIMEOUT_MS = 5000;
 
 type RunCallback = (this: { lastID: number; changes: number }, err: Error | null) => void;
 type AllCallback = (err: Error | null, rows: unknown[]) => void;
@@ -20,6 +21,9 @@ class BunSqliteConnection {
         this.filename = storage;
         try {
             this.db = new BunDatabase(storage, { create: true });
+            // The gateway and every cluster process write to the same file.
+            this.db.run(`PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS}`);
+            if (storage !== ":memory:") this.db.run("PRAGMA journal_mode = WAL");
             // Deferred: node-sqlite3 invokes this callback after the caller has already
             // stored the `new Database(...)` return value, calling it synchronously here
             // would run it before that assignment completes.
