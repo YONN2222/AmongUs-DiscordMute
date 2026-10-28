@@ -1,4 +1,3 @@
-import { Op } from "sequelize";
 import type { MuteLedgerModel } from "../models/MuteLedgerModel";
 
 export interface MuteLedgerEntry {
@@ -13,7 +12,6 @@ export interface MuteLedgerRepository {
     remove(guildId: string, discordId: string): Promise<void>;
     has(guildId: string, discordId: string): Promise<boolean>;
     listByGuild(guildId: string): Promise<MuteLedgerEntry[]>;
-    listByGuilds(guildIds: string[]): Promise<MuteLedgerEntry[]>;
 }
 
 function toEntry(row: MuteLedgerModel): MuteLedgerEntry {
@@ -33,11 +31,6 @@ export function createMuteLedgerRepository(model: typeof MuteLedgerModel): MuteL
         },
         async listByGuild(guildId) {
             const rows = await model.findAll({ where: { guildId } });
-            return rows.map(toEntry);
-        },
-        async listByGuilds(guildIds) {
-            if (guildIds.length === 0) return [];
-            const rows = await model.findAll({ where: { guildId: { [Op.in]: guildIds } } });
             return rows.map(toEntry);
         },
     };

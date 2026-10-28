@@ -32,10 +32,6 @@ export class MuteService {
 
     constructor(private readonly deps: MuteServiceDeps) {}
 
-    hasActiveSession(guildId: string): boolean {
-        return this.activeSessions.has(guildId);
-    }
-
     handleGameEvent(req: GameEventRequest): Promise<RouterReply> {
         return this.enqueue(req.guildId, async () => {
             try {

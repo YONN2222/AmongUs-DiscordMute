@@ -80,6 +80,24 @@ describe("MuteService", () => {
         });
     }
 
+    /** releaseIfIdle lifts a left-behind mute only while no session runs, which makes the session observable. */
+    async function sessionIsActive(service: MuteService, guildId = GUILD): Promise<boolean> {
+        const probe = "session-probe";
+        const callsBefore = voice.calls.length;
+        voice.channels.set("probe-channel", [probe]);
+        voice.muted.add(probe);
+        await db.muteLedger.add(guildId, probe);
+
+        await service.releaseIfIdle(guildId, probe);
+        const active = voice.muted.has(probe);
+
+        voice.channels.delete("probe-channel");
+        voice.muted.delete(probe);
+        voice.calls.splice(callsBefore);
+        await db.muteLedger.remove(guildId, probe);
+        return active;
+    }
+
     async function ledgerIds(): Promise<string[]> {
         return (await db.muteLedger.listByGuild(GUILD)).map((e) => e.discordId).sort();
     }
@@ -188,7 +206,7 @@ describe("MuteService", () => {
 
         expect([...voice.muted]).toEqual(["u2"]);
         expect(await ledgerIds()).toEqual(["u2"]);
-        expect(service.hasActiveSession(GUILD)).toBe(false);
+        expect(await sessionIsActive(service)).toBe(false);
     });
 
     it("lobby unmutes every ledger member in voice", async () => {
@@ -241,19 +259,19 @@ describe("MuteService", () => {
     it("tracks the active session", async () => {
         voice.channels.set("c1", ["u1"]);
         const service = createService();
-        expect(service.hasActiveSession(GUILD)).toBe(false);
+        expect(await sessionIsActive(service)).toBe(false);
 
         await service.handleGameEvent(gameEvent("game-start", ["Red"]));
-        expect(service.hasActiveSession(GUILD)).toBe(true);
-        expect(service.hasActiveSession("other")).toBe(false);
+        expect(await sessionIsActive(service)).toBe(true);
+        expect(await sessionIsActive(service, "other")).toBe(false);
 
         await service.handleGameEvent(gameEvent("lobby", ["Red"]));
-        expect(service.hasActiveSession(GUILD)).toBe(false);
+        expect(await sessionIsActive(service)).toBe(false);
 
         await service.handleGameEvent(gameEvent("meeting-start", ["Red"]));
-        expect(service.hasActiveSession(GUILD)).toBe(true);
+        expect(await sessionIsActive(service)).toBe(true);
         await service.endSession(GUILD, "s1");
-        expect(service.hasActiveSession(GUILD)).toBe(false);
+        expect(await sessionIsActive(service)).toBe(false);
     });
 
     it("ignores endSession of a replaced session", async () => {
@@ -263,7 +281,7 @@ describe("MuteService", () => {
 
         await service.endSession(GUILD, "s1");
 
-        expect(service.hasActiveSession(GUILD)).toBe(true);
+        expect(await sessionIsActive(service)).toBe(true);
         expect([...voice.muted]).toEqual(["u1"]);
     });
 
@@ -339,12 +357,12 @@ describe("MuteService", () => {
         await service.handleGameEvent({ ...gameEvent("meeting-end", ["Red"]), sessionId: "s2" });
 
         await service.endSession(GUILD, "s1");
-        expect(service.hasActiveSession(GUILD)).toBe(true);
+        expect(await sessionIsActive(service)).toBe(true);
         expect([...voice.muted]).toEqual(["u1"]);
         expect(voice.calls.filter((c) => !c.mute)).toEqual([]);
 
         await service.endSession(GUILD, "s2");
-        expect(service.hasActiveSession(GUILD)).toBe(false);
+        expect(await sessionIsActive(service)).toBe(false);
         expect(voice.muted.size).toBe(0);
     });
 
