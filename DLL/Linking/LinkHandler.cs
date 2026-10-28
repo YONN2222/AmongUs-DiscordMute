@@ -2,11 +2,9 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Text.Json;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using AmongUs.QuickChat;
+using DiscordMute.Core;
 using HarmonyLib;
 
 namespace DiscordMute.Linking;
@@ -28,7 +26,7 @@ public static class LinkHandler
         if (string.IsNullOrWhiteSpace(playerName)) return false;
 
         DiscordMutePlugin.PluginLog.LogInfo($"Linking player '{playerName}' with phrase '{matchedPhrase}'");
-        _ = SendLinkPhraseAsync(matchedPhrase, playerName);
+        SendLinkPhrase(matchedPhrase, playerName);
         return true;
     }
 
@@ -67,7 +65,7 @@ public static class LinkHandler
         if (string.IsNullOrWhiteSpace(playerName)) return false;
 
         DiscordMutePlugin.PluginLog.LogInfo($"Linking player '{playerName}' with Quick Chat code '{matchedCode}'");
-        _ = SendLinkPhraseAsync(matchedCode, playerName);
+        SendLinkPhrase(matchedCode, playerName);
         return true;
     }
 
@@ -113,34 +111,41 @@ public static class LinkHandler
         return Regex.Replace(rawName ?? string.Empty, "<[^>]*>", string.Empty).Trim();
     }
 
-    internal static async Task SendLinkPhraseAsync(string phrase, string accountName)
+    private static readonly ConcurrentDictionary<string, string> SentLinkCodes = new();
+
+    internal static void HandleLinkResult(string status, string accountName)
+    {
+        SentLinkCodes.TryRemove(PluginProtocol.Truncate(accountName, PluginProtocol.MaxNameLength), out var code);
+
+        if (status != "linked")
+        {
+            LocalChatQueue.Pending.Enqueue("[DiscordMute] Link failed. Run /link self in Discord first.");
+            return;
+        }
+
+        if (code != null && DiscordMutePlugin.PendingLinks.TryRemove(code, out var linkedDiscordId))
+        {
+            foreach (var staleKey in DiscordMutePlugin.PendingLinks
+                         .Where(kv => kv.Value == linkedDiscordId)
+                         .Select(kv => kv.Key)
+                         .ToList())
+            {
+                DiscordMutePlugin.PendingLinks.TryRemove(staleKey, out _);
+            }
+        }
+        LocalChatQueue.Pending.Enqueue("[DiscordMute] Account linked successfully!");
+    }
+
+    internal static void SendLinkPhrase(string phrase, string accountName)
     {
         try
         {
-            var payload = JsonSerializer.Serialize(new { secret = DiscordMutePlugin.Cfg.Secret, phrase, accountName });
-            var content = new System.Net.Http.StringContent(payload, Encoding.UTF8, "application/json");
-            var url = $"http://{DiscordMutePlugin.Cfg.Ip}:{DiscordMutePlugin.Cfg.BotPort}/link-chat";
-            var response = await DiscordMutePlugin.HttpClient.PostAsync(url, content).ConfigureAwait(false);
-            var body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-
-            if (body.Contains("\"linked\""))
-            {
-                if (DiscordMutePlugin.PendingLinks.TryRemove(phrase, out var linkedDiscordId))
-                {
-                    foreach (var staleKey in DiscordMutePlugin.PendingLinks
-                                 .Where(kv => kv.Value == linkedDiscordId)
-                                 .Select(kv => kv.Key)
-                                 .ToList())
-                    {
-                        DiscordMutePlugin.PendingLinks.TryRemove(staleKey, out _);
-                    }
-                }
-                LocalChatQueue.Pending.Enqueue("[DiscordMute] Account linked successfully!");
-            }
-            else
-            {
-                LocalChatQueue.Pending.Enqueue("[DiscordMute] Link failed. Run /link in Discord first.");
-            }
+            var code = PluginProtocol.Truncate(phrase, PluginProtocol.MaxNameLength);
+            var name = PluginProtocol.Truncate(accountName, PluginProtocol.MaxNameLength);
+            SentLinkCodes[name] = code;
+            var sentNow = PluginSocket.Send(new LinkChatMessage { Code = code, AccountName = name });
+            if (!sentNow)
+                LocalChatQueue.Pending.Enqueue("[DiscordMute] Bot not connected yet, link request will be sent once it is.");
         }
         catch (Exception ex)
         {

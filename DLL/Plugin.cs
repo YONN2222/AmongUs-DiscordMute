@@ -38,7 +38,7 @@ public class DiscordMutePlugin : BasePlugin
             if (!IsEhrInstalled)
                 PluginLog.LogWarning("EHR not detected. Blackmailer support is disabled.");
 
-            PluginSocket.Start();
+            PluginSocket.Start(UnityEngine.Application.version);
 
             BepInEx.Logging.Logger.Listeners.Add(new BotLogListener());
 

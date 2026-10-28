@@ -2,9 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Net.Http;
-using System.Text;
-using System.Text.Json;
 using System.Threading.Tasks;
 using DiscordMute.Linking;
 using DiscordMute.Modules;
@@ -19,7 +16,7 @@ internal static class BotClient
         try
         {
             var response = await DiscordMutePlugin.HttpClient
-                .GetAsync($"http://{DiscordMutePlugin.Cfg.Ip}:{DiscordMutePlugin.Cfg.BotPort}/ping?secret={Uri.EscapeDataString(DiscordMutePlugin.Cfg.Secret)}")
+                .GetAsync($"http://{DiscordMutePlugin.Cfg.Ip}:{DiscordMutePlugin.Cfg.BotPort}/health")
                 .ConfigureAwait(false);
             if (response.IsSuccessStatusCode) return;
         }
@@ -68,6 +65,12 @@ internal static class BotClient
     {
         for (int i = 0; i < 5; i++)
         {
+            if (PluginSocket.IsTerminal)
+            {
+                PluginSocket.LogOutdatedOnce();
+                return;
+            }
+
             try
             {
                 var (aliveNames, deadNames) = CollectPlayerNames();
@@ -81,27 +84,17 @@ internal static class BotClient
                 if (eventName == "meeting-start")
                     ApplyBlackmailMutes(aliveNames, deadNames);
 
-                var payload = JsonSerializer.Serialize(new
+                var sentNow = PluginSocket.Send(new GameEventMessage
                 {
-                    @event = eventName,
-                    secret = DiscordMutePlugin.Cfg.Secret,
-                    players = aliveNames,
-                    deadPlayers = deadNames
+                    Event = eventName,
+                    HostAccountName = PluginProtocol.Truncate(
+                        LinkHandler.GetPlayerName(PlayerControl.LocalPlayer), PluginProtocol.MaxNameLength),
+                    Players = PluginProtocol.TruncateNames(aliveNames),
+                    DeadPlayers = PluginProtocol.TruncateNames(deadNames)
                 });
-                var content = new StringContent(payload, Encoding.UTF8, "application/json");
-                var response = await DiscordMutePlugin.HttpClient
-                    .PostAsync($"http://{DiscordMutePlugin.Cfg.Ip}:{DiscordMutePlugin.Cfg.BotPort}/{eventName}", content)
-                    .ConfigureAwait(false);
-
-                if (response.IsSuccessStatusCode)
-                {
-                    DiscordMutePlugin.PluginLog.LogInfo($"[DiscordMute] Event '{eventName}' sent successfully.");
-                    return;
-                }
-            }
-            catch (HttpRequestException ex)
-            {
-                DiscordMutePlugin.PluginLog.LogWarning($"HTTP error while sending event '{eventName}': {ex.Message}");
+                DiscordMutePlugin.PluginLog.LogInfo(
+                    $"[DiscordMute] Event '{eventName}' {(sentNow ? "sent" : "queued until the bot connection is ready")}.");
+                return;
             }
             catch (Exception ex) { DiscordMutePlugin.PluginLog.LogError($"[DiscordMute] Error sending event '{eventName}': {ex.Message}"); }
 
