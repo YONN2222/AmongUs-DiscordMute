@@ -75,6 +75,19 @@ export class MuteService {
         );
     }
 
+    /** Lifts a mute left behind for a member who rejoins voice once no session is running. */
+    releaseIfIdle(guildId: string, discordId: string): Promise<void> {
+        return this.enqueue(guildId, async () => {
+            if (this.activeSessions.has(guildId)) return;
+            await this.guarded(guildId, discordId, async () => {
+                const entries = await this.deps.ledger.listByGuild(guildId);
+                if (!entries.some((entry) => entry.discordId === discordId)) return;
+                const member = await this.deps.voice.findVoiceMember(guildId, discordId);
+                if (member) await this.unmute(guildId, member);
+            });
+        });
+    }
+
     private enqueue<T>(guildId: string, task: () => Promise<T>): Promise<T> {
         const previous = this.queues.get(guildId) ?? Promise.resolve();
         const run = previous.then(task);

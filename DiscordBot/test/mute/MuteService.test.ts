@@ -359,4 +359,54 @@ describe("MuteService", () => {
         expect([...voice.muted]).toEqual(["u1"]);
         expect(logger.error).toHaveBeenCalledWith(expect.anything(), expect.stringContaining("bad"), expect.any(Error));
     });
+
+    describe("releaseIfIdle", () => {
+        it("unmutes a ledger member who rejoins voice after the session ended", async () => {
+            voice.channels.set("c1", ["u1"]);
+            const service = createService();
+            await service.handleGameEvent(gameEvent("game-start", ["Red"]));
+            voice.leave("u1");
+            await service.endSession(GUILD, "s1");
+            expect(await ledgerIds()).toEqual(["u1"]);
+
+            voice.channels.set("c2", ["u1"]);
+            await service.releaseIfIdle(GUILD, "u1");
+
+            expect(voice.muted.size).toBe(0);
+            expect(await ledgerIds()).toEqual([]);
+        });
+
+        it("keeps the mute while a session is active", async () => {
+            voice.channels.set("c1", ["u1"]);
+            const service = createService();
+            await service.handleGameEvent(gameEvent("game-start", ["Red"]));
+
+            await service.releaseIfIdle(GUILD, "u1");
+
+            expect([...voice.muted]).toEqual(["u1"]);
+            expect(await ledgerIds()).toEqual(["u1"]);
+        });
+
+        it("leaves members outside the ledger alone", async () => {
+            voice.channels.set("c1", ["u2"]);
+            voice.muted.add("u2");
+
+            await createService().releaseIfIdle(GUILD, "u2");
+
+            expect(voice.calls).toEqual([]);
+            expect([...voice.muted]).toEqual(["u2"]);
+        });
+
+        it("logs instead of throwing when the unmute fails", async () => {
+            await db.muteLedger.add(GUILD, "u1");
+            voice.channels.set("c1", ["u1"]);
+            voice.muted.add("u1");
+            voice.failing.add("u1");
+
+            await expect(createService().releaseIfIdle(GUILD, "u1")).resolves.toBeUndefined();
+
+            expect(logger.error).toHaveBeenCalled();
+            expect(await ledgerIds()).toEqual(["u1"]);
+        });
+    });
 });
