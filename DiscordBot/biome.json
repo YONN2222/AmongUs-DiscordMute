@@ -28,7 +28,8 @@
     "enabled": true,
     "indentStyle": "space",
     "indentWidth": 4,
-    "lineWidth": 120
+    "lineWidth": 120,
+    "lineEnding": "auto"
   },
   "javascript": {
     "formatter": {
@@ -38,6 +39,6 @@
     }
   },
   "files": {
-    "includes": ["src/**"]
+    "includes": ["src/**", "!src/commands/generated.ts"]
   }
 }

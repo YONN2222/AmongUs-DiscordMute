@@ -1,8 +1,8 @@
 import {
     ActionRowBuilder,
     ButtonBuilder,
-    ButtonStyle,
     type ButtonInteraction,
+    ButtonStyle,
     type ChatInputCommandInteraction,
     MessageFlags,
     PermissionFlagsBits,
@@ -244,7 +244,8 @@ export class LinkCommand implements Command {
     private hasManageGuild(interaction: ChatInputCommandInteraction): boolean {
         const permissions = interaction.memberPermissions;
         return (
-            permissions !== null && (permissions.has(PermissionFlagsBits.ManageGuild) || permissions.has(PermissionFlagsBits.Administrator))
+            permissions !== null &&
+            (permissions.has(PermissionFlagsBits.ManageGuild) || permissions.has(PermissionFlagsBits.Administrator))
         );
     }
 

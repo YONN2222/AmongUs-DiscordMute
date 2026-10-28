@@ -2,6 +2,7 @@ import type { Server } from "node:http";
 import { WebSocket, WebSocketServer } from "ws";
 import type { Config } from "../Infrastructure/ConfigSchema";
 import { logger, logModules } from "../Logging/logger";
+import { unauthorizedMessage } from "./UnauthorizedHint";
 
 interface LinkPendingMessage {
     type: "link-pending";
@@ -19,7 +20,14 @@ class PluginSocket {
 
         server.on("upgrade", (req, socket, head) => {
             const url = new URL(req.url ?? "", "http://localhost");
-            if (url.pathname !== "/ws" || url.searchParams.get("secret") !== config.secret) {
+            if (url.pathname !== "/ws") {
+                socket.destroy();
+                return;
+            }
+
+            const secret = url.searchParams.get("secret");
+            if (secret !== config.secret) {
+                logger.warn(logModules.WebServer, unauthorizedMessage("Rejected plugin WebSocket connection", secret));
                 socket.destroy();
                 return;
             }
