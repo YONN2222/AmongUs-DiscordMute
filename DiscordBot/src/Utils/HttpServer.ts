@@ -7,6 +7,7 @@ import { ContainerBuilder } from "./ContainerBuilder";
 import { linkingService } from "./LinkingService";
 import type { MuteService } from "./MuteService";
 import { pluginSocket } from "./PluginSocket";
+import { unauthorizedMessage } from "./UnauthorizedHint";
 
 type GameEvent = "lobby" | "game-start" | "meeting-start" | "meeting-end";
 
@@ -71,7 +72,7 @@ export class HttpServer {
         this.app.get("/ping", (req: Request, res: Response) => {
             const secret = req.query.secret || req.headers["x-secret"];
             if (!this.validateSecret(secret)) {
-                logger.warn(logModules.WebServer, "Unauthorized ping request");
+                logger.warn(logModules.WebServer, unauthorizedMessage("Unauthorized ping request", secret));
                 res.status(401).json({ error: "Unauthorized" });
                 return;
             }
@@ -90,7 +91,10 @@ export class HttpServer {
                 const body = req.body as EventBody;
 
                 if (!this.validateSecret(body.secret)) {
-                    logger.warn(logModules.WebServer, `Unauthorized request to POST ${path}`);
+                    logger.warn(
+                        logModules.WebServer,
+                        unauthorizedMessage(`Unauthorized request to POST ${path}`, body.secret),
+                    );
                     res.status(401).json({ error: "Unauthorized" });
                     return;
                 }
@@ -113,7 +117,10 @@ export class HttpServer {
             const body = req.body as { secret?: unknown; phrase?: unknown; accountName?: unknown };
 
             if (!this.validateSecret(body.secret)) {
-                logger.warn(logModules.WebServer, "Unauthorized request to POST /link-chat");
+                logger.warn(
+                    logModules.WebServer,
+                    unauthorizedMessage("Unauthorized request to POST /link-chat", body.secret),
+                );
                 res.status(401).json({ error: "Unauthorized" });
                 return;
             }

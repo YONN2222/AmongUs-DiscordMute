@@ -82,7 +82,9 @@ public class DiscordMutePlugin : BasePlugin
         }
         catch (Exception ex)
         {
-            PluginLog.LogWarning($"Failed to read plugin config, using defaults: {ex.Message}");
+            PluginLog.LogError(
+                $"Failed to read plugin config at '{path}', using defaults (secret 'change-me'), so the bot will reject every request. " +
+                $"Make sure the file is valid JSON: paths need double backslashes (C:\\\\Users\\\\...) or forward slashes (C:/Users/...). Details: {ex.Message}");
             Cfg = new PluginConfig();
         }
     }
