@@ -16,8 +16,8 @@ const STATEMENTS = [
         quick_chat_code VARCHAR(255) NOT NULL UNIQUE,
         quick_chat_ids VARCHAR(255) NOT NULL,
         expires_at BIGINT NOT NULL,
-        application_id VARCHAR(255),
-        interaction_token VARCHAR(255),
+        application_id TEXT,
+        interaction_token TEXT,
         PRIMARY KEY (guild_id, discord_id)
     )`,
     `CREATE TABLE IF NOT EXISTS mute_ledger (

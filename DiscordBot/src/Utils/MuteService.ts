@@ -1,17 +1,18 @@
 import type { Client, GuildMember } from "discord.js";
 import type { Config } from "../Infrastructure/ConfigSchema";
 import { logger, logModules } from "../Logging/logger";
-import { linkingService } from "./LinkingService";
+import type { LinkingService } from "./LinkingService";
 
 export class MuteService {
     constructor(
         private readonly client: Client,
         private readonly config: Config,
+        private readonly linking: LinkingService,
     ) {}
 
     async mutePlayers(playerNames: string[]): Promise<void> {
         const linkedDiscordIds = new Set<string>();
-        const allLinks = await linkingService.getAllLinks(this.config.guildId);
+        const allLinks = await this.linking.getAllLinks(this.config.guildId);
 
         for (const name of playerNames) {
             const nameLower = name.toLowerCase();
@@ -45,7 +46,7 @@ export class MuteService {
 
     private async unmutePlayers(playerNames: string[]): Promise<void> {
         const linkedDiscordIds = new Set<string>();
-        const allLinks = await linkingService.getAllLinks(this.config.guildId);
+        const allLinks = await this.linking.getAllLinks(this.config.guildId);
 
         for (const name of playerNames) {
             const nameLower = name.toLowerCase();

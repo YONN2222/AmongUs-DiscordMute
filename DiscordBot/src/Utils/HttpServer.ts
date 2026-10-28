@@ -4,7 +4,7 @@ import express, { type Express, type Request, type Response } from "express";
 import type { Config } from "../Infrastructure/ConfigSchema";
 import { logger, logModules } from "../Logging/logger";
 import { ContainerBuilder } from "./ContainerBuilder";
-import { linkingService } from "./LinkingService";
+import type { LinkingService } from "./LinkingService";
 import type { MuteService } from "./MuteService";
 import { pluginSocket } from "./PluginSocket";
 import { unauthorizedMessage } from "./UnauthorizedHint";
@@ -25,6 +25,7 @@ export class HttpServer {
         private readonly config: Config,
         private readonly muteService: MuteService,
         private readonly client: Client,
+        private readonly linking: LinkingService,
     ) {
         this.app = express();
         this.app.disable("x-powered-by");
@@ -130,7 +131,7 @@ export class HttpServer {
                 return;
             }
 
-            const confirmedLink = await linkingService.confirmLink(body.phrase, body.accountName);
+            const confirmedLink = await this.linking.confirmLink(body.phrase, body.accountName);
             if (confirmedLink) {
                 logger.info(
                     logModules.WebServer,

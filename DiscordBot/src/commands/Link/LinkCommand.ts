@@ -10,16 +10,14 @@ import {
 } from "discord.js";
 import { logger, logModules } from "../../Logging/logger";
 import { ContainerBuilder } from "../../Utils/ContainerBuilder";
-import { linkingService } from "../../Utils/LinkingService";
-import { pluginSocket } from "../../Utils/PluginSocket";
-import type { Command } from "../Command";
+import type { Command, CommandContext } from "../Command";
 
 export const LINK_SELF_UNLINK_BUTTON_ID = "link-self-unlink";
 
-export async function handleLinkSelfUnlinkButton(interaction: ButtonInteraction): Promise<void> {
+export async function handleLinkSelfUnlinkButton(interaction: ButtonInteraction, ctx: CommandContext): Promise<void> {
     if (!interaction.guildId) return;
 
-    const removed = await linkingService.removeLink(interaction.guildId, interaction.user.id);
+    const removed = await ctx.linking.removeLink(interaction.guildId, interaction.user.id);
 
     const container = removed
         ? new ContainerBuilder().title("Link Reset", "✅").divider().text("You are no longer linked.").success()
@@ -62,7 +60,7 @@ export class LinkCommand implements Command {
                 ),
         );
 
-    async execute(interaction: ChatInputCommandInteraction) {
+    async execute(interaction: ChatInputCommandInteraction, ctx: CommandContext) {
         if (!interaction.guildId) {
             await interaction.reply({
                 flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
@@ -78,18 +76,18 @@ export class LinkCommand implements Command {
 
         switch (interaction.options.getSubcommand()) {
             case "self":
-                return this.executeSelf(interaction);
+                return this.executeSelf(interaction, ctx);
             case "force":
-                return this.executeForce(interaction);
+                return this.executeForce(interaction, ctx);
             case "reset":
-                return this.executeReset(interaction);
+                return this.executeReset(interaction, ctx);
         }
     }
 
-    private async executeSelf(interaction: ChatInputCommandInteraction) {
+    private async executeSelf(interaction: ChatInputCommandInteraction, ctx: CommandContext) {
         const guildId = interaction.guildId as string;
 
-        const existing = await linkingService.getLink(guildId, interaction.user.id);
+        const existing = await ctx.linking.getLink(guildId, interaction.user.id);
         if (existing) {
             const container = new ContainerBuilder()
                 .title("Already Linked", "🔗")
@@ -110,11 +108,11 @@ export class LinkCommand implements Command {
             });
             return;
         }
-        const { phrase, quickChatCode, quickChatLabels } = linkingService.createPendingLink(
+        const { phrase, quickChatCode, quickChatLabels } = await ctx.linking.createPendingLink(
             guildId,
             interaction.user.id,
         );
-        const pluginReady = pluginSocket.sendLinkPending(phrase, quickChatCode, interaction.user.id);
+        const pluginReady = await ctx.pushLinkPending(guildId, phrase, quickChatCode, interaction.user.id);
         if (!pluginReady) {
             logger.warn(logModules.Command, "Plugin is not connected via WebSocket; cannot send pending link");
 
@@ -153,7 +151,7 @@ export class LinkCommand implements Command {
             components: [container],
         });
 
-        linkingService.attachInteractionResponse(
+        await ctx.linking.attachInteractionResponse(
             guildId,
             interaction.user.id,
             interaction.applicationId,
@@ -161,7 +159,7 @@ export class LinkCommand implements Command {
         );
     }
 
-    private async executeForce(interaction: ChatInputCommandInteraction) {
+    private async executeForce(interaction: ChatInputCommandInteraction, ctx: CommandContext) {
         if (!this.hasManageGuild(interaction)) {
             await this.replyMissingPermission(interaction);
             return;
@@ -172,7 +170,7 @@ export class LinkCommand implements Command {
         const guildId = interaction.guildId as string;
 
         try {
-            await linkingService.forceLink(guildId, user.id, displayName);
+            await ctx.linking.forceLink(guildId, user.id, displayName);
 
             const container = new ContainerBuilder()
                 .title("Force Link Complete", "✅")
@@ -199,7 +197,7 @@ export class LinkCommand implements Command {
         }
     }
 
-    private async executeReset(interaction: ChatInputCommandInteraction) {
+    private async executeReset(interaction: ChatInputCommandInteraction, ctx: CommandContext) {
         const targetUser = interaction.options.getUser("user") ?? interaction.user;
         const guildId = interaction.guildId as string;
 
@@ -209,7 +207,7 @@ export class LinkCommand implements Command {
         }
 
         try {
-            const removed = await linkingService.removeLink(guildId, targetUser.id);
+            const removed = await ctx.linking.removeLink(guildId, targetUser.id);
 
             const container = removed
                 ? new ContainerBuilder()

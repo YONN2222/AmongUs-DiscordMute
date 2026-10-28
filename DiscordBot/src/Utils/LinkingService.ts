@@ -1,10 +1,11 @@
-import { config } from "../config";
-import { type Database, openDatabase } from "../Data/database";
+import { UniqueConstraintError } from "sequelize";
+import type { Database } from "../Data/database";
 import type { LinkEntry as StoredLink } from "../Data/repositories/LinkRepository";
 import { logger, logModules } from "../Logging/logger";
 import { describePhrase, formatQuickChatCode, pickQuickChatPhrases } from "./QuickChatCatalog";
 
 const PENDING_TTL_MS = 5 * 60 * 1000;
+const MAX_CODE_ATTEMPTS = 5;
 
 const LINK_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
@@ -14,21 +15,6 @@ function generateLinkCode(): string {
         code += LINK_CODE_CHARS[Math.floor(Math.random() * LINK_CODE_CHARS.length)];
     }
     return code;
-}
-
-function pendingKey(guildId: string, discordId: string): string {
-    return `${guildId}:${discordId}`;
-}
-
-interface PendingLink {
-    guildId: string;
-    discordId: string;
-    phrase: string;
-    quickChatCode: string;
-    quickChatIds: [number, number];
-    expiresAt: number;
-    applicationId?: string;
-    interactionToken?: string;
 }
 
 interface LinkEntry {
@@ -57,26 +43,11 @@ function toEntry(row: StoredLink): LinkEntry {
 
 const HISTORY_WINDOW = 5;
 
-class LinkingService {
-    private db: Database | undefined;
-    private readonly pending = new Map<string, PendingLink>();
+export class LinkingService {
     private readonly recentPhrases: string[] = [];
     private readonly recentQuickChatCodes = new Set<string>();
 
-    async init(): Promise<void> {
-        await this.db?.close();
-        this.db = await openDatabase(
-            config.databaseDialect === "postgres"
-                ? { dialect: "postgres", url: config.databaseUrl as string }
-                : { dialect: "sqlite", storage: config.sqlitePath },
-        );
-        logger.success(logModules.Database, "Database is ready!");
-    }
-
-    private get links(): Database["links"] {
-        if (!this.db) throw new Error("LinkingService.init() must run before use");
-        return this.db.links;
-    }
+    constructor(private readonly db: Database) {}
 
     private pickPhrase(): string {
         let code: string;
@@ -102,10 +73,10 @@ class LinkingService {
         return { code, ids, labels: [describePhrase(ids[0]), describePhrase(ids[1])] };
     }
 
-    createPendingLink(guildId: string, discordId: string): PendingLinkCodes {
-        const key = pendingKey(guildId, discordId);
-        const existing = this.pending.get(key);
-        if (existing && existing.expiresAt > Date.now()) {
+    async createPendingLink(guildId: string, discordId: string): Promise<PendingLinkCodes> {
+        const now = Date.now();
+        const existing = await this.db.pendingLinks.getActive(guildId, discordId, now);
+        if (existing) {
             return {
                 phrase: existing.phrase,
                 quickChatCode: existing.quickChatCode,
@@ -113,55 +84,47 @@ class LinkingService {
             };
         }
 
-        const phrase = this.pickPhrase();
-        const quickChat = this.pickQuickChat();
-        this.pending.set(key, {
-            guildId,
-            discordId,
-            phrase,
-            quickChatCode: quickChat.code,
-            quickChatIds: quickChat.ids,
-            expiresAt: Date.now() + PENDING_TTL_MS,
-        });
-        logger.debug(
-            logModules.Command,
-            `Pending link created for ${discordId} in guild ${guildId}: "${phrase}" / quick chat "${quickChat.code}"`,
-        );
-        return { phrase, quickChatCode: quickChat.code, quickChatLabels: quickChat.labels };
+        await this.db.pendingLinks.deleteExpired(now);
+
+        for (let attempt = 0; attempt < MAX_CODE_ATTEMPTS; attempt++) {
+            const phrase = this.pickPhrase();
+            const quickChat = this.pickQuickChat();
+            try {
+                await this.db.pendingLinks.create({
+                    guildId,
+                    discordId,
+                    phrase,
+                    quickChatCode: quickChat.code,
+                    quickChatIds: quickChat.ids,
+                    expiresAt: now + PENDING_TTL_MS,
+                });
+            } catch (error) {
+                if (error instanceof UniqueConstraintError) continue;
+                throw error;
+            }
+            logger.debug(
+                logModules.Command,
+                `Pending link created for ${discordId} in guild ${guildId}: "${phrase}" / quick chat "${quickChat.code}"`,
+            );
+            return { phrase, quickChatCode: quickChat.code, quickChatLabels: quickChat.labels };
+        }
+        throw new Error("Could not generate a unique link code");
     }
 
-    attachInteractionResponse(
+    async attachInteractionResponse(
         guildId: string,
         discordId: string,
         applicationId: string,
         interactionToken: string,
-    ): void {
-        const key = pendingKey(guildId, discordId);
-        const existing = this.pending.get(key);
-        if (!existing) return;
-
-        this.pending.set(key, { ...existing, applicationId, interactionToken });
+    ): Promise<void> {
+        await this.db.pendingLinks.attachInteraction(guildId, discordId, applicationId, interactionToken);
     }
 
-    private async upsertLink(guildId: string, discordId: string, accountName: string): Promise<void> {
-        await this.links.upsert(guildId, discordId, accountName);
-    }
-
-    async confirmLink(phrase: string, accountName: string): Promise<ConfirmedLink | null> {
-        const now = Date.now();
-        let matched: PendingLink | undefined;
-
-        for (const entry of this.pending.values()) {
-            if ((entry.phrase === phrase || entry.quickChatCode === phrase) && entry.expiresAt > now) {
-                matched = entry;
-                break;
-            }
-        }
-
+    async confirmLink(code: string, accountName: string): Promise<ConfirmedLink | null> {
+        const matched = await this.db.pendingLinks.consumeByCode(code, Date.now());
         if (!matched) return null;
 
-        this.pending.delete(pendingKey(matched.guildId, matched.discordId));
-        await this.upsertLink(matched.guildId, matched.discordId, accountName);
+        await this.db.links.upsert(matched.guildId, matched.discordId, accountName);
         logger.info(
             logModules.Command,
             `Linked Discord ${matched.discordId} -> Among Us "${accountName}" in guild ${matched.guildId}`,
@@ -177,7 +140,7 @@ class LinkingService {
     }
 
     async forceLink(guildId: string, discordId: string, accountName: string): Promise<void> {
-        await this.upsertLink(guildId, discordId, accountName);
+        await this.db.links.upsert(guildId, discordId, accountName);
         logger.info(
             logModules.Command,
             `Force Linked Discord ${discordId} -> Among Us "${accountName}" in guild ${guildId}`,
@@ -185,7 +148,7 @@ class LinkingService {
     }
 
     async removeLink(guildId: string, discordId: string): Promise<boolean> {
-        const deleted = await this.links.remove(guildId, discordId);
+        const deleted = await this.db.links.remove(guildId, discordId);
         if (deleted) {
             logger.info(logModules.Command, `Unlinked Discord ${discordId} in guild ${guildId}`);
         }
@@ -193,14 +156,12 @@ class LinkingService {
     }
 
     async getLink(guildId: string, discordId: string): Promise<LinkEntry | undefined> {
-        const row = await this.links.get(guildId, discordId);
+        const row = await this.db.links.get(guildId, discordId);
         return row ? toEntry(row) : undefined;
     }
 
     async getAllLinks(guildId: string): Promise<LinkEntry[]> {
-        const rows = await this.links.listByGuild(guildId);
+        const rows = await this.db.links.listByGuild(guildId);
         return rows.map(toEntry);
     }
 }
-
-export const linkingService = new LinkingService();

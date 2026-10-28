@@ -1,13 +1,19 @@
 import type { ChatInputCommandInteraction, SlashCommandBuilder } from "discord.js";
 import { logger, logModules } from "../Logging/logger";
+import type { LinkingService } from "../Utils/LinkingService";
 import { commandConstructors } from "./generated";
+
+export interface CommandContext {
+    linking: LinkingService;
+    pushLinkPending(guildId: string, phrase: string, quickChatCode: string, discordId: string): Promise<boolean>;
+}
 
 export interface Command {
     name: string;
 
     data: SlashCommandBuilder | { toJSON: () => unknown; name: string; description: string };
 
-    execute(interaction: ChatInputCommandInteraction): Promise<void>;
+    execute(interaction: ChatInputCommandInteraction, ctx: CommandContext): Promise<void>;
 }
 
 export class CommandRegistry {

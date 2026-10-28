@@ -1,136 +1,157 @@
 import { Client, Events, GatewayIntentBits, MessageFlags } from "discord.js";
-import { commandRegistry } from "./commands/Command";
+import { type CommandContext, commandRegistry } from "./commands/Command";
 import { handleLinkSelfUnlinkButton, LINK_SELF_UNLINK_BUTTON_ID } from "./commands/Link/LinkCommand";
 import { config, DISCORD_GUILD_ID, DISCORD_TOKEN } from "./config";
+import { openDatabase } from "./Data/database";
 import { deployCommands } from "./deploy-commands";
 import { logger, logModules } from "./Logging/logger";
 import { ContainerBuilder } from "./Utils/ContainerBuilder";
 import { HttpServer } from "./Utils/HttpServer";
-import { linkingService } from "./Utils/LinkingService";
+import { LinkingService } from "./Utils/LinkingService";
 import { MuteService } from "./Utils/MuteService";
+import { pluginSocket } from "./Utils/PluginSocket";
 
-const client = new Client({
-    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMembers],
-});
+async function main(): Promise<void> {
+    const client = new Client({
+        intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMembers],
+    });
 
-const muteService = new MuteService(client, config);
-
-client.once(Events.ClientReady, async (readyClient) => {
-    logger.success(logModules.Discord, `Logged in as ${readyClient.user.tag}`);
-
-    await linkingService.init();
-
-    const httpServer = new HttpServer(config, muteService, client);
-    await httpServer.start();
-
-    if (DISCORD_GUILD_ID) {
-        try {
-            await deployCommands({ guildId: DISCORD_GUILD_ID });
-        } catch (error) {
-            logger.error(logModules.Command, "Failed to deploy commands during startup", error);
-        }
-    } else {
-        logger.warn(logModules.Command, "No DISCORD_GUILD_ID found in config, skipping command deployment.");
-    }
-});
-
-client.on(Events.InteractionCreate, async (interaction) => {
-    if (interaction.isButton() && interaction.customId === LINK_SELF_UNLINK_BUTTON_ID) {
-        try {
-            await handleLinkSelfUnlinkButton(interaction);
-        } catch (error) {
-            logger.error(logModules.Command, `Failed to handle unlink button for ${interaction.user.tag}`, error);
-        }
-        return;
-    }
-
-    if (!interaction.isChatInputCommand()) return;
-
-    const { commandName } = interaction;
-    const guild = interaction.guild?.name ?? "DM";
-    const channel = interaction.channel && "name" in interaction.channel ? interaction.channel.name : "unknown";
-
-    const options = interaction.options.data
-        .map((o) => {
-            if (o.type === 1 || o.type === 2) {
-                const subOptions = o.options ? o.options.map((so) => `${so.name}:${so.value}`).join(" ") : "";
-                return subOptions ? `${o.name} ${subOptions}` : o.name;
-            }
-            return `${o.name}:${o.value}`;
-        })
-        .join(", ");
-
-    logger.info(
-        logModules.Command,
-        `/${commandName}${options ? ` [${options}]` : ""} by ${interaction.user.tag} in #${channel} (${guild})`,
+    const db = await openDatabase(
+        config.databaseDialect === "postgres"
+            ? { dialect: "postgres", url: config.databaseUrl as string }
+            : { dialect: "sqlite", storage: config.sqlitePath },
     );
+    logger.success(logModules.Database, "Database is ready!");
 
-    const command = commandRegistry.get(commandName);
-    if (!command) {
-        logger.warn(logModules.Command, `No handler found for command: ${commandName}`);
-        try {
-            await interaction.reply({
-                content: "Command is not available.",
-                flags: MessageFlags.Ephemeral,
-            });
-        } catch (replyError) {
-            logger.error(logModules.Command, "Failed to send 'command not available' message", replyError);
-        }
-        return;
-    }
+    const linkingService = new LinkingService(db);
+    const muteService = new MuteService(client, config, linkingService);
 
-    try {
-        await command.execute(interaction);
-        logger.debug(logModules.Command, `/${commandName} completed successfully for ${interaction.user.tag}`);
-    } catch (error) {
-        logger.error(logModules.Command, `/${commandName} failed for ${interaction.user.tag}`, error);
+    const commandContext: CommandContext = {
+        linking: linkingService,
+        pushLinkPending: async (_guildId, phrase, quickChatCode, discordId) =>
+            pluginSocket.sendLinkPending(phrase, quickChatCode, discordId),
+    };
 
-        if (!interaction.replied && !interaction.deferred) {
+    client.once(Events.ClientReady, async (readyClient) => {
+        logger.success(logModules.Discord, `Logged in as ${readyClient.user.tag}`);
+
+        const httpServer = new HttpServer(config, muteService, client, linkingService);
+        await httpServer.start();
+
+        if (DISCORD_GUILD_ID) {
             try {
-                const container = new ContainerBuilder()
-                    .title("Fehler", "❌")
-                    .text(
-                        "Es ist ein Fehler beim Ausführen dieses Befehls aufgetreten. Bitte versuche es später erneut.",
-                    )
-                    .error();
+                await deployCommands({ guildId: DISCORD_GUILD_ID });
+            } catch (error) {
+                logger.error(logModules.Command, "Failed to deploy commands during startup", error);
+            }
+        } else {
+            logger.warn(logModules.Command, "No DISCORD_GUILD_ID found in config, skipping command deployment.");
+        }
+    });
 
+    client.on(Events.InteractionCreate, async (interaction) => {
+        if (interaction.isButton() && interaction.customId === LINK_SELF_UNLINK_BUTTON_ID) {
+            try {
+                await handleLinkSelfUnlinkButton(interaction, commandContext);
+            } catch (error) {
+                logger.error(logModules.Command, `Failed to handle unlink button for ${interaction.user.tag}`, error);
+            }
+            return;
+        }
+
+        if (!interaction.isChatInputCommand()) return;
+
+        const { commandName } = interaction;
+        const guild = interaction.guild?.name ?? "DM";
+        const channel = interaction.channel && "name" in interaction.channel ? interaction.channel.name : "unknown";
+
+        const options = interaction.options.data
+            .map((o) => {
+                if (o.type === 1 || o.type === 2) {
+                    const subOptions = o.options ? o.options.map((so) => `${so.name}:${so.value}`).join(" ") : "";
+                    return subOptions ? `${o.name} ${subOptions}` : o.name;
+                }
+                return `${o.name}:${o.value}`;
+            })
+            .join(", ");
+
+        logger.info(
+            logModules.Command,
+            `/${commandName}${options ? ` [${options}]` : ""} by ${interaction.user.tag} in #${channel} (${guild})`,
+        );
+
+        const command = commandRegistry.get(commandName);
+        if (!command) {
+            logger.warn(logModules.Command, `No handler found for command: ${commandName}`);
+            try {
                 await interaction.reply({
-                    components: [container.toJSON()],
-                    flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+                    content: "Command is not available.",
+                    flags: MessageFlags.Ephemeral,
                 });
             } catch (replyError) {
-                logger.error(
-                    logModules.Command,
-                    `Failed to send error message to user for /${commandName}`,
-                    replyError,
-                );
+                logger.error(logModules.Command, "Failed to send 'command not available' message", replyError);
+            }
+            return;
+        }
+
+        try {
+            await command.execute(interaction, commandContext);
+            logger.debug(logModules.Command, `/${commandName} completed successfully for ${interaction.user.tag}`);
+        } catch (error) {
+            logger.error(logModules.Command, `/${commandName} failed for ${interaction.user.tag}`, error);
+
+            if (!interaction.replied && !interaction.deferred) {
+                try {
+                    const container = new ContainerBuilder()
+                        .title("Fehler", "❌")
+                        .text(
+                            "Es ist ein Fehler beim Ausführen dieses Befehls aufgetreten. Bitte versuche es später erneut.",
+                        )
+                        .error();
+
+                    await interaction.reply({
+                        components: [container.toJSON()],
+                        flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+                    });
+                } catch (replyError) {
+                    logger.error(
+                        logModules.Command,
+                        `Failed to send error message to user for /${commandName}`,
+                        replyError,
+                    );
+                }
             }
         }
-    }
-});
+    });
 
-client.login(DISCORD_TOKEN).catch((error) => {
-    logger.error(logModules.Bot, "Failed to login to Discord", error);
-    process.exit(1);
-});
+    client.login(DISCORD_TOKEN).catch((error) => {
+        logger.error(logModules.Bot, "Failed to login to Discord", error);
+        process.exit(1);
+    });
 
-process.on("SIGINT", () => {
-    logger.warn(logModules.Bot, "SIGINT received, shutting down...");
-    client.destroy();
-    process.exit(0);
-});
+    process.on("SIGINT", () => {
+        logger.warn(logModules.Bot, "SIGINT received, shutting down...");
+        client.destroy();
+        process.exit(0);
+    });
 
-process.on("SIGTERM", () => {
-    logger.warn(logModules.Bot, "SIGTERM received, shutting down...");
-    client.destroy();
-    process.exit(0);
-});
+    process.on("SIGTERM", () => {
+        logger.warn(logModules.Bot, "SIGTERM received, shutting down...");
+        client.destroy();
+        process.exit(0);
+    });
 
-process.on("unhandledRejection", (error) => {
-    logger.error(logModules.Bot, "Unhandled Promise Rejection", error);
-});
+    process.on("unhandledRejection", (error) => {
+        logger.error(logModules.Bot, "Unhandled Promise Rejection", error);
+    });
 
-process.on("uncaughtException", (error) => {
-    logger.error(logModules.Bot, "Uncaught Exception", error);
+    process.on("uncaughtException", (error) => {
+        logger.error(logModules.Bot, "Uncaught Exception", error);
+        process.exit(1);
+    });
+}
+
+main().catch((error) => {
+    logger.error(logModules.Bot, "Failed to start the bot", error);
     process.exit(1);
 });

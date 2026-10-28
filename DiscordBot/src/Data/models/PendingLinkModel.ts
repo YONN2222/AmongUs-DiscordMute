@@ -21,8 +21,8 @@ export function initPendingLinkModel(sequelize: Sequelize): typeof PendingLinkMo
             quickChatCode: { type: DataTypes.STRING, allowNull: false, unique: true, field: "quick_chat_code" },
             quickChatIds: { type: DataTypes.STRING, allowNull: false, field: "quick_chat_ids" },
             expiresAt: { type: DataTypes.BIGINT, allowNull: false, field: "expires_at" },
-            applicationId: { type: DataTypes.STRING, allowNull: true, field: "application_id" },
-            interactionToken: { type: DataTypes.STRING, allowNull: true, field: "interaction_token" },
+            applicationId: { type: DataTypes.TEXT, allowNull: true, field: "application_id" },
+            interactionToken: { type: DataTypes.TEXT, allowNull: true, field: "interaction_token" },
         },
         { sequelize, tableName: "pending_links", timestamps: false },
     );
