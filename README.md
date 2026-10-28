@@ -109,9 +109,9 @@ Example:
 | `token`           | Bot token from the Discord Developer Portal.                                                       |
 | `clientId`        | Application / client ID of your Discord bot.                                                       |
 | `guildId`         | ID of the Discord server where the bot should be used.                                             |
-| `channelIds`      | Optional. Fallback voice channels, used only when the bot can't tell which channel the host is in. |
-| `secret`          | Must be exactly the same shared secret as in the plugin config.                                    |
-| `botIp`           | IP address the bot binds to. Default: `0.0.0.0` (all interfaces).                                  |
+| `channelIds`      | Optional. Fallback voice channels, used only when the bot can't tell which channel the host is in. Leave it as `[]` if you don't need it. |
+| `secret`          | Must be exactly the same shared secret as in the plugin config. Replace the default `change-me` with your own value. |
+| `botIp`           | Address the bot listens on for the plugin. Use `localhost` when the plugin runs on the same PC (recommended). Default: `0.0.0.0` (all interfaces). |
 | `botPort`         | Port used by the Discord bot. Default: `7264`.                                                     |
 | `databaseDialect` | Storage backend for links: `sqlite` (default) or `postgres`.                                       |
 | `databaseUrl`     | Optional. Connection URL, required when `databaseDialect` is `postgres`.                           |
@@ -125,7 +125,7 @@ Example:
   "token": "YOUR_BOT_TOKEN",
   "clientId": "YOUR_CLIENT_ID",
   "guildId": "YOUR_GUILD_ID",
-  "channelIds": ["CHANNEL_ID_1"],
+  "channelIds": [],
   "secret": "replace-this-with-your-own-secret",
   "botIp": "localhost",
   "botPort": 7264,

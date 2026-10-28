@@ -37,6 +37,11 @@ describe("parseConfig", () => {
         expect(config.databaseUrl).toBe("postgres://user:pw@localhost:5432/mute");
     });
 
+    it("accepts a postgres URL with a remote host name", () => {
+        const databaseUrl = "postgres://user:pass@host:5432/db";
+        expect(parseConfig({ ...base, databaseDialect: "postgres", databaseUrl }).databaseUrl).toBe(databaseUrl);
+    });
+
     it("defaults channelIds to []", () => {
         expect(parseConfig(base).channelIds).toEqual([]);
     });
