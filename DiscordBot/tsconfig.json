@@ -4,7 +4,7 @@
     "module": "CommonJS",
     "lib": ["ES2022"],
     "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDir": ".",
     "strict": true,
     "noImplicitAny": true,
     "strictNullChecks": true,
@@ -27,6 +27,6 @@
     "declaration": true,
     "sourceMap": false
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "test/**/*.ts", "vitest.config.mts"],
   "exclude": ["node_modules", "dist"]
 }
