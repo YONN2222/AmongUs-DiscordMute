@@ -1,6 +1,6 @@
 {
   "name": "discord-mute-bot",
-  "version": "1.0.0",
+  "version": "3.0.0",
   "description": "DiscordMute Bot - Among Us voice mute controller",
   "main": "dist/index.js",
   "scripts": {

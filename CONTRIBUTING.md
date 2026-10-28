@@ -68,6 +68,8 @@ cp config.example.json config.json
 
 Then fill in the required Discord bot values.
 
+The bot currently depends on a locally built `galactic.ts` (a `file:` dependency). `galactic.ts` must be checked out next to this repo and built before you run `bun install`. This is temporary until a release is available.
+
 ### Build the bot executable
 
 The Discord bot is written in TypeScript, but releases use a compiled Windows executable.
@@ -91,9 +93,12 @@ The generated `bot.exe` is a local build artifact and should not be committed.
 From the `DiscordBot` folder:
 
 ```bash
+bun run test
 bun run lint
 bun run typecheck
 ```
+
+Tests run with Vitest under Bun. Discord-facing tests use `probe.ts` instead of hand-written discord.js mocks.
 
 ## Development notes
 
@@ -102,7 +107,7 @@ bun run typecheck
 - Keep compatibility with the supported Among Us / BepInEx environment.
 - Prefer graceful fallbacks when optional host mods such as TOHE or EHR are not installed.
 - Avoid silent exception handling. If something fails, log a useful warning or error.
-- The plugin is stateless and doesn't run its own HTTP server anymore — it connects out to the bot over a WebSocket (`DLL/Core/PluginSocket.cs`). Treat that connection and the bot's HTTP endpoints as security-sensitive and keep secret validation intact.
+- The plugin is stateless and doesn't run its own HTTP server anymore — it connects out to the bot over a WebSocket (`DLL/Core/PluginSocket.cs`). Treat that connection (protocol v2, handshake with version check) as security-sensitive and keep secret validation intact.
 
 ### TypeScript bot
 
@@ -116,6 +121,7 @@ bun run typecheck
 Please make sure that:
 
 - the plugin builds successfully
+- the bot tests pass
 - the bot passes linting
 - the bot passes type checking
 - no secrets or local config files are included
@@ -128,6 +134,7 @@ Useful commands:
 dotnet build -c Release
 
 # DiscordBot
+bun run test
 bun run lint
 bun run typecheck
 ```

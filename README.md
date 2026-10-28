@@ -80,10 +80,13 @@ Example:
 ```
 
 > [!IMPORTANT]
+> **Update the plugin and the bot together.** The two only talk over a single WebSocket connection, and a plugin or bot from an older version is rejected with an "outdated" message.
+
+> [!IMPORTANT]
 > **Use double backslashes (`\\`) or forward slashes (`/`) in the `exe` path.**
 > In JSON a single backslash is an escape character, so `"C:\Users\Me\start.bat"` makes the whole file invalid.
-> The plugin then silently falls back to its default values (including the secret `change-me`), and every request
-> between plugin and bot fails with "Unauthorized", even if your secrets are identical.
+> The plugin then silently falls back to its default values (including the secret `change-me`), and the connection
+> to the bot is refused, even if your secrets are identical.
 >
 > | Correct                              | Wrong                              |
 > |--------------------------------------|------------------------------------|
@@ -106,11 +109,14 @@ Example:
 | `token`           | Bot token from the Discord Developer Portal.                            |
 | `clientId`        | Application / client ID of your Discord bot.                            |
 | `guildId`         | ID of the Discord server where the bot should be used.                  |
-| `channelIds`      | Voice channel IDs used for Among Us sessions. Add one or more channels. |
+| `channelIds`      | Optional. Fallback voice channels, used only when the bot can't tell which channel the host is in. |
 | `secret`          | Must be exactly the same shared secret as in the plugin config.         |
 | `botIp`           | IP address on which the bot listens. Usually `localhost`.               |
 | `botPort`         | Port used by the Discord bot. Default: `7264`.                          |
-| `databaseDialect` | Storage backend for links, `sqlite` (default, self-host).               |
+| `databaseDialect` | Storage backend for links: `sqlite` (default) or `postgres`.            |
+| `databaseUrl`     | Optional. Connection URL, required when `databaseDialect` is `postgres`. |
+| `sqlitePath`      | Optional. Location of the SQLite file. Default: `./data/linking.sqlite`. |
+| `clusters`        | Optional. `{ "total": 1, "shardsPerCluster": 1 }`. The defaults suit a single server. |
 
 Example:
 
@@ -132,9 +138,13 @@ Example:
 Once both configs are set up:
 
 1. Start Among Us.
-2. Create a lobby as host.
+2. Create a lobby as host (online or LAN, not Freeplay). The plugin does nothing when you are not the host.
 3. The Discord bot should start automatically through the `exe` path configured in the plugin.
-4. Join the configured Discord voice channel and play.
+4. Link your account with `/link self` (see below) and join a Discord voice channel.
+
+DiscordMute mutes the voice channel the lobby host is sitting in, so the host must be linked. If the host can't be resolved, the bot falls back to the channels in `channelIds`. The bot keeps a record of the players it muted and unmutes them again after a crash or restart. Mutes set by moderators are never lifted.
+
+You can check that the bot is running with `GET /health` on the bot's port.
 
 ## 3. Linking Discord users to Among Us players
 
@@ -142,29 +152,27 @@ DiscordMute needs to know which Discord user belongs to which Among Us player na
 
 The normal flow is:
 
-1. A player runs `/link` in Discord.
+1. A player runs `/link self` in Discord.
 2. The bot replies with a short one-time phrase such as `link-AB12`.
 3. The player opens Free Chat in an Among Us lobby and sends that phrase exactly.
-4. The plugin catches the phrase before it appears in chat, sends the detected Among Us name back to the bot, and the account is linked.
+4. The plugin catches the phrase before it appears in chat and sends the detected Among Us name to the bot. The bot links the account and answers in-game with "Account linked successfully!" or a failure message.
 
-Link phrases expire after 5 minutes. Once a link succeeds, the bot stores it in `DiscordBot/linking.json`, and the plugin stores the local copy it needs in `BepInEx/DiscordMute/linking.json`.
+Link phrases expire after 5 minutes. The bot stores links in `DiscordBot/data/linking.sqlite`.
 
 ### Discord bot commands
 
 | Command                         | Purpose                                                                                                                      |
 |---------------------------------|------------------------------------------------------------------------------------------------------------------------------|
-| `/link`                         | Starts the normal self-link flow for the Discord user who runs the command.                                                  |
-| `/force-link user display-name` | Lets a server admin manually link a Discord user to an Among Us display name. Useful if the normal flow cannot be completed. |
+| `/link self`                    | Starts the normal self-link flow for the Discord user who runs the command.                                                  |
+| `/link force user display-name` | Lets a server admin manually link a Discord user to an Among Us display name. Useful if the normal flow cannot be completed. |
+| `/link reset [user]`            | Unlinks your own account, or another user's (requires Manage Server).                                                        |
 | `/testconnection`               | Checks whether the Discord bot can reach the Among Us plugin. Useful while setting up or debugging the integration.          |
 
-### About `linking.json`
+### About the link data
 
-`linking.json` is created automatically after the first successful link.
-
-- `DiscordBot/linking.json` is used by the bot to map Discord user IDs to Among Us display names.
-- `BepInEx/DiscordMute/linking.json` is used by the plugin to keep its local link state in sync.
-- You normally do not need to edit either file by hand.
-- If a player changes their Among Us name, they should run `/link` again or an admin can use `/force-link`.
+- Links are stored in `DiscordBot/data/linking.sqlite`. An existing file from an earlier version keeps working.
+- You normally do not need to touch it by hand.
+- If a player changes their Among Us name, they should run `/link self` again or an admin can use `/link force`.
 
 ## 4. Optional mod integration
 
@@ -181,6 +189,7 @@ If EHR is not installed, DiscordMute still works normally; only EHR-specific Bla
 - **EHR Blackmailer support**: when installed alongside Endless Host Roles, a blackmailed player stays muted during meetings instead of being able to speak.
 - **Host mod integration**: Town Of Host Enhanced and Endless Host Roles improve player-name resolution when present.
 - **Self-service linking**: players link their Discord account to their Among Us name in-game with a one-time Free Chat phrase or, if Free Chat isn't available, a pair of Quick Chat phrases — no manual admin setup required.
+- **Crash-safe mutes**: the bot unmutes the players it muted after a crash or restart and leaves moderator mutes alone.
 - **Log bridging**: optionally forward plugin/BepInEx logs to the bot console for easier debugging.
 
 <details>
@@ -191,7 +200,9 @@ If EHR is not installed, DiscordMute still works normally; only EHR-specific Bla
 | Component    | Stack                                                                                 |
 |--------------|---------------------------------------------------------------------------------------|
 | `DLL`        | C# (.NET 6) + [BepInEx](https://github.com/BepInEx/BepInEx) IL2CPP plugin             |
-| `DiscordBot` | [Bun](https://bun.sh/) + TypeScript + [discord.js](https://discord.js.org/) + Express |
+| `DiscordBot` | [Bun](https://bun.sh/) + TypeScript + [discord.js](https://discord.js.org/) + WebSocket |
+
+The bot runs as a gateway process plus one or more cluster processes. The plugin connects to the gateway over one WebSocket (the secret is sent in the handshake, not in URLs).
 
 The bot is distributed as a compiled `bot.exe` (via `bun build --compile`), so end users don't need Bun or Node.js installed to run a release build.
 
