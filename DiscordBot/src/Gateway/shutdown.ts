@@ -31,13 +31,13 @@ export interface ClusterExitDeps {
     shutdown: (exitCode: number) => void;
 }
 
-/** galactic restarts a cluster that exits; only an invalid token makes the whole bot stop instead. */
+/** galactic restarts a cluster that exits; only a Discord refusal a restart cannot fix stops the whole bot. */
 export function createClusterExitHandler(deps: ClusterExitDeps): (clusterId: number, code: number | null) => void {
     return (clusterId, code) => {
         if (code === CLUSTER_EXIT_LOGIN_FAILED) {
             logger.error(
                 logModules.Bot,
-                `Cluster ${clusterId}: Discord rejected the token, check config.json. Shutting down.`,
+                `Cluster ${clusterId}: Discord refused the bot, see the error above. Shutting down.`,
             );
             deps.stopRespawning();
             deps.shutdown(1);

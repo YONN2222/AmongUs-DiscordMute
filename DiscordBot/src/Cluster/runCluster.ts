@@ -14,6 +14,7 @@ import { LinkingService } from "../Utils/LinkingService";
 import { createClusterRequestHandler } from "./clusterRequestHandler";
 import { createDiscordClient } from "./createDiscordClient";
 import { DiscordVoiceAdapter } from "./DiscordVoiceAdapter";
+import { onFatalGatewayClose } from "./fatalGatewayClose";
 import { registerInteractionHandlers } from "./interactionHandler";
 import { updateOriginalLinkReply } from "./linkReply";
 import { registerVoiceRejoin } from "./voiceRejoin";
@@ -120,11 +121,21 @@ export async function runCluster(): Promise<void> {
         stopAndExit(0);
     });
 
+    let loggedIn = false;
+    let fatalGatewayClose = false;
+    onFatalGatewayClose(client, (message, shardId) => {
+        logger.error(logModules.Discord, `Cluster ${cluster.clusterID} shard ${shardId}: ${message}`);
+        fatalGatewayClose = true;
+        // Before login resolves, the rejected login below handles the exit.
+        if (loggedIn) stopAndExit(CLUSTER_EXIT_LOGIN_FAILED);
+    });
+
     try {
         await client.login(cluster.token);
+        loggedIn = true;
     } catch (error) {
         logger.error(logModules.Discord, `Cluster ${cluster.clusterID} failed to log in to Discord`, error);
-        const exitCode = loginFailureExitCode(error);
+        const exitCode = fatalGatewayClose ? CLUSTER_EXIT_LOGIN_FAILED : loginFailureExitCode(error);
         // galactic respawns at once, so a lasting outage would otherwise turn into a tight restart loop.
         if (exitCode !== CLUSTER_EXIT_LOGIN_FAILED)
             await new Promise((resolve) => setTimeout(resolve, LOGIN_RETRY_DELAY_MS));
