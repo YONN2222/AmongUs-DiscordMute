@@ -39,10 +39,40 @@ internal static class PluginSocket
             DiscordMutePlugin.PluginLog.LogError("DiscordMute is outdated for this bot; game events are not sent. Please update.");
     }
 
-    internal static void Start(string gameVersion)
+    private static readonly object RunLock = new();
+    private static CancellationTokenSource _runCts;
+
+    internal static void Activate(string gameVersion)
     {
-        _gameVersion = gameVersion ?? string.Empty;
-        _ = RunAsync();
+        lock (RunLock)
+        {
+            if (_runCts != null) return;
+            _gameVersion = gameVersion ?? string.Empty;
+            _terminal = false;
+            Interlocked.Exchange(ref _outdatedLogged, 0);
+            lock (QueueLock)
+            {
+                Queue.Clear();
+            }
+            LocalChatQueue.Pending.Clear();
+            _runCts = new CancellationTokenSource();
+            _ = RunAsync(_runCts.Token);
+        }
+    }
+
+    internal static void Deactivate()
+    {
+        lock (RunLock)
+        {
+            _runCts?.Cancel();
+            _runCts = null;
+        }
+
+        _ready = false;
+        lock (QueueLock)
+        {
+            Queue.Clear();
+        }
     }
 
     /// <summary>
@@ -52,6 +82,8 @@ internal static class PluginSocket
     /// </summary>
     internal static bool Send(object message)
     {
+        if (!HostGate.IsActive) return false;
+
         var json = JsonSerializer.Serialize(message, message.GetType(), PluginProtocol.JsonOptions);
         lock (QueueLock)
         {
@@ -77,14 +109,15 @@ internal static class PluginSocket
         Queue.RemoveFirst();
     }
 
-    private static async Task RunAsync()
+    private static async Task RunAsync(CancellationToken token)
     {
-        while (true)
+        while (!token.IsCancellationRequested)
         {
             var delay = ReconnectDelay;
             try
             {
-                var (closeCode, closeReason) = await ConnectAndListenAsync().ConfigureAwait(false);
+                var (closeCode, closeReason) = await ConnectAndListenAsync(token).ConfigureAwait(false);
+                if (token.IsCancellationRequested) return;
                 switch (closeCode)
                 {
                     case 0:
@@ -107,36 +140,53 @@ internal static class PluginSocket
                         break;
                 }
             }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                return;
+            }
             catch (Exception ex)
             {
                 DiscordMutePlugin.PluginLog.LogWarning($"Bot WebSocket connection lost: {ex.Message}");
             }
 
-            await Task.Delay(delay).ConfigureAwait(false);
+            try { await Task.Delay(delay, token).ConfigureAwait(false); }
+            catch (OperationCanceledException) { return; }
         }
     }
 
-    private static async Task<(int Code, string Reason)> ConnectAndListenAsync()
+    private static async Task CloseNormallyAsync(ClientWebSocket socket)
+    {
+        if (socket.State != WebSocketState.Open) return;
+        try
+        {
+            using var closeTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "inactive", closeTimeout.Token).ConfigureAwait(false);
+        }
+        catch (Exception) { socket.Abort(); }
+    }
+
+    private static async Task<(int Code, string Reason)> ConnectAndListenAsync(CancellationToken token)
     {
         using var socket = new ClientWebSocket();
-        using var cts = new CancellationTokenSource();
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
         var uri = new Uri($"ws://{DiscordMutePlugin.Cfg.Ip}:{DiscordMutePlugin.Cfg.BotPort}/ws");
 
-        await socket.ConnectAsync(uri, CancellationToken.None).ConfigureAwait(false);
-        DiscordMutePlugin.PluginLog.LogInfo("Connected to bot via WebSocket.");
-
-        var hello = JsonSerializer.Serialize(new HelloMessage
-        {
-            ProtocolVersion = PluginProtocol.ProtocolVersion,
-            Secret = DiscordMutePlugin.Cfg.Secret,
-            PluginVersion = PluginProtocol.Truncate(PluginInfo.Version, PluginProtocol.MaxVersionLength),
-            GameVersion = PluginProtocol.Truncate(_gameVersion, PluginProtocol.MaxVersionLength)
-        }, PluginProtocol.JsonOptions);
-        await SendRawAsync(socket, hello, cts.Token).ConfigureAwait(false);
-
+        await socket.ConnectAsync(uri, token).ConfigureAwait(false);
         Task senderTask = null;
         try
         {
+            using var closeOnDeactivate = token.Register(() => _ = CloseNormallyAsync(socket));
+            DiscordMutePlugin.PluginLog.LogInfo("Connected to bot via WebSocket.");
+
+            var hello = JsonSerializer.Serialize(new HelloMessage
+            {
+                ProtocolVersion = PluginProtocol.ProtocolVersion,
+                Secret = DiscordMutePlugin.Cfg.Secret,
+                PluginVersion = PluginProtocol.Truncate(PluginInfo.Version, PluginProtocol.MaxVersionLength),
+                GameVersion = PluginProtocol.Truncate(_gameVersion, PluginProtocol.MaxVersionLength)
+            }, PluginProtocol.JsonOptions);
+            await SendRawAsync(socket, hello, cts.Token).ConfigureAwait(false);
+
             var buffer = new byte[8192];
             while (socket.State == WebSocketState.Open)
             {
@@ -153,6 +203,7 @@ internal static class PluginSocket
 
                 if (HandleMessage(Encoding.UTF8.GetString(stream.ToArray())) && senderTask == null)
                 {
+                    if (token.IsCancellationRequested) continue;
                     _ready = true;
                     senderTask = SendLoopAsync(socket, cts.Token);
                 }
@@ -162,7 +213,10 @@ internal static class PluginSocket
         }
         finally
         {
-            _ready = false;
+            if (token.IsCancellationRequested)
+                await CloseNormallyAsync(socket).ConfigureAwait(false);
+            else
+                _ready = false;
             cts.Cancel();
             if (senderTask != null)
             {
@@ -234,13 +288,13 @@ internal static class PluginSocket
                     }
                     return true;
                 case "link-result":
-                    HandleLinkResult(root);
+                    if (HostGate.IsActive) HandleLinkResult(root);
                     break;
                 case "link-pending":
-                    HandleLinkPending(root);
+                    if (HostGate.IsActive) HandleLinkPending(root);
                     break;
                 case "notice":
-                    HandleNotice(root);
+                    if (HostGate.IsActive) HandleNotice(root);
                     break;
             }
         }

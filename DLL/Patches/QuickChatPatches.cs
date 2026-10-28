@@ -1,5 +1,6 @@
 using System;
 using AmongUs.QuickChat;
+using DiscordMute.Core;
 using DiscordMute.Linking;
 using Hazel;
 using HarmonyLib;
@@ -12,7 +13,7 @@ internal static class QuickChatLinkSendPatch
     [HarmonyPrefix]
     static bool Prefix(PlayerControl __instance, QuickChatPhraseBuilderResult data)
     {
-        if (!__instance.AmOwner) return true;
+        if (!HostGate.IsActive || !__instance.AmOwner) return true;
         return !LinkHandler.TryHandleQuickChatPhrase(data, __instance);
     }
 }
@@ -23,7 +24,7 @@ internal static class QuickChatLinkReceivePatch
     [HarmonyPostfix]
     static void Postfix(PlayerControl __instance, byte callId, MessageReader reader)
     {
-        if (callId != (byte)RpcCalls.SendQuickChat) return;
+        if (!HostGate.IsActive || callId != (byte)RpcCalls.SendQuickChat) return;
         if (DiscordMutePlugin.PendingLinks.IsEmpty) return;
 
         try

@@ -24,6 +24,7 @@ internal static class BotClient
         {
             DiscordMutePlugin.PluginLog.LogWarning($"Failed to ping bot before launch attempt: {ex.Message}");
         }
+        if (!HostGate.IsActive) return;
         StartBotProcess();
     }
 
@@ -65,6 +66,8 @@ internal static class BotClient
     {
         for (int i = 0; i < 5; i++)
         {
+            if (!HostGate.IsActive) return;
+
             if (PluginSocket.IsTerminal)
             {
                 PluginSocket.LogOutdatedOnce();

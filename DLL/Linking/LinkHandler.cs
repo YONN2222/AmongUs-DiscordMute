@@ -113,6 +113,12 @@ public static class LinkHandler
 
     private static readonly ConcurrentDictionary<string, string> SentLinkCodes = new();
 
+    internal static void Reset()
+    {
+        SentLinkCodes.Clear();
+        RecentQuickChatKeys.Clear();
+    }
+
     internal static void HandleLinkResult(string status, string accountName)
     {
         SentLinkCodes.TryRemove(PluginProtocol.Truncate(accountName, PluginProtocol.MaxNameLength), out var code);
