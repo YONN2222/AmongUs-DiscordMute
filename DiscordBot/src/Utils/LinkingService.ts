@@ -1,6 +1,7 @@
+import { config } from "../config";
+import { type Database, openDatabase } from "../Data/database";
+import type { LinkEntry as StoredLink } from "../Data/repositories/LinkRepository";
 import { logger, logModules } from "../Logging/logger";
-import { LinkModel } from "../Models/LinkModel";
-import { sequelize } from "../Models/sequelize";
 import { describePhrase, formatQuickChatCode, pickQuickChatPhrases } from "./QuickChatCatalog";
 
 const PENDING_TTL_MS = 5 * 60 * 1000;
@@ -50,20 +51,31 @@ interface PendingLinkCodes {
     quickChatLabels: [string, string];
 }
 
-function toEntry(row: LinkModel): LinkEntry {
+function toEntry(row: StoredLink): LinkEntry {
     return { discordId: row.discordId, accountName: row.accountName, linkedAt: row.linkedAt };
 }
 
 const HISTORY_WINDOW = 5;
 
 class LinkingService {
+    private db: Database | undefined;
     private readonly pending = new Map<string, PendingLink>();
     private readonly recentPhrases: string[] = [];
     private readonly recentQuickChatCodes = new Set<string>();
 
     async init(): Promise<void> {
-        await sequelize.sync();
+        await this.db?.close();
+        this.db = await openDatabase(
+            config.databaseDialect === "postgres"
+                ? { dialect: "postgres", url: config.databaseUrl as string }
+                : { dialect: "sqlite", storage: config.sqlitePath },
+        );
         logger.success(logModules.Database, "Database is ready!");
+    }
+
+    private get links(): Database["links"] {
+        if (!this.db) throw new Error("LinkingService.init() must run before use");
+        return this.db.links;
     }
 
     private pickPhrase(): string {
@@ -132,12 +144,7 @@ class LinkingService {
     }
 
     private async upsertLink(guildId: string, discordId: string, accountName: string): Promise<void> {
-        await LinkModel.upsert({
-            guildId,
-            discordId,
-            accountName,
-            linkedAt: new Date().toISOString(),
-        });
+        await this.links.upsert(guildId, discordId, accountName);
     }
 
     async confirmLink(phrase: string, accountName: string): Promise<ConfirmedLink | null> {
@@ -178,20 +185,20 @@ class LinkingService {
     }
 
     async removeLink(guildId: string, discordId: string): Promise<boolean> {
-        const deleted = await LinkModel.destroy({ where: { guildId, discordId } });
-        if (deleted > 0) {
+        const deleted = await this.links.remove(guildId, discordId);
+        if (deleted) {
             logger.info(logModules.Command, `Unlinked Discord ${discordId} in guild ${guildId}`);
         }
-        return deleted > 0;
+        return deleted;
     }
 
     async getLink(guildId: string, discordId: string): Promise<LinkEntry | undefined> {
-        const row = await LinkModel.findOne({ where: { guildId, discordId } });
+        const row = await this.links.get(guildId, discordId);
         return row ? toEntry(row) : undefined;
     }
 
     async getAllLinks(guildId: string): Promise<LinkEntry[]> {
-        const rows = await LinkModel.findAll({ where: { guildId } });
+        const rows = await this.links.listByGuild(guildId);
         return rows.map(toEntry);
     }
 }
