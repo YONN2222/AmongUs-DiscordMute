@@ -155,10 +155,15 @@ describe("PluginGateway", () => {
         expect((await closed).code).toBe(4003);
     });
 
-    it("ignores the secret in the URL query", async () => {
+    it("tells a 2.x plugin, which sends the secret in the URL query, to update", async () => {
         url = `${url}?secret=${SECRET}`;
         const ws = await connect();
-        expect((await waitForClose(ws)).code).toBe(4000);
+        expect(await waitForClose(ws)).toEqual({ code: 4002, reason: "Plugin outdated, please update DiscordMute" });
+        expect(logger.warn).toHaveBeenCalledWith(
+            expect.anything(),
+            "DiscordMute plugin 2.x connected, please update the plugin",
+        );
+        expect(gateway.isConnected(GUILD)).toBe(false);
     });
 
     it("welcome after valid hello", async () => {
@@ -306,7 +311,17 @@ describe("PluginGateway", () => {
         const result = nextMessage(ws);
         ws.send(JSON.stringify({ type: "link-chat", code: "link-AAAA", accountName: "Crew" }));
         expect(await result).toEqual({ type: "link-result", status: "not-found", accountName: "Crew" });
+        expect(logger.error).toHaveBeenCalledOnce();
         expect(logger.error).toHaveBeenCalledWith(expect.anything(), expect.any(String), expect.any(Error));
+        expect(logger.warn).not.toHaveBeenCalledWith(expect.anything(), expect.stringContaining("No pending link"));
+    });
+
+    it("warns about an unknown link code", async () => {
+        const ws = await authenticate();
+        const result = nextMessage(ws);
+        ws.send(JSON.stringify({ type: "link-chat", code: "link-ZZZZ", accountName: "Crew" }));
+        await result;
+        expect(logger.warn).toHaveBeenCalledWith(expect.anything(), 'No pending link found for code "link-ZZZZ"');
     });
 
     it("answers an unknown link code with link-result not-found", async () => {

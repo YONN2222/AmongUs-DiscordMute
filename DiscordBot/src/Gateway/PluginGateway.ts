@@ -120,9 +120,18 @@ export class PluginGateway {
     }
 
     private readonly handleUpgrade = (req: IncomingMessage, socket: Duplex, head: Buffer): void => {
-        const pathname = new URL(req.url ?? "", "http://localhost").pathname;
-        if (this.closed || pathname !== WS_PATH) {
+        const url = new URL(req.url ?? "", "http://localhost");
+        if (this.closed || url.pathname !== WS_PATH) {
             socket.destroy();
+            return;
+        }
+        // 2.x plugins authenticate with the secret in the query instead of a hello message.
+        if (url.searchParams.has("secret")) {
+            this.wss.handleUpgrade(req, socket, head, (ws) => {
+                logger.warn(logModules.WebServer, "DiscordMute plugin 2.x connected, please update the plugin");
+                ws.on("error", (error) => logger.error(logModules.WebServer, "Plugin WebSocket error", error));
+                ws.close(CLOSE_PROTOCOL_TOO_OLD, OUTDATED_REASON);
+            });
             return;
         }
         this.wss.handleUpgrade(req, socket, head, (ws) => this.accept(ws));
@@ -282,11 +291,13 @@ export class PluginGateway {
     }
 
     private async onLinkChat(conn: Connection, message: LinkChatMessage): Promise<void> {
-        let confirmed: Awaited<ReturnType<LinkingService["confirmLink"]>> = null;
+        let confirmed: Awaited<ReturnType<LinkingService["confirmLink"]>>;
         try {
             confirmed = await this.deps.linking.confirmLink(message.code, message.accountName);
         } catch (error) {
             logger.error(logModules.WebServer, `Could not confirm link code "${message.code}"`, error);
+            this.send(conn, { type: "link-result", status: "not-found", accountName: message.accountName });
+            return;
         }
         this.send(conn, {
             type: "link-result",

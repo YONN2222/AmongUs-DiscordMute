@@ -80,7 +80,7 @@ Example:
 ```
 
 > [!IMPORTANT]
-> **Update the plugin and the bot together.** The two only talk over a single WebSocket connection, and a plugin or bot from an older version is rejected with an "outdated" message.
+> **Update the plugin and the bot together.** The two only talk over a single WebSocket connection. The bot rejects an older plugin with an "outdated" message, and a new plugin simply can't connect to an older bot, so always update both.
 
 > [!IMPORTANT]
 > **Use double backslashes (`\\`) or forward slashes (`/`) in the `exe` path.**
