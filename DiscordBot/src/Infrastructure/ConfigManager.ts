@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { z } from "zod";
 import { logger, logModules } from "../Logging/logger";
-import { Config } from "./ConfigSchema";
+import { type Config, parseConfig } from "./ConfigSchema";
 
 export class ConfigManager {
     private static instance: ConfigManager | null = null;
@@ -22,7 +22,7 @@ export class ConfigManager {
             const absolutePath = resolve(process.cwd(), configPath);
             const raw = readFileSync(absolutePath, "utf-8");
             const parsed = JSON.parse(raw);
-            this._config = Config.parse(parsed);
+            this._config = parseConfig(parsed);
             logger.success(logModules.Bot, `Configuration loaded from ${configPath}`);
         } catch (error) {
             if (error instanceof z.ZodError) {
