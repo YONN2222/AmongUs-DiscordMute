@@ -1,5 +1,6 @@
 import type { ChatInputCommandInteraction, SlashCommandBuilder } from "discord.js";
 import type { GuildEventBus } from "../Events/GuildEvents";
+import type { BlockChecker } from "../Hosted/BlockChecker";
 import { logger, logModules } from "../Logging/Logger";
 import type { SettingsService } from "../Settings/SettingsService";
 import type { LinkingService } from "../Utils/LinkingService";
@@ -11,6 +12,8 @@ export interface CommandContext {
     settings: Pick<SettingsService, "get" | "update">;
     pushLinkPending(guildId: string, phrase: string, quickChatCode: string, discordId: string): Promise<boolean>;
     isPluginConnected(guildId: string): Promise<boolean>;
+    /** Set only in hosted mode. */
+    hosted?: { blocks: BlockChecker };
 }
 
 export interface Command {

@@ -80,6 +80,36 @@ describe("VoiceTargetResolver", () => {
         log.mockRestore();
     });
 
+    it("a blocked host gets the host-blocked notice", async () => {
+        await db.links.upsert(guildId, "u1", "Crew");
+        const memberVoiceChannel = vi.fn(async () => "vc-1");
+        const resolve = createVoiceTargetResolver({
+            links: db.links,
+            memberVoiceChannel,
+            fallbackChannelIds: ["fallback"],
+            localeOf: async () => "de",
+            isUserBlocked: async (userId) => userId === "u1",
+        });
+
+        expect(await resolve(guildId, "Crew")).toEqual({
+            notice: { code: "host-blocked", message: t("de", "notice.hostBlocked") },
+        });
+        expect(memberVoiceChannel).not.toHaveBeenCalled();
+    });
+
+    it("a host who is not blocked is resolved as before", async () => {
+        await db.links.upsert(guildId, "u1", "Crew");
+        const resolve = createVoiceTargetResolver({
+            links: db.links,
+            memberVoiceChannel: async () => "vc-1",
+            fallbackChannelIds: [],
+            localeOf: async () => "en",
+            isUserBlocked: async () => false,
+        });
+
+        expect(await resolve(guildId, "Crew")).toEqual({ channelIds: ["vc-1"] });
+    });
+
     it("returns a host-not-in-voice notice", async () => {
         await db.links.upsert(guildId, "u1", "Crew");
         const { resolve } = resolver(null);

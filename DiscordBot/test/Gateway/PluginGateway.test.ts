@@ -788,6 +788,38 @@ describe("PluginGateway", () => {
         expect(sentOfKind("session-started")).toHaveLength(0);
     });
 
+    it("a blocked host's session is closed with 4005 after the notice", async () => {
+        const notice = {
+            code: "host-blocked" as const,
+            message: "The host of this game is blocked from using this bot.",
+        };
+        router.register(GUILD, async () => ({ ok: true, notice }));
+        const ws = await authenticate();
+        const received = nextMessage(ws);
+        const closed = waitForClose(ws);
+
+        ws.send(gameEvent());
+
+        expect(await received).toEqual({ type: "notice", ...notice });
+        expect(await closed).toEqual({ code: 4005, reason: "Blocked" });
+        await vi.waitFor(() => expect(sentOfKind("session-ended")).toHaveLength(1));
+    });
+
+    it("other notices keep the session open", async () => {
+        router.register(GUILD, async () => ({
+            ok: true,
+            notice: { code: "host-not-linked", message: "Link first" },
+        }));
+        const ws = await authenticate();
+        const received = nextMessage(ws);
+
+        ws.send(gameEvent());
+
+        expect(await received).toMatchObject({ type: "notice", code: "host-not-linked" });
+        await sleep(50);
+        expect(ws.readyState).toBe(WebSocket.OPEN);
+    });
+
     describe("resolver failures", () => {
         it("closes 4001 when the resolver throws synchronously", async () => {
             await restart({

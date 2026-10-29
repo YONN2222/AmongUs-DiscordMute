@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Database } from "../../src/Data/Database";
 import { relinkFromRoster } from "../../src/Game/AutoRelink";
-import { LinkingService } from "../../src/Utils/LinkingService";
+import { BlockChecker } from "../../src/Hosted/BlockChecker";
+import { BlockedUserError, LinkingService } from "../../src/Utils/LinkingService";
 import { backendAvailable, backends, openBackend, purgeTestRows, uniqueId } from "../Helpers/TestDatabase";
 
 describe.each(backends)("LinkingService (%s)", (backend) => {
@@ -19,6 +20,63 @@ describe.each(backends)("LinkingService (%s)", (backend) => {
         afterEach(async () => {
             await purgeTestRows(db);
             await db.close();
+        });
+
+        describe("blocked users", () => {
+            let blocked: LinkingService;
+            let blockedId: string;
+
+            beforeEach(() => {
+                blockedId = uniqueId("blocked");
+                blocked = new LinkingService(
+                    db,
+                    undefined,
+                    new BlockChecker({ blocks: db.blocks, hostedGuilds: db.hostedGuilds }),
+                );
+            });
+
+            const block = () =>
+                db.blocks.create({ type: "user", targetId: blockedId, reason: "test", blockedBy: "admin" });
+
+            it("blocked user cannot create a link code", async () => {
+                await block();
+
+                await expect(blocked.createPendingLink(guildId, blockedId)).rejects.toBeInstanceOf(BlockedUserError);
+                expect(await db.pendingLinks.getActive(guildId, blockedId, Date.now())).toBeNull();
+            });
+
+            it("blocked user's pending code does not confirm", async () => {
+                const codes = await blocked.createPendingLink(guildId, blockedId);
+                await block();
+
+                expect(await blocked.confirmLink(codes.phrase, "Crew")).toBeNull();
+                expect(await db.links.get(guildId, blockedId)).toBeNull();
+                await db.blocks.remove("user", blockedId);
+                expect(await blocked.confirmLink(codes.phrase, "Crew")).toBeNull();
+            });
+
+            it("admin cannot force link a blocked user", async () => {
+                await block();
+
+                await expect(blocked.forceLink(guildId, blockedId, "Crew", "admin")).rejects.toBeInstanceOf(
+                    BlockedUserError,
+                );
+                expect(await db.links.get(guildId, blockedId)).toBeNull();
+            });
+
+            it("admin can still unlink a blocked user", async () => {
+                await db.links.upsert(guildId, blockedId, "Crew");
+                await block();
+
+                expect(await blocked.removeLink(guildId, blockedId, "admin")).toBe(true);
+                expect(await db.links.get(guildId, blockedId)).toBeNull();
+            });
+
+            it("users that are not blocked link as before", async () => {
+                const codes = await blocked.createPendingLink(guildId, "u1");
+
+                expect(await blocked.confirmLink(codes.phrase, "Crew")).toMatchObject({ discordId: "u1" });
+            });
         });
 
         it("createPendingLink returns same codes while active", async () => {

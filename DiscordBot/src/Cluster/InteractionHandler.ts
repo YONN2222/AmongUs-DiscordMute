@@ -1,5 +1,12 @@
-import { type ChatInputCommandInteraction, type Client, Events, MessageFlags } from "discord.js";
+import {
+    type ChatInputCommandInteraction,
+    type Client,
+    Events,
+    MessageFlags,
+    type RepliableInteraction,
+} from "discord.js";
 import { type CommandContext, commandRegistry } from "../Commands/Command";
+import { rejectBlockedUser } from "../Hosted/InteractionGate";
 import { localeFrom, t } from "../I18n/Index";
 import { LINK_SELF_UNLINK_BUTTON_ID, unlinkSelf } from "../Linking/SelfUnlink";
 import { registerLinkOverviewComponents } from "../LinkOverview/LinkOverviewComponents";
@@ -83,13 +90,27 @@ function registerComponents(): void {
     registerSetupComponents();
 }
 
+/** Fails closed: when the block list cannot be read, the interaction is not served. */
+async function isRefusedAsBlocked(interaction: RepliableInteraction, ctx: CommandContext): Promise<boolean> {
+    try {
+        return await rejectBlockedUser(interaction, ctx.hosted?.blocks);
+    } catch (error) {
+        logger.error(logModules.Command, `Block check failed for ${interaction.user.tag}`, error);
+        return true;
+    }
+}
+
 export function registerInteractionHandlers(client: Client, ctx: CommandContext): void {
     registerComponents();
     client.on(Events.InteractionCreate, async (interaction) => {
         if (isComponentInteraction(interaction)) {
+            if (await isRefusedAsBlocked(interaction, ctx)) return;
             await routeComponent(interaction, ctx);
             return;
         }
-        if (interaction.isChatInputCommand()) await handleChatInput(interaction, ctx);
+        if (interaction.isChatInputCommand()) {
+            if (await isRefusedAsBlocked(interaction, ctx)) return;
+            await handleChatInput(interaction, ctx);
+        }
     });
 }

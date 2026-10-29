@@ -4,9 +4,11 @@ export const de: Record<MessageKey, string> = {
     "error.title": "Fehler",
     "error.generic": "Es ist ein Fehler beim Ausführen dieses Befehls aufgetreten. Bitte versuche es später erneut.",
     "error.commandUnavailable": "Dieser Befehl ist nicht verfügbar.",
+    "error.blocked": "Du bist für die Nutzung dieses Bots gesperrt.",
 
     "notice.hostNotLinked": "Verknüpfe zuerst dein eigenes Discord-Konto mit /link self.",
     "notice.hostNotInVoice": "Tritt einem Sprachkanal in Discord bei, damit DiscordMute weiß, wo dein Spiel läuft.",
+    "notice.hostBlocked": "Der Host dieses Spiels ist für die Nutzung dieses Bots gesperrt.",
 
     "link.description": "Verknüpft ein Discord-Konto mit einem Among-Us-Konto, erzwingt oder löst die Verknüpfung.",
     "link.self.description": "Verknüpft dein Discord-Konto mit deinem Among-Us-Kontonamen.",

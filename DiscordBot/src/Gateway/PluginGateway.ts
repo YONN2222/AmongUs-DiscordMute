@@ -387,6 +387,7 @@ export class PluginGateway {
             this.send(conn, { type: "notice", code: "cluster-unavailable", message: CLUSTER_UNAVAILABLE_MESSAGE });
         } else if (reply.notice) {
             this.send(conn, { type: "notice", ...reply.notice });
+            if (reply.notice.code === "host-blocked") conn.ws.close(CLOSE_BLOCKED, BLOCKED_REASON);
         }
     }
 

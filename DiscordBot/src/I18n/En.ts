@@ -2,9 +2,11 @@ export const en = {
     "error.title": "Error",
     "error.generic": "An error occurred while running this command. Please try again later.",
     "error.commandUnavailable": "Command is not available.",
+    "error.blocked": "You are blocked from using this bot.",
 
     "notice.hostNotLinked": "Link your own Discord account first with /link self.",
     "notice.hostNotInVoice": "Join a voice channel in Discord so DiscordMute knows where your game is.",
+    "notice.hostBlocked": "The host of this game is blocked from using this bot.",
 
     "link.description": "Link, force-link, or unlink a Discord account and an Among Us account.",
     "link.self.description": "Links your Discord account to your Among Us account name.",

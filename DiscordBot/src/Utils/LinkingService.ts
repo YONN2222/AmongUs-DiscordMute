@@ -2,6 +2,7 @@ import { UniqueConstraintError } from "sequelize";
 import type { Database } from "../Data/Database";
 import type { LinkEntry as StoredLink } from "../Data/Repositories/LinkRepository";
 import type { GuildEventSink } from "../Events/GuildEvents";
+import type { BlockChecker } from "../Hosted/BlockChecker";
 import type { Locale } from "../I18n/Index";
 import { logger, logModules } from "../Logging/Logger";
 import { describePhrase, formatQuickChatCode, pickQuickChatPhrases } from "./QuickChatCatalog";
@@ -46,6 +47,14 @@ function toEntry(row: StoredLink): LinkEntry {
 
 const HISTORY_WINDOW = 5;
 
+/** A blocked user may not create or receive links; existing links keep working so they are still muted. */
+export class BlockedUserError extends Error {
+    constructor(readonly discordId: string) {
+        super(`User ${discordId} is blocked`);
+        this.name = "BlockedUserError";
+    }
+}
+
 export class LinkingService {
     private readonly recentPhrases: string[] = [];
     private readonly recentQuickChatCodes = new Set<string>();
@@ -53,7 +62,12 @@ export class LinkingService {
     constructor(
         private readonly db: Database,
         private readonly events?: GuildEventSink,
+        private readonly blocks?: Pick<BlockChecker, "isUserBlocked">,
     ) {}
+
+    private async assertNotBlocked(discordId: string): Promise<void> {
+        if (await this.blocks?.isUserBlocked(discordId)) throw new BlockedUserError(discordId);
+    }
 
     private pickPhrase(): string {
         let code: string;
@@ -80,6 +94,7 @@ export class LinkingService {
     }
 
     async createPendingLink(guildId: string, discordId: string): Promise<PendingLinkCodes> {
+        await this.assertNotBlocked(discordId);
         const now = Date.now();
         const existing = await this.db.pendingLinks.getActive(guildId, discordId, now);
         if (existing) {
@@ -130,6 +145,8 @@ export class LinkingService {
     async confirmLink(code: string, accountName: string, friendCode?: string): Promise<ConfirmedLink | null> {
         const matched = await this.db.pendingLinks.consumeByCode(code, Date.now());
         if (!matched) return null;
+        // The code is already consumed, so a blocked user's code cannot be used later either.
+        if (await this.blocks?.isUserBlocked(matched.discordId)) return null;
 
         await this.db.links.upsert(matched.guildId, matched.discordId, accountName);
         if (friendCode) await this.db.links.setFriendCode(matched.guildId, matched.discordId, friendCode);
@@ -149,6 +166,7 @@ export class LinkingService {
     }
 
     async forceLink(guildId: string, discordId: string, accountName: string, actorId: string): Promise<void> {
+        await this.assertNotBlocked(discordId);
         const previous = await this.db.links.get(guildId, discordId);
         await this.db.links.upsert(guildId, discordId, accountName);
         logger.info(

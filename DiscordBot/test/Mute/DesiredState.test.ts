@@ -102,6 +102,20 @@ describe("computeDesiredState", () => {
         });
     });
 
+    it("blocked players are still muted", () => {
+        // The block list is not an input of computeDesiredState: a blocked user's existing link keeps muting them.
+        const blockedLink = link("blocked-user", "Troll");
+        const state = computeDesiredState({
+            ...base,
+            event: "game-start",
+            players: ["Troll", "Red"],
+            deadPlayers: [],
+            links: [...links, blockedLink],
+        });
+
+        expect(actionsOf(state)).toEqual({ u1: "mute", "blocked-user": "mute" });
+    });
+
     it("unlinked names map to nobody", () => {
         const state = computeDesiredState({ ...base, event: "game-start", players: ["Nobody"], deadPlayers: [] });
 
