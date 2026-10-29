@@ -1,13 +1,8 @@
-import { type Client, DiscordAPIError, type Guild } from "discord.js";
+import { type Client, type Guild, Routes } from "discord.js";
 import { type Cluster, ShardingUtil } from "galactic.ts";
 import type { GuildInfo, GuildPort } from "../Hosted/GuildLifecycle";
 
-const DISCORD_UNKNOWN_GUILD = 10004;
-
-/** Only this answer proves the guild is gone; a network error or a rate limit says nothing. */
-export function isUnknownGuildError(error: unknown): boolean {
-    return error instanceof DiscordAPIError && error.code === DISCORD_UNKNOWN_GUILD;
-}
+const GUILDS_PAGE_SIZE = 200;
 
 export function toGuildInfo(guild: Pick<Guild, "id" | "name" | "icon" | "ownerId" | "memberCount">): GuildInfo {
     return {
@@ -34,19 +29,27 @@ export class DiscordGuildPort implements GuildPort {
     }
 
     cachedGuilds(): GuildInfo[] {
-        return this.client.guilds.cache.map(toGuildInfo);
+        return this.client.guilds.cache.filter((guild) => guild.available).map(toGuildInfo);
+    }
+
+    cachedGuildIds(): string[] {
+        return [...this.client.guilds.cache.keys()];
     }
 
     ownsGuild(guildId: string): boolean {
         return this.cluster.shardList.includes(ShardingUtil.getShardIDForGuild(guildId, this.cluster.totalShards));
     }
 
-    async isGone(guildId: string): Promise<boolean> {
-        try {
-            await this.client.rest.get(`/guilds/${guildId}`);
-            return false;
-        } catch (error) {
-            return isUnknownGuildError(error);
+    async fetchMemberGuildIds(): Promise<Set<string>> {
+        const ids = new Set<string>();
+        let after: string | undefined;
+        for (;;) {
+            const query = new URLSearchParams({ limit: String(GUILDS_PAGE_SIZE) });
+            if (after) query.set("after", after);
+            const page = (await this.client.rest.get(Routes.userGuilds(), { query })) as { id: string }[];
+            for (const guild of page) ids.add(guild.id);
+            if (page.length < GUILDS_PAGE_SIZE) return ids;
+            after = page[page.length - 1].id;
         }
     }
 }

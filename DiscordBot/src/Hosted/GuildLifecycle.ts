@@ -18,11 +18,14 @@ export interface GuildInfo {
 export interface GuildPort {
     /** Resolves to false when the bot is not in the guild. */
     leave(guildId: string): Promise<boolean>;
+    /** Cached guilds that are available, so their data can be stored. */
     cachedGuilds(): GuildInfo[];
+    /** Every cached guild id, including guilds that are unavailable during an outage. */
+    cachedGuildIds(): string[];
     /** Whether the guild belongs to a shard of this cluster. */
     ownsGuild(guildId: string): boolean;
-    /** True only when Discord says the guild does not exist for the bot; errors and doubts are false. */
-    isGone(guildId: string): Promise<boolean>;
+    /** Every guild the bot is in, from Discord. Rejects when the list cannot be read completely. */
+    fetchMemberGuildIds(): Promise<Set<string>>;
 }
 
 export interface GuildLifecycleDeps {
@@ -54,43 +57,53 @@ export class GuildLifecycle {
     }
 
     /**
-     * Run once the cluster is ready: stores the cached guilds and removes the data of guilds the bot was removed from
-     * while it was offline. A guild missing from the cache is only purged when Discord confirms it is gone.
+     * Run once the cluster is ready: stores the available cached guilds and removes the data of guilds that
+     * removed the bot while it was offline. A stored guild of this cluster is purged only when it is neither cached
+     * nor in the member list Discord returns; when that list cannot be read, nothing is purged.
      */
     async reconcile(): Promise<void> {
-        const cached = this.deps.port.cachedGuilds();
-        for (const info of cached) {
+        for (const info of this.deps.port.cachedGuilds()) {
             await this.guarded(info.guildId, () => this.track(info));
         }
-        const cachedIds = new Set(cached.map((info) => info.guildId));
-        for (const guildId of await this.deps.hostedGuilds.listIds()) {
-            if (cachedIds.has(guildId) || !this.deps.port.ownsGuild(guildId)) continue;
-            await this.guarded(guildId, async () => {
-                if (await this.deps.port.isGone(guildId)) await this.deps.hostedGuilds.purgeGuild(guildId);
-            });
-        }
+        await this.purgeRemovedGuilds();
     }
 
-    /** Leaves the guild; the data is purged when Discord reports the removal. */
-    async leave(guildId: string, reason: GuildLeaveReason): Promise<boolean> {
-        const left = await this.deps.port.leave(guildId);
-        if (left && reason !== "admin") {
-            await this.deps.audit.record({
-                actorId: SYSTEM_ACTOR,
-                action: "guild.auto-leave",
-                targetType: "guild",
-                targetId: guildId,
-                details: { reason },
-            });
+    /** Leaves the guild on request; the data is purged when Discord reports the removal. The caller audits it. */
+    leave(guildId: string, _reason: GuildLeaveReason): Promise<boolean> {
+        return this.deps.port.leave(guildId);
+    }
+
+    private async purgeRemovedGuilds(): Promise<void> {
+        const { port, hostedGuilds } = this.deps;
+        let members: Set<string>;
+        try {
+            members = await port.fetchMemberGuildIds();
+        } catch (error) {
+            logger.error(logModules.Bot, "Could not read the guild list of the bot, purging nothing", error);
+            return;
         }
-        return left;
+        const cachedIds = new Set(port.cachedGuildIds());
+        for (const guildId of await hostedGuilds.listIds()) {
+            if (cachedIds.has(guildId) || members.has(guildId) || !port.ownsGuild(guildId)) continue;
+            await this.guarded(guildId, () => hostedGuilds.purgeGuild(guildId));
+        }
     }
 
     private async track(info: GuildInfo): Promise<void> {
         const now = this.now();
         await this.deps.hostedGuilds.upsert({ ...info, joinedAt: now }, now);
         const reason = await this.blockReason(info);
-        if (reason) await this.leave(info.guildId, reason);
+        if (reason && (await this.leave(info.guildId, reason))) await this.auditAutoLeave(info.guildId, reason);
+    }
+
+    private auditAutoLeave(guildId: string, reason: GuildLeaveReason): Promise<unknown> {
+        return this.deps.audit.record({
+            actorId: SYSTEM_ACTOR,
+            action: "guild.auto-leave",
+            targetType: "guild",
+            targetId: guildId,
+            details: { reason },
+        });
     }
 
     private async blockReason(info: GuildInfo): Promise<GuildLeaveReason | null> {

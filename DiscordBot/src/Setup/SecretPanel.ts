@@ -3,10 +3,7 @@ import type { CommandContext, HostedCommandContext } from "../Commands/Command";
 import { localeFrom, t } from "../I18n/Index";
 import { logger, logModules } from "../Logging/Logger";
 import { ContainerBuilder } from "../Utils/ContainerBuilder";
-import { SETUP_PREFIX } from "./RenderSetupPanel";
-
-export const SECRET_FIELD = "secret";
-export const SECRET_CONFIRM_FIELD = "secret-confirm";
+import { SECRET_CONFIRM_FIELD, SETUP_PREFIX } from "./SetupIds";
 
 const GATEWAY_CLOSE_SECRET_CHANGED = 4001;
 const DISCONNECT_REASON = "Secret changed";
@@ -75,8 +72,12 @@ async function issueSecret(interaction: ButtonInteraction, ctx: HostedSetupConte
     const guildId = interaction.guildId as string;
     const actorId = interaction.user.id;
     const { secret, replaced } = await ctx.hosted.secrets.rotate(guildId, actorId);
-    await finishRotation(ctx, guildId, actorId, replaced);
-    await replySecret(interaction, secret);
+    try {
+        await replySecret(interaction, secret);
+    } finally {
+        // Disconnecting can take seconds; the admin must see the secret inside Discord's reply window first.
+        await finishRotation(ctx, guildId, actorId, replaced);
+    }
 }
 
 /** The panel's secret button: creates the first secret, or asks before replacing an existing one. */

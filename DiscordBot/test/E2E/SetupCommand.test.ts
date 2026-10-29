@@ -191,6 +191,38 @@ describe("/setup secret in hosted mode", () => {
         expect(bot.events).toContainEqual({ type: "secret-changed", guildId: GUILD, actorId: ACTOR, created: false });
     });
 
+    it("shows the new secret before the disconnect finishes, then writes the audit entry", async () => {
+        await bot.db.guildSecrets.rotate(GUILD, ACTOR);
+        let finishDisconnect = () => {};
+        disconnectGuild.mockImplementationOnce(
+            () =>
+                new Promise<boolean>((resolve) => {
+                    finishDisconnect = () => resolve(true);
+                }),
+        );
+
+        await bot.probe.button("setup:secret-confirm").withContext(adminAsActor).click();
+
+        expect(secretIn(extractText(reply()))).not.toBe("");
+        expect(await auditRows()).toEqual([]);
+        finishDisconnect();
+        await vi.waitFor(async () =>
+            expect((await auditRows()).map((row) => row.action)).toEqual(["secret.regenerate"]),
+        );
+    });
+
+    it("still shows the secret and writes the audit entry when the disconnect fails", async () => {
+        await bot.db.guildSecrets.rotate(GUILD, ACTOR);
+        disconnectGuild.mockRejectedValueOnce(new Error("gateway timeout"));
+
+        await bot.probe.button("setup:secret-confirm").withContext(adminAsActor).click();
+
+        expect(secretIn(extractText(reply()))).not.toBe("");
+        await vi.waitFor(async () =>
+            expect((await auditRows()).map((row) => row.action)).toEqual(["secret.regenerate"]),
+        );
+    });
+
     it("non admin cannot press the secret button", async () => {
         await bot.probe.button("setup:secret").click();
         await bot.probe.button("setup:secret-confirm").click();

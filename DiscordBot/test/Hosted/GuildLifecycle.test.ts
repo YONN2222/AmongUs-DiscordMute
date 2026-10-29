@@ -7,8 +7,11 @@ import { backendAvailable, backends, openBackend, purgeTestRows, uniqueId } from
 
 class FakeGuildPort implements GuildPort {
     cached: GuildInfo[] = [];
+    /** Cached guilds that are unavailable (outage): present in the cache but without data. */
+    unavailableIds: string[] = [];
     owned = new Set<string>();
-    gone = new Set<string>();
+    members = new Set<string>();
+    membersFailure: Error | null = null;
     leaveResult = true;
     readonly left: string[] = [];
 
@@ -25,8 +28,13 @@ class FakeGuildPort implements GuildPort {
         return this.owned.has(guildId);
     }
 
-    async isGone(guildId: string): Promise<boolean> {
-        return this.gone.has(guildId);
+    cachedGuildIds(): string[] {
+        return [...this.cached.map((info) => info.guildId), ...this.unavailableIds];
+    }
+
+    async fetchMemberGuildIds(): Promise<Set<string>> {
+        if (this.membersFailure) throw this.membersFailure;
+        return this.members;
     }
 }
 
@@ -173,7 +181,7 @@ describe.each(backends)("GuildLifecycle (%s)", (backend) => {
                 expect(port.left).toEqual([blockedId]);
             });
 
-            it("purges guilds this cluster owns that are gone and keeps other clusters' rows", async () => {
+            it("purges a guild that removed the bot while offline and keeps other clusters' rows", async () => {
                 const goneId = uniqueId("gone");
                 const otherClusterId = uniqueId("other");
                 for (const id of [goneId, otherClusterId]) {
@@ -181,7 +189,6 @@ describe.each(backends)("GuildLifecycle (%s)", (backend) => {
                 }
                 await db.links.upsert(goneId, "u1", "Crew");
                 port.owned = new Set([goneId]);
-                port.gone = new Set([goneId, otherClusterId]);
 
                 await lifecycle.reconcile();
 
@@ -190,42 +197,60 @@ describe.each(backends)("GuildLifecycle (%s)", (backend) => {
                 expect(await db.hostedGuilds.get(otherClusterId)).not.toBeNull();
             });
 
-            it("keeps a missing guild that Discord does not report as unknown", async () => {
-                const missingId = uniqueId("missing");
-                await db.hostedGuilds.upsert({ ...info({ guildId: missingId }), joinedAt: 1 });
-                port.owned = new Set([missingId]);
+            it("keeps a guild that is still in the member list", async () => {
+                const stillThere = uniqueId("there");
+                await db.hostedGuilds.upsert({ ...info({ guildId: stillThere }), joinedAt: 1 });
+                port.owned = new Set([stillThere]);
+                port.members = new Set([stillThere]);
 
                 await lifecycle.reconcile();
 
-                expect(await db.hostedGuilds.get(missingId)).not.toBeNull();
+                expect(await db.hostedGuilds.get(stillThere)).not.toBeNull();
             });
 
-            it("keeps a cached guild even when Discord would call it gone", async () => {
+            it("a cached but unavailable guild never gets purged", async () => {
+                const unavailable = uniqueId("unavailable");
+                await db.hostedGuilds.upsert({ ...info({ guildId: unavailable }), joinedAt: 1 });
+                port.owned = new Set([unavailable]);
+                port.unavailableIds = [unavailable];
+
+                await lifecycle.reconcile();
+
+                expect(await db.hostedGuilds.get(unavailable)).not.toBeNull();
+            });
+
+            it("a cached guild is kept even when the member list lacks it", async () => {
                 port.cached = [info()];
                 port.owned = new Set([guildId]);
-                port.gone = new Set([guildId]);
 
                 await lifecycle.reconcile();
 
                 expect(await db.hostedGuilds.get(guildId)).not.toBeNull();
             });
 
-            it("goes on with the other guilds when one fails", async () => {
-                const failingId = uniqueId("failing");
+            it("a member list failure purges nothing", async () => {
                 const goneId = uniqueId("gone");
-                await db.hostedGuilds.upsert({ ...info({ guildId: failingId }), joinedAt: 1 });
                 await db.hostedGuilds.upsert({ ...info({ guildId: goneId }), joinedAt: 1 });
-                port.owned = new Set([failingId, goneId]);
-                port.gone = new Set([goneId]);
-                const isGone = port.isGone.bind(port);
-                port.isGone = async (id) => {
-                    if (id === failingId) throw new Error("discord down");
-                    return isGone(id);
-                };
+                port.owned = new Set([goneId]);
+                port.membersFailure = new Error("discord down");
 
                 await lifecycle.reconcile();
 
-                expect(await db.hostedGuilds.get(failingId)).not.toBeNull();
+                expect(await db.hostedGuilds.get(goneId)).not.toBeNull();
+            });
+
+            it("goes on with the other guilds when tracking one fails", async () => {
+                const failingId = uniqueId("failing");
+                const goneId = uniqueId("gone");
+                await db.hostedGuilds.upsert({ ...info({ guildId: goneId }), joinedAt: 1 });
+                port.owned = new Set([goneId]);
+                port.cached = [info({ guildId: failingId }), info()];
+                const upsert = vi.spyOn(db.hostedGuilds, "upsert");
+                upsert.mockRejectedValueOnce(new Error("db hiccup"));
+
+                await lifecycle.reconcile();
+
+                expect(await db.hostedGuilds.get(guildId)).not.toBeNull();
                 expect(await db.hostedGuilds.get(goneId)).toBeNull();
             });
         });
@@ -237,21 +262,21 @@ describe.each(backends)("GuildLifecycle (%s)", (backend) => {
                 expect(await lifecycle.leave(guildId, "admin")).toBe(false);
             });
 
-            it("leaves for an admin without writing an automatic audit entry", async () => {
+            it("leaves for an admin", async () => {
                 await lifecycle.leave(guildId, "admin");
 
                 expect(port.left).toEqual([guildId]);
                 expect(await auditRows()).toEqual([]);
             });
 
-            it("audits the reason of an automatic leave", async () => {
-                await lifecycle.leave(guildId, "owner-blocked");
+            it.each(["owner-blocked", "guild-blocked"] as const)(
+                "writes no audit entry for a requested %s leave",
+                async (reason) => {
+                    await lifecycle.leave(guildId, reason);
 
-                expect((await auditRows())[0]).toMatchObject({
-                    action: "guild.auto-leave",
-                    details: { reason: "owner-blocked" },
-                });
-            });
+                    expect(await auditRows()).toEqual([]);
+                },
+            );
         });
     });
 });

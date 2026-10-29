@@ -22,14 +22,9 @@ import {
     VOICE_CHANNELS_FIELD,
 } from "./ApplySetupInput";
 import { checkChannelAccess, checkVoiceChannelAccess } from "./ChannelAccess";
-import { renderSetupPanel, SETUP_PAGES, SETUP_PREFIX, type SetupPage } from "./RenderSetupPanel";
-import {
-    type HostedSetupContext,
-    handleSecretButton,
-    handleSecretConfirmButton,
-    SECRET_CONFIRM_FIELD,
-    SECRET_FIELD,
-} from "./SecretPanel";
+import { renderSetupPanel, SETUP_PAGES, type SetupPage } from "./RenderSetupPanel";
+import { type HostedSetupContext, handleSecretButton, handleSecretConfirmButton } from "./SecretPanel";
+import { SECRET_CONFIRM_FIELD, SECRET_FIELD, SETUP_PREFIX } from "./SetupIds";
 
 const EPHEMERAL = MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral;
 const MANAGE_MESSAGES_FIELDS = new Set(["linkOverview.channelId", "status.channelId"]);

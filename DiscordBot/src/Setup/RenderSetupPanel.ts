@@ -19,12 +19,11 @@ import {
     VOICE_ACTIONS,
     VOICE_CHANNELS_FIELD,
 } from "./ApplySetupInput";
-import { SECRET_FIELD } from "./SecretPanel";
+import { SECRET_FIELD, SETUP_PREFIX } from "./SetupIds";
 
 export type SetupPage = "general" | "links" | "voice" | "game";
 
 export const SETUP_PAGES: readonly SetupPage[] = ["general", "links", "voice", "game"];
-export const SETUP_PREFIX = "setup";
 
 /** What the hosted panel shows on top of the self-host one. */
 export interface HostedPanelState {
