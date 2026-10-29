@@ -19,6 +19,7 @@ export type ClusterRequest =
           accountName: string;
           applicationId?: string;
           interactionToken?: string;
+          locale?: "en" | "de";
       };
 
 export type GatewayRequest =
@@ -69,6 +70,7 @@ const clusterRequestSchema: z.ZodType<ClusterRequest> = z.discriminatedUnion("ki
         accountName: z.string(),
         applicationId: z.string().optional(),
         interactionToken: z.string().optional(),
+        locale: z.enum(["en", "de"]).optional(),
     }),
 ]);
 

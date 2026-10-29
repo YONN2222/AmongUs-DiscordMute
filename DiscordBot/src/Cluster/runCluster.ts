@@ -18,7 +18,7 @@ import { createDiscordClient } from "./createDiscordClient";
 import { DiscordVoiceAdapter } from "./DiscordVoiceAdapter";
 import { onFatalGatewayClose } from "./fatalGatewayClose";
 import { registerInteractionHandlers } from "./interactionHandler";
-import { updateOriginalLinkReply } from "./linkReply";
+import { resolveLinkReplyLocale, updateOriginalLinkReply } from "./linkReply";
 import { registerVoiceRejoin } from "./voiceRejoin";
 
 const LOGIN_RETRY_DELAY_MS = 5000;
@@ -75,6 +75,7 @@ export async function runCluster(): Promise<void> {
 
     const db = await openDatabase(databaseOptionsFrom(config), { migrate: false });
     const settings = new SettingsService(db.settings);
+    const guildLanguage = (guildId: string) => settings.get(guildId).then((s) => s.language);
     const voice = new DiscordVoiceAdapter(client);
     const mute = new MuteService({
         voice,
@@ -84,7 +85,7 @@ export async function runCluster(): Promise<void> {
             links: db.links,
             memberVoiceChannel: (guildId, discordId) => voice.voiceChannelOf(guildId, discordId),
             fallbackChannelIds: config.channelIds,
-            localeOf: (guildId) => settings.get(guildId).then((s) => s.language),
+            localeOf: guildLanguage,
         }),
     });
 
@@ -92,7 +93,7 @@ export async function runCluster(): Promise<void> {
     const handleRequest = createClusterRequestHandler({
         mute,
         updateLinkReply: async (link) =>
-            updateOriginalLinkReply(client.rest, link, (await settings.get(link.guildId)).language),
+            updateOriginalLinkReply(client.rest, link, await resolveLinkReplyLocale(link, guildLanguage)),
         isReady: () => ready,
     });
     cluster.on("request", (data, resolve) => {

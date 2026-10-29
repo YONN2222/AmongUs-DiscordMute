@@ -1,6 +1,7 @@
 import { UniqueConstraintError } from "sequelize";
 import type { Database } from "../Data/database";
 import type { LinkEntry as StoredLink } from "../Data/repositories/LinkRepository";
+import type { Locale } from "../i18n";
 import { logger, logModules } from "../Logging/logger";
 import { describePhrase, formatQuickChatCode, pickQuickChatPhrases } from "./QuickChatCatalog";
 
@@ -29,6 +30,7 @@ interface ConfirmedLink {
     accountName: string;
     applicationId?: string;
     interactionToken?: string;
+    locale?: Locale;
 }
 
 interface PendingLinkCodes {
@@ -116,8 +118,9 @@ export class LinkingService {
         discordId: string,
         applicationId: string,
         interactionToken: string,
+        locale?: Locale,
     ): Promise<void> {
-        await this.db.pendingLinks.attachInteraction(guildId, discordId, applicationId, interactionToken);
+        await this.db.pendingLinks.attachInteraction(guildId, discordId, applicationId, interactionToken, locale);
     }
 
     async confirmLink(code: string, accountName: string): Promise<ConfirmedLink | null> {
@@ -136,6 +139,7 @@ export class LinkingService {
             accountName,
             applicationId: matched.applicationId,
             interactionToken: matched.interactionToken,
+            locale: matched.locale,
         };
     }
 

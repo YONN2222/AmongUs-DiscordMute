@@ -8,7 +8,7 @@ export const de: Record<MessageKey, string> = {
     "notice.hostNotLinked": "Verknüpfe zuerst dein eigenes Discord-Konto mit /link self.",
     "notice.hostNotInVoice": "Tritt einem Sprachkanal in Discord bei, damit DiscordMute weiß, wo dein Spiel läuft.",
 
-    "link.description": "Verknüpfe ein Discord-Konto mit einem Among-Us-Konto, erzwinge oder löse die Verknüpfung.",
+    "link.description": "Verknüpft ein Discord-Konto mit einem Among-Us-Konto, erzwingt oder löst die Verknüpfung.",
     "link.self.description": "Verknüpft dein Discord-Konto mit deinem Among-Us-Kontonamen.",
     "link.force.description": "Verknüpft einen Discord-Nutzer manuell mit einem Among-Us-Anzeigenamen.",
     "link.force.user.description": "Der Discord-Nutzer, der verknüpft werden soll",
@@ -25,7 +25,7 @@ export const de: Record<MessageKey, string> = {
         "Das Among-Us-Plugin hat die ausstehende Verknüpfung nicht angenommen.\n\nStarte das Spiel mit geladenem Plugin und führe `/link self` erneut aus.",
     "link.self.title": "Konto verknüpfen",
     "link.self.instructions":
-        "Öffne in Among Us in einer Lobby den **Freien Chat** und schreibe genau diesen Text:\n\n**`{phrase}`**\n\nKein Zugriff auf den Freien Chat? Sende diese zwei Schnellchat-Sätze als zwei getrennte Nachrichten, in beliebiger Reihenfolge, innerhalb von 20 Sekunden:\n\n**{quickChat1}** und **{quickChat2}**\n\nDieser Code läuft in **5 Minuten** ab.",
+        "Öffne in einer Among-Us-Lobby den **Freien Chat** und schreibe genau diesen Text:\n\n**`{phrase}`**\n\nKein Zugriff auf den Freien Chat? Sende diese zwei Schnellchat-Sätze als zwei getrennte Nachrichten, in beliebiger Reihenfolge, innerhalb von 20 Sekunden:\n\n**{quickChat1}** und **{quickChat2}**\n\nDieser Code läuft in **5 Minuten** ab.",
     "link.complete.title": "Verknüpfung abgeschlossen",
     "link.complete.body":
         "Dein Discord-Konto ist jetzt verknüpft.\n\n**Discord-ID:** `{discordId}`\n**Among-Us-Konto:** `{accountName}`",
@@ -34,14 +34,14 @@ export const de: Record<MessageKey, string> = {
     "link.force.error": "Beim manuellen Verknüpfen des Kontos ist ein Fehler aufgetreten.",
     "link.error.title": "Verknüpfungsfehler",
     "link.reset.title": "Verknüpfung gelöst",
+    "link.reset.noneTitle": "Nichts zu lösen",
     "link.reset.selfDone": "Du bist nicht mehr verknüpft.",
     "link.reset.selfNone": "Du warst gar nicht verknüpft.",
     "link.reset.userDone": "{user} ist nicht mehr mit einem Among-Us-Konto verknüpft.",
     "link.reset.userNone": "{user} war gar nicht verknüpft.",
     "link.reset.error": "Beim Lösen der Verknüpfung ist ein Fehler aufgetreten.",
     "link.permission.title": "Fehlende Berechtigung",
-    "link.permission.body":
-        "Dafür brauchst du die Berechtigung **Server verwalten**, wenn es um einen anderen Nutzer geht.",
+    "link.permission.body": "Um das für andere Nutzer zu tun, brauchst du die Berechtigung **Server verwalten**.",
 
     "testConnection.description": "Testet die Verbindung zum Among-Us-Plugin von DiscordMute",
     "testConnection.ok.title": "Verbindung erfolgreich",

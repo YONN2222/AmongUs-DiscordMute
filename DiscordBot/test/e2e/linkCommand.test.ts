@@ -1,67 +1,53 @@
 import { buildSlashCommandInteractionDispatch, extractText } from "probe.ts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { CommandContext } from "../../src/commands/Command";
-import type { Database } from "../../src/Data/database";
-import { t } from "../../src/i18n";
-import { logger } from "../../src/Logging/logger";
-import { LinkingService } from "../../src/Utils/LinkingService";
-import { createTestProbe } from "../helpers/probe";
-import { createTestDatabase } from "../helpers/testDatabase";
+import { type CommandProbe, createCommandProbe } from "../helpers/commandProbe";
 
 const EPHEMERAL = 1 << 6;
 
 describe("/link self", () => {
-    let db: Database;
-    let probe: ReturnType<typeof createTestProbe>;
-    let pushLinkPending: ReturnType<typeof vi.fn<CommandContext["pushLinkPending"]>>;
+    let bot: CommandProbe;
 
     beforeEach(async () => {
-        for (const level of ["info", "warn", "error", "debug", "success"] as const) {
-            vi.spyOn(logger, level).mockImplementation(() => {});
-        }
-        // Imported once the logger is silenced, because loading the command registry logs.
-        const { createDiscordClient } = await import("../../src/Cluster/createDiscordClient");
-        const { registerInteractionHandlers } = await import("../../src/Cluster/interactionHandler");
-        db = await createTestDatabase();
-        pushLinkPending = vi.fn<CommandContext["pushLinkPending"]>(async () => true);
-        const client = createDiscordClient();
-        registerInteractionHandlers(client, {
-            linking: new LinkingService(db),
-            pushLinkPending,
-            isPluginConnected: async () => true,
-        });
-        probe = createTestProbe(client);
-        await probe.setup();
+        bot = await createCommandProbe();
     });
 
     afterEach(async () => {
-        await probe.teardown();
-        await db.close();
-        vi.restoreAllMocks();
+        await bot.close();
     });
 
-    it("replies ephemerally with the code it pushed to the plugin", async () => {
-        await probe.slashCommand("link self").invoke();
+    async function linkSelfAs(discordLocale: string) {
+        bot.inject(buildSlashCommandInteractionDispatch("link self"), discordLocale);
+        await vi.waitFor(() => expect(bot.probe.lastReply()).toBeDefined());
+        const [guildId, phrase, , discordId] = bot.pushLinkPending.mock.calls[0];
+        return { guildId, phrase, discordId, text: extractText(bot.probe.lastReply() ?? {}) };
+    }
 
-        await vi.waitFor(() => expect(probe.lastReply()).toBeDefined());
-        const reply = probe.lastReply() ?? {};
-        expect(pushLinkPending).toHaveBeenCalledTimes(1);
-        const [, phrase] = pushLinkPending.mock.calls[0];
+    const storedLocale = (guildId: string, discordId: string) =>
+        bot.db.pendingLinks.getActive(guildId, discordId, Date.now()).then((pending) => pending?.locale);
+
+    it("replies ephemerally with the code it pushed to the plugin", async () => {
+        await bot.probe.slashCommand("link self").invoke();
+
+        await vi.waitFor(() => expect(bot.probe.lastReply()).toBeDefined());
+        const reply = bot.probe.lastReply() ?? {};
+        expect(bot.pushLinkPending).toHaveBeenCalledTimes(1);
+        const [, phrase] = bot.pushLinkPending.mock.calls[0];
         expect(extractText(reply)).toContain(phrase);
         expect(Number(reply.flags) & EPHEMERAL).toBe(EPHEMERAL);
     });
 
-    it.each([
-        ["de", "de"],
-        ["en-US", "en"],
-    ] as const)("replies in the language of an interaction with locale %s", async (discordLocale, locale) => {
-        const dispatch = buildSlashCommandInteractionDispatch("link self");
-        probe.injectDispatch({ ...dispatch, d: { ...dispatch.d, locale: discordLocale } } as typeof dispatch);
+    it("replies in german to an interaction with locale de and remembers it", async () => {
+        const { guildId, phrase, discordId, text } = await linkSelfAs("de");
 
-        await vi.waitFor(() => expect(probe.lastReply()).toBeDefined());
-        const [, phrase] = pushLinkPending.mock.calls[0];
-        expect(extractText(probe.lastReply() ?? {})).toContain(t(locale, "link.self.title"));
-        expect(extractText(probe.lastReply() ?? {})).toContain(phrase);
-        expect(t("de", "link.self.title")).not.toBe(t("en", "link.self.title"));
+        expect(text).toContain("Öffne in einer Among-Us-Lobby den **Freien Chat**");
+        expect(text).toContain(phrase);
+        await vi.waitFor(async () => expect(await storedLocale(guildId, discordId)).toBe("de"));
+    });
+
+    it("replies in english to an interaction with locale en-US and remembers it", async () => {
+        const { guildId, discordId, text } = await linkSelfAs("en-US");
+
+        expect(text).toContain("Open **Free Chat** in Among Us while in a lobby");
+        await vi.waitFor(async () => expect(await storedLocale(guildId, discordId)).toBe("en"));
     });
 });

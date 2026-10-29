@@ -1,15 +1,12 @@
 import { type ChatInputCommandInteraction, MessageFlags, SlashCommandBuilder } from "discord.js";
-import { descriptionLocalizations, localeFrom, t } from "../../i18n";
+import { localeFrom, localized, t } from "../../i18n";
 import { ContainerBuilder } from "../../Utils/ContainerBuilder";
 import type { Command, CommandContext } from "../Command";
 
 export class TestConnectionCommand implements Command {
     name = "testconnection";
 
-    data = new SlashCommandBuilder()
-        .setName("testconnection")
-        .setDescription(t("en", "testConnection.description"))
-        .setDescriptionLocalizations(descriptionLocalizations("testConnection.description"));
+    data = localized(new SlashCommandBuilder().setName("testconnection"), "testConnection.description");
 
     async execute(interaction: ChatInputCommandInteraction, ctx: CommandContext): Promise<void> {
         const locale = localeFrom(interaction.locale);

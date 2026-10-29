@@ -1,8 +1,8 @@
 import { extractText, restError } from "probe.ts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createDiscordClient } from "../../src/Cluster/createDiscordClient";
-import { updateOriginalLinkReply } from "../../src/Cluster/linkReply";
-import { t } from "../../src/i18n";
+import { resolveLinkReplyLocale, updateOriginalLinkReply } from "../../src/Cluster/linkReply";
+import { type Locale, t } from "../../src/i18n";
 import { logger } from "../../src/Logging/logger";
 import { createTestProbe } from "../helpers/probe";
 
@@ -41,6 +41,28 @@ describe("updateOriginalLinkReply", () => {
         expect(extractText(probe.lastReply() ?? {})).toContain("Red");
         expect(extractText(probe.lastReply() ?? {})).toContain(t("en", "link.complete.title"));
         expect(probe.capturedRequests().some((r) => r.method === "PATCH" && ORIGINAL.test(r.url))).toBe(true);
+    });
+
+    describe("resolveLinkReplyLocale", () => {
+        const guildLanguage = (language: Locale) => vi.fn(async () => language);
+
+        it("prefers the locale of the interaction", async () => {
+            const lookup = guildLanguage("en");
+            expect(await resolveLinkReplyLocale({ ...link, locale: "de" }, lookup)).toBe("de");
+            expect(lookup).not.toHaveBeenCalled();
+        });
+
+        it("falls back to the guild language", async () => {
+            expect(await resolveLinkReplyLocale(link, guildLanguage("de"))).toBe("de");
+        });
+
+        it("falls back to english and logs when the guild lookup fails", async () => {
+            const failing = vi.fn(async () => {
+                throw new Error("db down");
+            });
+            expect(await resolveLinkReplyLocale(link, failing)).toBe("en");
+            expect(logger.error).toHaveBeenCalled();
+        });
     });
 
     it("writes the reply in the given language", async () => {

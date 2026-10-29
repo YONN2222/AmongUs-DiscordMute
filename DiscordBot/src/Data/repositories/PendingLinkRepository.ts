@@ -1,4 +1,5 @@
 import { Op } from "sequelize";
+import type { Locale } from "../../i18n";
 import type { PendingLinkModel } from "../models/PendingLinkModel";
 
 export interface PendingLink {
@@ -10,6 +11,7 @@ export interface PendingLink {
     expiresAt: number;
     applicationId?: string;
     interactionToken?: string;
+    locale?: Locale;
 }
 
 export interface PendingLinkRepository {
@@ -23,6 +25,7 @@ export interface PendingLinkRepository {
         discordId: string,
         applicationId: string,
         interactionToken: string,
+        locale?: Locale,
     ): Promise<void>;
     deleteExpired(now: number): Promise<number>;
 }
@@ -37,6 +40,7 @@ function toPendingLink(row: PendingLinkModel): PendingLink {
         expiresAt: Number(row.expiresAt),
         ...(row.applicationId ? { applicationId: row.applicationId } : {}),
         ...(row.interactionToken ? { interactionToken: row.interactionToken } : {}),
+        ...(row.locale === "en" || row.locale === "de" ? { locale: row.locale } : {}),
     };
 }
 
@@ -64,6 +68,7 @@ export function createPendingLinkRepository(model: typeof PendingLinkModel): Pen
                         expiresAt: pending.expiresAt,
                         applicationId: pending.applicationId ?? null,
                         interactionToken: pending.interactionToken ?? null,
+                        locale: pending.locale ?? null,
                     },
                     { transaction },
                 );
@@ -79,8 +84,11 @@ export function createPendingLinkRepository(model: typeof PendingLinkModel): Pen
             });
             return deleted > 0 ? toPendingLink(row) : null;
         },
-        async attachInteraction(guildId, discordId, applicationId, interactionToken) {
-            await model.update({ applicationId, interactionToken }, { where: { guildId, discordId } });
+        async attachInteraction(guildId, discordId, applicationId, interactionToken, locale) {
+            await model.update(
+                { applicationId, interactionToken, locale: locale ?? null },
+                { where: { guildId, discordId } },
+            );
         },
         async deleteExpired(now) {
             return model.destroy({ where: { expiresAt: { [Op.lte]: now } } });

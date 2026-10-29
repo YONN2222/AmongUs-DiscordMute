@@ -42,6 +42,13 @@ describe.each(backends)("LinkingService (%s)", (backend) => {
             expect(await service.confirmLink(codes.phrase, "Crew")).toBeNull();
         });
 
+        it("confirmLink returns the locale stored with the interaction", async () => {
+            const codes = await service.createPendingLink(guildId, "u1");
+            await service.attachInteractionResponse(guildId, "u1", "app", "token", "de");
+
+            expect(await service.confirmLink(codes.phrase, "Crew")).toMatchObject({ locale: "de" });
+        });
+
         it("confirmLink accepts the quick chat code", async () => {
             const codes = await service.createPendingLink(guildId, "u1");
             expect(await service.confirmLink(codes.quickChatCode, "Crew")).not.toBeNull();

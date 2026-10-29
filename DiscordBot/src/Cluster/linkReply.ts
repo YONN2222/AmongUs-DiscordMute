@@ -10,6 +10,20 @@ function describeRestError(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
 }
 
+/** The language of the user who ran /link self, else the server language, else english. */
+export async function resolveLinkReplyLocale(
+    link: ConfirmedLinkReply,
+    guildLanguage: (guildId: string) => Promise<Locale>,
+): Promise<Locale> {
+    if (link.locale) return link.locale;
+    try {
+        return await guildLanguage(link.guildId);
+    } catch (error) {
+        logger.error(logModules.Command, `Could not look up the language of guild ${link.guildId}`, error);
+        return "en";
+    }
+}
+
 /** Edits the original ephemeral /link reply through the interaction webhook once the plugin confirmed the code. */
 export async function updateOriginalLinkReply(rest: REST, link: ConfirmedLinkReply, locale: Locale): Promise<boolean> {
     if (!link.applicationId || !link.interactionToken) {

@@ -9,6 +9,7 @@ export class PendingLinkModel extends Model {
     declare expiresAt: number;
     declare applicationId: string | null;
     declare interactionToken: string | null;
+    declare locale: string | null;
 }
 
 export function initPendingLinkModel(sequelize: Sequelize): typeof PendingLinkModel {
@@ -23,6 +24,7 @@ export function initPendingLinkModel(sequelize: Sequelize): typeof PendingLinkMo
             expiresAt: { type: DataTypes.BIGINT, allowNull: false, field: "expires_at" },
             applicationId: { type: DataTypes.TEXT, allowNull: true, field: "application_id" },
             interactionToken: { type: DataTypes.TEXT, allowNull: true, field: "interaction_token" },
+            locale: { type: DataTypes.TEXT, allowNull: true },
         },
         { sequelize, tableName: "pending_links", timestamps: false },
     );

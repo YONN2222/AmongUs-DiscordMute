@@ -8,17 +8,12 @@ import {
     PermissionFlagsBits,
     SlashCommandBuilder,
 } from "discord.js";
-import { descriptionLocalizations, type Locale, localeFrom, type MessageKey, t } from "../../i18n";
+import { type Locale, localeFrom, localized, type MessageKey, t } from "../../i18n";
 import { logger, logModules } from "../../Logging/logger";
 import { ContainerBuilder } from "../../Utils/ContainerBuilder";
 import type { Command, CommandContext } from "../Command";
 
 export const LINK_SELF_UNLINK_BUTTON_ID = "link-self-unlink";
-
-const describe = (key: MessageKey) => ({
-    description: t("en", key),
-    localizations: descriptionLocalizations(key),
-});
 
 export async function handleLinkSelfUnlinkButton(interaction: ButtonInteraction, ctx: CommandContext): Promise<void> {
     if (!interaction.guildId) return;
@@ -33,7 +28,7 @@ export async function handleLinkSelfUnlinkButton(interaction: ButtonInteraction,
               .text(t(locale, "link.reset.selfDone"))
               .success()
         : new ContainerBuilder()
-              .title(t(locale, "link.reset.title"), "⚠️")
+              .title(t(locale, "link.reset.noneTitle"), "⚠️")
               .text(t(locale, "link.reset.selfNone"))
               .warning();
 
@@ -53,48 +48,21 @@ async function replyEphemeral(interaction: ChatInputCommandInteraction, containe
 export class LinkCommand implements Command {
     name = "link";
 
-    data = new SlashCommandBuilder()
-        .setName("link")
-        .setDescription(describe("link.description").description)
-        .setDescriptionLocalizations(describe("link.description").localizations)
+    data = localized(new SlashCommandBuilder().setName("link"), "link.description")
+        .addSubcommand((sub) => localized(sub.setName("self"), "link.self.description"))
         .addSubcommand((sub) =>
-            sub
-                .setName("self")
-                .setDescription(describe("link.self.description").description)
-                .setDescriptionLocalizations(describe("link.self.description").localizations),
-        )
-        .addSubcommand((sub) =>
-            sub
-                .setName("force")
-                .setDescription(describe("link.force.description").description)
-                .setDescriptionLocalizations(describe("link.force.description").localizations)
+            localized(sub.setName("force"), "link.force.description")
                 .addUserOption((option) =>
-                    option
-                        .setName("user")
-                        .setDescription(describe("link.force.user.description").description)
-                        .setDescriptionLocalizations(describe("link.force.user.description").localizations)
-                        .setRequired(true),
+                    localized(option.setName("user"), "link.force.user.description").setRequired(true),
                 )
                 .addStringOption((option) =>
-                    option
-                        .setName("display-name")
-                        .setDescription(describe("link.force.displayName.description").description)
-                        .setDescriptionLocalizations(describe("link.force.displayName.description").localizations)
-                        .setRequired(true),
+                    localized(option.setName("display-name"), "link.force.displayName.description").setRequired(true),
                 ),
         )
         .addSubcommand((sub) =>
-            sub
-                .setName("reset")
-                .setDescription(describe("link.reset.description").description)
-                .setDescriptionLocalizations(describe("link.reset.description").localizations)
-                .addUserOption((option) =>
-                    option
-                        .setName("user")
-                        .setDescription(describe("link.reset.user.description").description)
-                        .setDescriptionLocalizations(describe("link.reset.user.description").localizations)
-                        .setRequired(false),
-                ),
+            localized(sub.setName("reset"), "link.reset.description").addUserOption((option) =>
+                localized(option.setName("user"), "link.reset.user.description").setRequired(false),
+            ),
         );
 
     async execute(interaction: ChatInputCommandInteraction, ctx: CommandContext) {
@@ -185,6 +153,7 @@ export class LinkCommand implements Command {
             interaction.user.id,
             interaction.applicationId,
             interaction.token,
+            locale,
         );
     }
 
@@ -237,7 +206,7 @@ export class LinkCommand implements Command {
                       .text(t(locale, "link.reset.userDone", params))
                       .success()
                 : new ContainerBuilder()
-                      .title(t(locale, "link.reset.title"), "⚠️")
+                      .title(t(locale, "link.reset.noneTitle"), "⚠️")
                       .text(t(locale, "link.reset.userNone", params))
                       .warning();
 

@@ -62,6 +62,24 @@ describe("VoiceTargetResolver", () => {
         });
     });
 
+    it("words the notice in english and logs when the language lookup fails", async () => {
+        const error = new Error("db down");
+        const log = vi.spyOn(logger, "error").mockImplementation(() => {});
+        const resolve = createVoiceTargetResolver({
+            links: db.links,
+            memberVoiceChannel: async () => null,
+            fallbackChannelIds: [],
+            localeOf: async () => {
+                throw error;
+            },
+        });
+        expect(await resolve(guildId, "Nobody")).toEqual({
+            notice: { code: "host-not-linked", message: t("en", "notice.hostNotLinked") },
+        });
+        expect(log).toHaveBeenCalledWith(logModules.Mute, expect.stringContaining(guildId), error);
+        log.mockRestore();
+    });
+
     it("returns a host-not-in-voice notice", async () => {
         await db.links.upsert(guildId, "u1", "Crew");
         const { resolve } = resolver(null);

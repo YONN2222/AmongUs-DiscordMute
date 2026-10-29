@@ -98,6 +98,16 @@ describe.each(backends)("PendingLinkRepository (%s)", (backend) => {
             });
         });
 
+        it("attachInteraction stores the interaction locale in a nullable column", async () => {
+            const columns = await db.sequelize.getQueryInterface().describeTable("pending_links");
+            expect(columns.locale?.allowNull).toBe(true);
+
+            const p = pending();
+            await db.pendingLinks.create(p);
+            await db.pendingLinks.attachInteraction(guildId, "u1", "app", "token", "de");
+            expect(await db.pendingLinks.getActive(guildId, "u1", now)).toMatchObject({ locale: "de" });
+        });
+
         it("stores interaction data as unbounded text", async () => {
             const columns = await db.sequelize.getQueryInterface().describeTable("pending_links");
             expect(columns.application_id?.type).toBe("TEXT");

@@ -32,6 +32,7 @@ export const en = {
     "link.force.error": "An error occurred while manually linking the account.",
     "link.error.title": "Link Error",
     "link.reset.title": "Link Reset",
+    "link.reset.noneTitle": "Link Reset",
     "link.reset.selfDone": "You are no longer linked.",
     "link.reset.selfNone": "You were not linked to begin with.",
     "link.reset.userDone": "{user} is no longer linked to an Among Us account.",
