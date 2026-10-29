@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
-import { FAQ } from '../../app/content/faq'
+import { faqFor } from '../../app/content/faq'
+import { hostedView } from '../../shared/hostedStatus'
+import { DEFAULT_HOSTED_BOT_CLIENT_ID } from '../../shared/site'
 
 const ORIGIN = 'https://mute.yonn2222.com'
 
@@ -38,7 +40,7 @@ test('home JSON-LD contains SoftwareApplication and FAQPage with all FAQ questio
   const types = await jsonLdTypes(page)
   expect(types).toContain('SoftwareApplication')
   expect(types).toContain('FAQPage')
-  expect(types.filter((type) => type === 'Question')).toHaveLength(FAQ.length)
+  expect(types.filter((type) => type === 'Question')).toHaveLength(faqFor(hostedView('coming-soon', DEFAULT_HOSTED_BOT_CLIENT_ID)).length)
 })
 
 test('privacy and terms have own canonical and title', async ({ page }) => {

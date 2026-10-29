@@ -1,12 +1,17 @@
 <script setup lang="ts">
 import type { TabsItem, TimelineItem } from '@nuxt/ui'
-import { DOWNLOAD_URL, GITHUB_URL, HOSTED_BOT_INVITE_URL } from '#shared/site'
+import { DOWNLOAD_URL, GITHUB_URL } from '#shared/site'
 
 const BEPINEX_URL = 'https://builds.bepinex.dev/projects/bepinex_be/735/BepInEx-Unity.IL2CPP-win-x64-6.0.0-be.735%2B5fef357.zip'
 const DEVELOPER_PORTAL_URL = 'https://discord.com/developers/applications'
 const GUIDE_URL = `${GITHUB_URL}#readme`
 
-const hostedSoon = HOSTED_BOT_INVITE_URL === null
+const hosted = useHostedView()
+const hostedClosed = computed(() => hosted.value.status !== 'available')
+const tab = ref('self')
+const selfHostAction = computed(() => [
+  { label: hosted.value.cta.label, color: 'neutral' as const, variant: 'outline' as const, onClick: () => { tab.value = 'self' } },
+])
 const TABS: TabsItem[] = [
   { label: 'Self-host', icon: 'i-lucide-server', value: 'self', slot: 'self' as const },
   { label: 'Hosted', icon: 'i-lucide-cloud', value: 'hosted', slot: 'hosted' as const },
@@ -39,17 +44,17 @@ const TIMELINE_UI = {
 
 <template>
   <SiteSection id="setup" title="Set it up" tight>
-    <template #description>Run your own bot today. A hosted bot you can just invite is on the way.</template>
+    <template #description>Self-hosting works today. {{ hosted.headline }}.</template>
     <UTabs
       v-reveal
       class="setup-tabs"
       :items="TABS"
-      default-value="self"
+      v-model="tab"
       :unmount-on-hide="false"
       :ui="{ list: 'tablist', trigger: 'tab-trigger', indicator: 'tab-indicator', leadingIcon: 'size-4', content: 'tab-content' }"
     >
       <template #trailing="{ item }">
-        <UBadge v-if="item.value === 'hosted' && hostedSoon" color="neutral" variant="soft" size="sm" label="Soon" />
+        <UBadge v-if="item.value === 'hosted' && hostedClosed" color="neutral" variant="soft" size="sm" :label="hosted.badge" />
       </template>
 
       <template #self>
@@ -128,22 +133,24 @@ const TIMELINE_UI = {
 
       <template #hosted>
         <UAlert
-          v-if="hostedSoon"
+          v-if="hostedClosed"
           color="primary"
           variant="soft"
           icon="i-lucide-cloud"
-          title="The hosted bot is coming soon. Self-hosting works today."
+          :title="hosted.headline"
+          :description="hosted.body"
+          :actions="selfHostAction"
           class="mb-10"
           :ui="{ root: 'p-5 items-center rounded-(--radius-card) bg-elevated text-highlighted', icon: 'size-7 text-(--accent-text)', title: 'text-[17px]' }"
         />
-        <UTimeline orientation="vertical" color="neutral" size="xl" :items="HOSTED_STEPS" :default-value="-1" :ui="TIMELINE_UI" :class="{ 'opacity-75': hostedSoon }">
+        <UTimeline orientation="vertical" color="neutral" size="xl" :items="HOSTED_STEPS" :default-value="-1" :ui="TIMELINE_UI" :class="{ 'opacity-75': hostedClosed }">
           <template #title="{ item }">
             {{ item.title }}
             <UBadge color="neutral" variant="soft" :icon="(item as Step).whereIcon" :label="(item as Step).where" class="where" />
           </template>
           <template #invite-description>
             <p>Add the DiscordMute bot to your server. There is no bot of your own to run.</p>
-            <UButton v-if="HOSTED_BOT_INVITE_URL" :to="HOSTED_BOT_INVITE_URL" rel="noopener" size="lg" icon="i-brand-discord" label="Invite the bot" class="mt-4" />
+            <UButton v-if="hosted.inviteUrl" :to="hosted.inviteUrl" rel="noopener" size="lg" icon="i-brand-discord" :label="hosted.cta.label" class="mt-4" />
           </template>
           <template #install-description>
             <p>
@@ -152,10 +159,13 @@ const TIMELINE_UI = {
             </p>
           </template>
           <template #setup-description>
-            <p>An admin runs <code class="code">/setup</code> in your server and copies the server secret shown there.</p>
+            <p>
+              An admin runs <code class="code">/setup</code> in your server, presses <b>Create secret</b> and copies the secret. It is
+              shown only once.
+            </p>
           </template>
           <template #hosted-description>
-            <p>Set <code class="code">mode</code> to <code class="code">hosted</code> and paste the server secret.</p>
+            <p>Set <code class="code">mode</code> to <code class="code">hosted</code> and paste the secret.</p>
 <pre><code>{
   <span class="k">"mode"</span>: <span class="s">"hosted"</span>,
   <span class="k">"secret"</span>: <span class="s">"your-server-secret"</span>

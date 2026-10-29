@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import type { AccordionItem } from '@nuxt/ui'
 import { GITHUB_URL } from '#shared/site'
-import { FAQ } from '~/content/faq'
+import { faqFor } from '~/content/faq'
 
-const items: AccordionItem[] = FAQ.map((entry) => ({ label: entry.question, content: entry.answer, value: entry.id }))
-const half = Math.ceil(items.length / 2)
-const columns = [items.slice(0, half), items.slice(half)]
-const open = [[items[0]!.value as string], []]
+const hosted = useHostedView()
+const items = computed<AccordionItem[]>(() =>
+  faqFor(hosted.value).map((entry) => ({ label: entry.question, content: entry.answer, value: entry.id })),
+)
+const half = computed(() => Math.ceil(items.value.length / 2))
+const columns = computed(() => [items.value.slice(0, half.value), items.value.slice(half.value)])
+const open = computed(() => [[items.value[0]!.value as string], []])
 const ui = {
   root: 'faq-col',
   item: 'faq-item',

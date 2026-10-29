@@ -64,5 +64,11 @@ For e2e, install the browser once with `bunx playwright install chromium`. The s
 6. Keep these zone features off for both hostnames, because they change inline scripts and break the CSP hashes or inject blocked scripts: Rocket Loader, Zaraz, Web Analytics automatic setup, Email Address Obfuscation, JS detections and any other HTML rewriting.
 7. Workers Logs are enabled in `wrangler.jsonc` (3 days retention on Free, 7 on Paid, matching the privacy policy). Lower `head_sampling_rate` if traffic grows.
 8. The `ratelimits` `namespace_id` values (4101, 4102) must be unique in the Cloudflare account.
+9. Site switches are plain Worker variables, set in the Cloudflare dashboard (Settings, Variables and Secrets). They apply at runtime without a rebuild, and `keep_vars` in `wrangler.jsonc` stops deploys from removing them. Pages are cached for up to a minute, so a change shows within about that time.
+
+   | Variable | Values | Default | Effect |
+   |----------|--------|---------|--------|
+   | `NUXT_PUBLIC_HOSTED_STATUS` | `available`, `coming-soon`, `unavailable` | `coming-soon` | Switches every hosted bot text on the home page. `available` shows the invite button. |
+   | `NUXT_PUBLIC_HOSTED_BOT_CLIENT_ID` | Discord application ID | `1565436340114423808` | Builds the invite link. Empty or invalid behaves like `coming-soon`. |
 
 `bunx wrangler deploy --dry-run --outdir .wrangler/dry-run` shows the bundle size without uploading.

@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { DOWNLOAD_URL, GITHUB_URL, HOSTED_BOT_INVITE_URL } from '#shared/site'
+import { DOWNLOAD_URL, GITHUB_URL } from '#shared/site'
+
+const hosted = useHostedView()
 
 const ui = {
   root: 'static',
@@ -33,12 +35,12 @@ const ui = {
       <template #links>
         <UButton :to="DOWNLOAD_URL" rel="noopener" size="lg" icon="i-lucide-download" label="Download the mod" class="justify-center" />
         <UButton
-          v-if="HOSTED_BOT_INVITE_URL"
-          :to="HOSTED_BOT_INVITE_URL"
+          v-if="hosted.inviteUrl"
+          :to="hosted.inviteUrl"
           rel="noopener"
           size="lg"
           icon="i-brand-discord"
-          label="Invite the bot"
+          :label="hosted.cta.label"
           class="justify-center"
         />
         <UButton

@@ -5,6 +5,7 @@
   "compatibility_date": "2026-10-23",
   "compatibility_flags": ["nodejs_compat"],
   "assets": { "directory": ".output/public", "binding": "ASSETS" },
+  "keep_vars": true,
   "secrets": { "required": ["HOSTED_TELEMETRY_TOKEN"] },
   "observability": { "enabled": true },
   "workers_dev": false,

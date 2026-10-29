@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
-import { DOWNLOAD_URL, GITHUB_URL } from '../../shared/site'
+import { hostedView } from '../../shared/hostedStatus'
+import { DEFAULT_HOSTED_BOT_CLIENT_ID, DOWNLOAD_URL, GITHUB_URL } from '../../shared/site'
 
 test('shows hero buttons', async ({ page }) => {
   await page.goto('/')
@@ -7,7 +8,15 @@ test('shows hero buttons', async ({ page }) => {
   await expect(hero.getByRole('link', { name: 'Download the mod' })).toHaveAttribute('href', DOWNLOAD_URL)
   expect(DOWNLOAD_URL.endsWith('/releases/latest')).toBe(true)
   await expect(hero.getByRole('link', { name: 'GitHub' })).toHaveAttribute('href', GITHUB_URL)
-  await expect(page.getByRole('link', { name: /Invite the bot/ })).toHaveCount(0)
+  await expect(page.locator('a[href^="https://discord.com/oauth2/authorize"]')).toHaveCount(0)
+})
+
+test('shows the coming soon badge by default and no invite link', async ({ page }) => {
+  await page.goto('/')
+  const view = hostedView('coming-soon', DEFAULT_HOSTED_BOT_CLIENT_ID)
+  await expect(page.getByRole('tab', { name: /Hosted/ })).toContainText(view.badge)
+  await expect(page.locator('#setup')).toContainText(view.headline)
+  await expect(page.getByRole('link', { name: /Add the bot/ })).toHaveCount(0)
 })
 
 test('shows games muted 1,234 and players linked 56', async ({ page }) => {
@@ -40,7 +49,7 @@ test('setup tabs switch between Self-host and Hosted', async ({ page }) => {
   await expect(page.getByText('Install BepInEx', { exact: false }).first()).toBeVisible()
   await hosted.click()
   await expect(hosted).toHaveAttribute('aria-selected', 'true')
-  await expect(page.getByText('The hosted bot is coming soon.')).toBeVisible()
+  await expect(page.getByText('A hosted bot is planned', { exact: true })).toBeVisible()
   await self.click()
   await expect(self).toHaveAttribute('aria-selected', 'true')
   await expect(page.getByText('Set up the bot').first()).toBeVisible()

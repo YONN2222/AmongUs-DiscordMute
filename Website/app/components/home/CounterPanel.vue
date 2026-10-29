@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { COUNTER_KEYS, PUBLIC_COUNTERS, type CounterKey, type ModeCount } from '#shared/counters'
-import { HOSTED_BOT_INVITE_URL } from '#shared/site'
 
 const COUNTERS: Record<CounterKey, { label: string; icon: string }> = {
   gamesMuted: { label: 'Games muted', icon: 'i-lucide-mic-off' },
@@ -11,7 +10,8 @@ const COUNTERS: Record<CounterKey, { label: string; icon: string }> = {
 const EMPTY: ModeCount = { total: 0, selfHost: 0, hosted: 0 }
 
 const { stats, unavailable } = usePublicStats()
-const hostedSoon = HOSTED_BOT_INVITE_URL === null
+const hosted = useHostedView()
+const hostedOpen = computed(() => hosted.value.status === 'available')
 
 const readouts = computed(() => {
   const current = stats.value
@@ -27,7 +27,7 @@ const readouts = computed(() => {
 
 <template>
   <SiteSection id="stats" title="Rounds kept quiet">
-    <template #description>Totals from self-hosted bots, with room for the hosted bot once it is live.</template>
+    <template #description>Totals from self-hosted and hosted bots.</template>
     <div class="panel">
       <div class="stats" :class="{ veiled: unavailable }" :aria-hidden="unavailable || undefined">
         <div v-for="(r, index) in readouts" :key="r.key" v-reveal="index * 90">
@@ -42,8 +42,8 @@ const readouts = computed(() => {
               <div>
                 <dt><UIcon name="i-lucide-cloud" class="split-icon" />Hosted</dt>
                 <dd>
-                  <HomeCountUp :class="{ soon: hostedSoon }" :value="r.count.hosted" />
-                  <UBadge v-if="hostedSoon" color="neutral" variant="soft" label="Coming soon" />
+                  <HomeCountUp :class="{ soon: !hostedOpen }" :value="r.count.hosted" />
+                  <UBadge v-if="!hostedOpen" color="neutral" variant="soft" :label="hosted.badge" />
                 </dd>
               </div>
             </dl>

@@ -1,7 +1,8 @@
 import { fileURLToPath } from 'node:url'
 import type { Nitro } from 'nitropack'
 import { SECURITY_HEADERS } from './server/security/csp'
-import { CANONICAL_ORIGIN, SITE_DESCRIPTION, SITE_NAME } from './shared/site'
+import { DEFAULT_HOSTED_STATUS } from './shared/hostedStatus'
+import { CANONICAL_ORIGIN, DEFAULT_HOSTED_BOT_CLIENT_ID, SITE_DESCRIPTION, SITE_NAME } from './shared/site'
 
 const workerEntry = fileURLToPath(new URL('./server/cloudflare-entry.ts', import.meta.url))
 
@@ -20,6 +21,13 @@ export default defineNuxtConfig({
   ogImage: false,
   site: { url: CANONICAL_ORIGIN, name: SITE_NAME, description: SITE_DESCRIPTION, defaultLocale: 'en', env: 'production' },
   sitemap: { exclude: ['/api/**'] },
+  // Overridden at runtime by the Worker variables NUXT_PUBLIC_HOSTED_STATUS and NUXT_PUBLIC_HOSTED_BOT_CLIENT_ID.
+  runtimeConfig: {
+    public: {
+      hostedStatus: DEFAULT_HOSTED_STATUS,
+      hostedBotClientId: DEFAULT_HOSTED_BOT_CLIENT_ID,
+    },
+  },
   app: {
     head: {
       htmlAttrs: { lang: 'en', class: 'dark' },

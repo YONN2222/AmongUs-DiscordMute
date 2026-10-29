@@ -1,4 +1,19 @@
+import type { HostedView } from '#shared/hostedStatus'
+
 export type FaqEntry = { id: string; question: string; answer: string }
+
+const HOSTED_ENTRY_AFTER = 'install'
+
+// The hosted answer follows the hosted status, so the page and its structured data always show the same text.
+export function faqFor(hosted: HostedView): FaqEntry[] {
+  const entry: FaqEntry = {
+    id: 'hosted',
+    question: 'Can I use a hosted bot instead of running my own?',
+    answer: `${hosted.headline}. ${hosted.body}`,
+  }
+  const index = FAQ.findIndex((item) => item.id === HOSTED_ENTRY_AFTER) + 1
+  return [...FAQ.slice(0, index), entry, ...FAQ.slice(index)]
+}
 
 export const FAQ: readonly FaqEntry[] = [
   {
