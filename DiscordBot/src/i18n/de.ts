@@ -90,4 +90,15 @@ export const de: Record<MessageKey, string> = {
     "overview.force.nameLabel": "Among-Us-Name",
     "overview.force.unknownUser": "Dieser Nutzer wurde auf diesem Server nicht gefunden.",
     "overview.force.invalidName": "Gib einen Namen mit 1 bis 64 Zeichen ein.",
+
+    "status.title": "Spielstatus",
+    "status.phase.lobby": "Lobby",
+    "status.phase.tasks": "Runde läuft",
+    "status.phase.meeting": "Besprechung",
+    "status.lobbyCode": "Lobby-Code: {code}",
+    "status.host": "Host: {host}",
+    "status.players": "Spieler ({count})",
+    "status.noPlayers": "Noch niemand ist beigetreten.",
+    "status.notLinked": "nicht verknüpft",
+    "status.dead": "tot",
 };

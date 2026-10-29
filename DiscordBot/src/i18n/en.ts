@@ -88,6 +88,17 @@ export const en = {
     "overview.force.nameLabel": "Among Us name",
     "overview.force.unknownUser": "That user could not be found on this server.",
     "overview.force.invalidName": "Enter a name between 1 and 64 characters.",
+
+    "status.title": "Game status",
+    "status.phase.lobby": "Lobby",
+    "status.phase.tasks": "Round in progress",
+    "status.phase.meeting": "Meeting",
+    "status.lobbyCode": "Lobby code: {code}",
+    "status.host": "Host: {host}",
+    "status.players": "Players ({count})",
+    "status.noPlayers": "Nobody has joined yet.",
+    "status.notLinked": "not linked",
+    "status.dead": "dead",
 };
 
 export type MessageKey = keyof typeof en;

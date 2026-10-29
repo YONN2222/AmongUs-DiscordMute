@@ -6,6 +6,8 @@ import { databaseOptionsFrom, openDatabase } from "../Data/database";
 import { deployCommands } from "../deploy-commands";
 import { GuildEventBus } from "../Events/GuildEvents";
 import { NicknameSync } from "../Game/NicknameSync";
+import { StatusMessage } from "../Game/StatusMessage";
+import { sweepTrackedMessages } from "../Game/trackedMessageSweeper";
 import { SHUTDOWN_SIGNALS } from "../Gateway/shutdown";
 import { LinkOverviewPublisher } from "../LinkOverview/LinkOverviewPublisher";
 import { LogChannelWriter } from "../LogChannel/LogChannelWriter";
@@ -55,6 +57,7 @@ async function onReady(
     mute: MuteService,
     nicknameSync: NicknameSync,
     overview: LinkOverviewPublisher,
+    status: StatusMessage,
     markReady: () => void,
 ): Promise<void> {
     logger.success(logModules.Discord, `Cluster ${cluster.clusterID} logged in as ${client.user.tag}`);
@@ -71,6 +74,9 @@ async function onReady(
     await mute.recover([...client.guilds.cache.keys()]);
     await nicknameSync.recover([...client.guilds.cache.keys()]).catch((error: unknown) => {
         logger.error(logModules.Bot, `Cluster ${cluster.clusterID} could not restore nicknames`, error);
+    });
+    await status.recover([...client.guilds.cache.keys()]).catch((error: unknown) => {
+        logger.error(logModules.Bot, `Cluster ${cluster.clusterID} could not remove leftover status messages`, error);
     });
     overview.resume([...client.guilds.cache.keys()]).catch((error: unknown) => {
         logger.error(logModules.Bot, `Cluster ${cluster.clusterID} could not refresh the link overviews`, error);
@@ -109,6 +115,13 @@ export async function runCluster(): Promise<void> {
         settings,
     });
     events.on((event) => overview.handle(event));
+    const status = new StatusMessage({
+        port: messagePort,
+        tracked: db.trackedMessages,
+        links: db.links,
+        settings,
+    });
+    events.on((event) => status.handle(event));
     const voice = new DiscordVoiceAdapter(client);
     const nicknameSync = new NicknameSync({
         adapter: voice,
@@ -138,6 +151,13 @@ export async function runCluster(): Promise<void> {
         mute.sweepIdle([...client.guilds.cache.keys()]).catch((error: unknown) => {
             logger.error(logModules.Mute, `Cluster ${cluster.clusterID} could not sweep leftover mutes`, error);
         });
+        sweepTrackedMessages(
+            { port: messagePort, tracked: db.trackedMessages },
+            [...client.guilds.cache.keys()],
+            Date.now(),
+        ).catch((error: unknown) => {
+            logger.error(logModules.Bot, `Cluster ${cluster.clusterID} could not delete expired messages`, error);
+        });
     }, IDLE_SWEEP_INTERVAL_MS);
     sweepTimer.unref();
     const handleRequest = createClusterRequestHandler({
@@ -160,7 +180,7 @@ export async function runCluster(): Promise<void> {
     );
     registerVoiceRejoin(client, mute);
     client.once(Events.ClientReady, (readyClient) => {
-        onReady(readyClient, cluster, mute, nicknameSync, overview, () => {
+        onReady(readyClient, cluster, mute, nicknameSync, overview, status, () => {
             ready = true;
         }).catch((error: unknown) =>
             logger.error(logModules.Bot, `Cluster ${cluster.clusterID} failed to finish starting`, error),
