@@ -2,9 +2,9 @@ import { vi } from "vitest";
 import type { CommandContext } from "../../src/Commands/Command";
 import type { Database } from "../../src/Data/Database";
 import type { GuildEvent } from "../../src/Events/GuildEvents";
+import { LinkingService } from "../../src/Linking/LinkingService";
 import { logger } from "../../src/Logging/Logger";
 import { SettingsService } from "../../src/Settings/SettingsService";
-import { LinkingService } from "../../src/Utils/LinkingService";
 import { createTestProbe } from "./Probe";
 import { createTestDatabase } from "./TestDatabase";
 

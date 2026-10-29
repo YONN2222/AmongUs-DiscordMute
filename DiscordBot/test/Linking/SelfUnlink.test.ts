@@ -3,9 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CommandContext } from "../../src/Commands/Command";
 import type { Database } from "../../src/Data/Database";
 import { BlockChecker } from "../../src/Hosted/BlockChecker";
+import { LinkingService } from "../../src/Linking/LinkingService";
 import { LINK_SELF_UNLINK_BUTTON_ID, unlinkSelf } from "../../src/Linking/SelfUnlink";
 import { logger } from "../../src/Logging/Logger";
-import { LinkingService } from "../../src/Utils/LinkingService";
 import { createTestProbe } from "../Helpers/Probe";
 import { createTestDatabase } from "../Helpers/TestDatabase";
 

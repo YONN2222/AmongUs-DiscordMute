@@ -2,7 +2,7 @@ import { buildGuildCreateDispatch, buildUser, DEFAULT_IDS, extractText } from "p
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CommandContext, HostedCommandContext } from "../../src/Commands/Command";
 import { BlockChecker } from "../../src/Hosted/BlockChecker";
-import { BlockedUserError } from "../../src/Utils/LinkingService";
+import { BlockedUserError } from "../../src/Linking/LinkingService";
 import { type CommandProbe, createCommandProbe } from "../Helpers/CommandProbe";
 
 const EPHEMERAL = 1 << 6;

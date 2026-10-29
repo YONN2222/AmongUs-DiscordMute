@@ -10,11 +10,11 @@ import {
     SHUTDOWN_SIGNALS,
     shutdownGateway,
 } from "../../src/Gateway/Shutdown";
+import type { LinkingService } from "../../src/Linking/LinkingService";
 import { logger } from "../../src/Logging/Logger";
 import { CLUSTER_EXIT_LOGIN_FAILED } from "../../src/Process/ProcessRole";
 import { PROTOCOL_VERSION } from "../../src/Protocol/PluginProtocol";
 import { InMemoryClusterRouter } from "../../src/Routing/ClusterRouter";
-import type { LinkingService } from "../../src/Utils/LinkingService";
 
 const GUILD = "guild-1";
 const SECRET = "secret";

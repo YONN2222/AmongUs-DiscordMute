@@ -1,6 +1,7 @@
 import type { IncomingMessage, Server } from "node:http";
 import type { Duplex } from "node:stream";
 import { type RawData, WebSocket, WebSocketServer } from "ws";
+import type { LinkingService } from "../Linking/LinkingService";
 import { logger, logModules } from "../Logging/Logger";
 import type { PluginEventType } from "../Metrics/MetricNames";
 import {
@@ -21,7 +22,6 @@ import {
 } from "../Protocol/PluginProtocol";
 import type { ClusterRouter } from "../Routing/ClusterRouter";
 import type { ClusterRequest, RouterReply } from "../Routing/Messages";
-import type { LinkingService } from "../Utils/LinkingService";
 import { unauthorizedMessage } from "../Utils/UnauthorizedHint";
 import { createGameSession, type GameSession } from "./GameSession";
 import type { ResolvedSecret, SecretResolver } from "./SecretResolver";

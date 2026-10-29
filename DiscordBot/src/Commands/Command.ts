@@ -3,9 +3,9 @@ import type { AuditLogRepository } from "../Data/Repositories/AuditLogRepository
 import type { GuildSecretRepository } from "../Data/Repositories/GuildSecretRepository";
 import type { GuildEventBus } from "../Events/GuildEvents";
 import type { BlockChecker } from "../Hosted/BlockChecker";
+import type { LinkingService } from "../Linking/LinkingService";
 import { logger, logModules } from "../Logging/Logger";
 import type { SettingsService } from "../Settings/SettingsService";
-import type { LinkingService } from "../Utils/LinkingService";
 import { commandConstructors } from "./Generated";
 
 export interface HostedCommandContext {

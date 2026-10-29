@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Database } from "../../src/Data/Database";
 import { relinkFromRoster } from "../../src/Game/AutoRelink";
 import { BlockChecker } from "../../src/Hosted/BlockChecker";
-import { BlockedUserError, LinkingService } from "../../src/Utils/LinkingService";
+import { BlockedUserError, LinkingService } from "../../src/Linking/LinkingService";
 import { backendAvailable, backends, openBackend, purgeTestRows, uniqueId } from "../Helpers/TestDatabase";
 
 describe.each(backends)("LinkingService (%s)", (backend) => {

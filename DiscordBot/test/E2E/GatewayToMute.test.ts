@@ -8,13 +8,13 @@ import { type GuildEvent, GuildEventBus } from "../../src/Events/GuildEvents";
 import { createGatewayHttpServer } from "../../src/Gateway/HttpServer";
 import { PluginGateway } from "../../src/Gateway/PluginGateway";
 import { SelfHostSecretResolver } from "../../src/Gateway/SecretResolver";
+import { LinkingService } from "../../src/Linking/LinkingService";
 import { logger } from "../../src/Logging/Logger";
 import { MuteService, type VoiceAdapter, type VoiceMember } from "../../src/Mute/MuteService";
 import { createVoiceTargetResolver } from "../../src/Mute/VoiceTargetResolver";
 import { PROTOCOL_VERSION } from "../../src/Protocol/PluginProtocol";
 import { InMemoryClusterRouter } from "../../src/Routing/ClusterRouter";
 import { DEFAULT_SETTINGS } from "../../src/Settings/GuildSettings";
-import { LinkingService } from "../../src/Utils/LinkingService";
 import { createTestDatabase } from "../Helpers/TestDatabase";
 
 const SECRET = "e2e-secret";

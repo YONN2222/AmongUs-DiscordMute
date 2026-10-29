@@ -14,6 +14,7 @@ import { sweepTrackedMessages } from "../Game/TrackedMessageSweeper";
 import { SHUTDOWN_SIGNALS } from "../Gateway/Shutdown";
 import type { GuildLifecycle } from "../Hosted/GuildLifecycle";
 import { isHosted } from "../Hosted/HostedMode";
+import { LinkingService } from "../Linking/LinkingService";
 import { LinkOverviewPublisher } from "../LinkOverview/LinkOverviewPublisher";
 import { LogChannelWriter } from "../LogChannel/LogChannelWriter";
 import { configureLogger, logger, logModules } from "../Logging/Logger";
@@ -25,7 +26,6 @@ import { CLUSTER_EXIT_LOGIN_FAILED, loginFailureExitCode } from "../Process/Proc
 import { GalacticGatewayLink } from "../Routing/ClusterRouter";
 import type { RouterReply } from "../Routing/Messages";
 import { SettingsService } from "../Settings/SettingsService";
-import { LinkingService } from "../Utils/LinkingService";
 import { createClusterRequestHandler } from "./ClusterRequestHandler";
 import { createDiscordClient } from "./CreateDiscordClient";
 import { DiscordVoiceAdapter } from "./DiscordVoiceAdapter";

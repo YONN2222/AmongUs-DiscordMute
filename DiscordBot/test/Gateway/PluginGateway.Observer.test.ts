@@ -5,10 +5,10 @@ import { WebSocket } from "ws";
 import type { Database } from "../../src/Data/Database";
 import { type GatewayObserver, PluginGateway } from "../../src/Gateway/PluginGateway";
 import { SelfHostSecretResolver } from "../../src/Gateway/SecretResolver";
+import { LinkingService } from "../../src/Linking/LinkingService";
 import { logger } from "../../src/Logging/Logger";
 import { PROTOCOL_VERSION } from "../../src/Protocol/PluginProtocol";
 import { InMemoryClusterRouter } from "../../src/Routing/ClusterRouter";
-import { LinkingService } from "../../src/Utils/LinkingService";
 import { createTestDatabase } from "../Helpers/TestDatabase";
 
 const SECRET = "test-secret";

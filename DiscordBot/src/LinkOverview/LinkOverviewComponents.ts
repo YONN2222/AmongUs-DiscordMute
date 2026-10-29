@@ -13,11 +13,11 @@ import { type ComponentInteraction, registerComponent } from "../Cluster/Compone
 import type { CommandContext } from "../Commands/Command";
 import { escapeName } from "../Game/PlayerNames";
 import { type Locale, localeFrom, t } from "../I18n/Index";
+import { BlockedUserError } from "../Linking/LinkingService";
 import { unlinkSelf } from "../Linking/SelfUnlink";
 import { startSelfLink } from "../Linking/StartSelfLink";
 import { logger, logModules } from "../Logging/Logger";
 import { ContainerBuilder } from "../Utils/ContainerBuilder";
-import { BlockedUserError } from "../Utils/LinkingService";
 import { canManageServer } from "../Utils/Permissions";
 import { PAGE_SIZE, pageCount, renderLinkOverview } from "./RenderLinkOverview";
 

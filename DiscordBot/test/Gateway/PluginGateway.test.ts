@@ -6,11 +6,11 @@ import type { Database } from "../../src/Data/Database";
 import { createGatewayRequestHandler } from "../../src/Gateway/GatewayRequestHandler";
 import { MAX_SESSIONS_PER_GUILD, PluginGateway, type PluginGatewayDeps } from "../../src/Gateway/PluginGateway";
 import { SelfHostSecretResolver } from "../../src/Gateway/SecretResolver";
+import { LinkingService } from "../../src/Linking/LinkingService";
 import { logger } from "../../src/Logging/Logger";
 import { MIN_PROTOCOL_VERSION, PROTOCOL_VERSION } from "../../src/Protocol/PluginProtocol";
 import { InMemoryClusterRouter } from "../../src/Routing/ClusterRouter";
 import type { ClusterRequest, RouterReply } from "../../src/Routing/Messages";
-import { LinkingService } from "../../src/Utils/LinkingService";
 import { createTestDatabase } from "../Helpers/TestDatabase";
 
 const SECRET = "test-secret";

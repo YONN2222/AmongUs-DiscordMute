@@ -1,9 +1,9 @@
 import { type ChatInputCommandInteraction, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } from "discord.js";
 import { type Locale, localeFrom, localized, type MessageKey, t } from "../../I18n/Index";
+import { BlockedUserError } from "../../Linking/LinkingService";
 import { startSelfLink } from "../../Linking/StartSelfLink";
 import { logger, logModules } from "../../Logging/Logger";
 import { ContainerBuilder } from "../../Utils/ContainerBuilder";
-import { BlockedUserError } from "../../Utils/LinkingService";
 import type { Command, CommandContext } from "../Command";
 
 async function replyEphemeral(interaction: ChatInputCommandInteraction, container: ContainerBuilder) {
