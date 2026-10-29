@@ -61,14 +61,6 @@ export function formatQuickChatCode(ids: number[]): string {
     return [...ids].sort((a, b) => a - b).join("-");
 }
 
-export function labelFor(id: number): string {
-    return QUICK_CHAT_CATALOG.find((p) => p.id === id)?.label ?? `#${id}`;
-}
-
-export function categoryFor(id: number): QuickChatCategory | undefined {
-    return QUICK_CHAT_CATALOG.find((p) => p.id === id)?.category;
-}
-
 export function describePhrase(id: number): string {
     const phrase = QUICK_CHAT_CATALOG.find((p) => p.id === id);
     return phrase ? `${phrase.label} (${phrase.category})` : `#${id}`;
