@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import type { TabsItem, TimelineItem } from '@nuxt/ui'
-import { DOWNLOAD_URL, GITHUB_URL } from '#shared/site'
+import { DOCS_URL, DOWNLOAD_URL } from '#shared/site'
 
 const BEPINEX_URL = 'https://builds.bepinex.dev/projects/bepinex_be/735/BepInEx-Unity.IL2CPP-win-x64-6.0.0-be.735%2B5fef357.zip'
 const DEVELOPER_PORTAL_URL = 'https://discord.com/developers/applications'
-const GUIDE_URL = `${GITHUB_URL}#readme`
+const SELF_HOST_GUIDE_URL = `${DOCS_URL}/getting-started/self-host-setup`
+const HOSTED_GUIDE_URL = `${DOCS_URL}/getting-started/hosted-setup`
 
 const hosted = useHostedView()
 const hostedClosed = computed(() => hosted.value.status !== 'available')
@@ -126,7 +127,7 @@ const TIMELINE_UI = {
         </UTimeline>
         <UAlert color="neutral" variant="outline" icon="i-lucide-book-open" class="mt-2" :ui="{ icon: 'text-(--indigo-text)', description: 'text-[15px] text-muted' }">
           <template #description>
-            Every config key is explained in the <ULink :to="GUIDE_URL" rel="noopener" class="inline-link">setup guide on GitHub</ULink>.
+            Every config key is explained in the <ULink :to="SELF_HOST_GUIDE_URL" rel="noopener" class="inline-link">self-hosting guide</ULink>.
           </template>
         </UAlert>
       </template>
@@ -172,6 +173,9 @@ const TIMELINE_UI = {
 }</code></pre>
           </template>
         </UTimeline>
+        <p class="mt-2">
+          More detail in the <ULink :to="HOSTED_GUIDE_URL" rel="noopener" class="inline-link">hosted setup guide</ULink>.
+        </p>
       </template>
     </UTabs>
   </SiteSection>

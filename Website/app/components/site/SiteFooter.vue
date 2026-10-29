@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { FooterColumn } from '@nuxt/ui'
-import { DOWNLOAD_URL, GITHUB_URL } from '#shared/site'
+import { DOCS_URL, DOWNLOAD_URL, GITHUB_URL } from '#shared/site'
 
 const year = new Date().getFullYear()
 const columns: FooterColumn[] = [
@@ -9,7 +9,8 @@ const columns: FooterColumn[] = [
     children: [
       { label: 'Releases', icon: 'i-lucide-download', to: DOWNLOAD_URL, rel: 'noopener' },
       { label: 'GitHub', icon: 'i-brand-github', to: GITHUB_URL, rel: 'noopener' },
-      { label: 'Setup', icon: 'i-lucide-book-open', to: '/#setup' },
+      { label: 'Setup', icon: 'i-lucide-list-checks', to: '/#setup' },
+      { label: 'Docs', icon: 'i-lucide-book-open', to: DOCS_URL, rel: 'noopener' },
     ],
   },
   {
