@@ -1,7 +1,7 @@
-import { createHash, timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { z } from "zod";
 import { logger, logModules } from "../Logging/Logger";
+import { hasBearerToken } from "../Utils/BearerToken";
 import type { AdminHandlers, Page } from "./AdminHandlers";
 import {
     ADMIN_API_PREFIX,
@@ -23,7 +23,6 @@ import {
     SnowflakeSchema,
 } from "./Contract";
 
-const BEARER_PREFIX = "Bearer ";
 const INTERNAL_ERROR_MESSAGE = "Internal error";
 
 class AdminRequestError extends Error {
@@ -51,16 +50,6 @@ interface Route {
     method: string;
     segments: string[];
     run(request: RouteRequest): Promise<Reply>;
-}
-
-function sha256(value: string): Buffer {
-    return createHash("sha256").update(value).digest();
-}
-
-function isAuthorized(request: IncomingMessage, token: string): boolean {
-    const header = request.headers.authorization ?? "";
-    if (!header.startsWith(BEARER_PREFIX)) return false;
-    return timingSafeEqual(sha256(header.slice(BEARER_PREFIX.length)), sha256(token));
 }
 
 function send(response: ServerResponse, status: number, body: AdminResponse<unknown>): void {
@@ -205,7 +194,7 @@ export function createAdminServer(deps: { token: string; handlers: AdminHandlers
     const routes = buildRoutes(deps.handlers);
 
     async function handle(request: IncomingMessage, response: ServerResponse): Promise<void> {
-        if (!isAuthorized(request, deps.token)) throw fail("unauthorized", "Missing or invalid token");
+        if (!hasBearerToken(request, deps.token)) throw fail("unauthorized", "Missing or invalid token");
         const url = new URL(request.url ?? "", "http://localhost");
         const match = findRoute(routes, request.method ?? "", url.pathname);
         if (!match) throw fail("not-found", "Unknown endpoint");

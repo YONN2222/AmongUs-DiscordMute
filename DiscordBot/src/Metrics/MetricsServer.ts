@@ -1,19 +1,10 @@
-import { createHash, timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { logger, logModules } from "../Logging/Logger";
+import { hasBearerToken } from "../Utils/BearerToken";
 import type { MetricsCollector } from "./MetricsCollector";
 
-const BEARER_PREFIX = "Bearer ";
-
-function sha256(value: string): Buffer {
-    return createHash("sha256").update(value).digest();
-}
-
 function isAuthorized(request: IncomingMessage, token: string | undefined): boolean {
-    if (token === undefined) return true;
-    const header = request.headers.authorization ?? "";
-    if (!header.startsWith(BEARER_PREFIX)) return false;
-    return timingSafeEqual(sha256(header.slice(BEARER_PREFIX.length)), sha256(token));
+    return token === undefined || hasBearerToken(request, token);
 }
 
 function end(response: ServerResponse, status: number): void {
