@@ -52,6 +52,11 @@ describe('legal content', () => {
     expect(hosted).toContain('Cloudflare Tunnel')
   })
 
+  it('privacy says server data is deleted 7 days after the bot was removed', () => {
+    expect(section(PRIVACY_SECTIONS, 'hosted-bot')).toMatch(/deleted 7 days later/i)
+    expect(section(PRIVACY_SECTIONS, 'retention')).toMatch(/7 days after it was removed/i)
+  })
+
   it('privacy states IPs are not stored', () => {
     expect(section(PRIVACY_SECTIONS, 'website')).toMatch(/never (stored|written)/i)
   })

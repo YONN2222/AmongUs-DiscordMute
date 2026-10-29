@@ -50,7 +50,7 @@ export const PRIVACY_SECTIONS: readonly LegalSection[] = [
       'The bot also keeps ban records, which are the Discord IDs of users or servers that were blocked from the hosted bot, so that a ban stays effective. A ban record includes the reason for the ban.',
       'The operator keeps an audit log of moderation actions on the hosted bot, such as blocks and removals. An entry holds the Discord ID of the operator who acted and the Discord ID of the affected user or server. When the operator removes the bot from a server, the entry also holds the reason the operator gave. Audit log entries are kept for 180 days.',
       'The legal basis is your use of the service (Article 6(1)(b) GDPR) and the legitimate interest in keeping the service secure and free of abuse (Article 6(1)(f) GDPR). Data is not sold and not shared with third parties, apart from the hosting providers that run the bot. Connections from the Among Us plugin to the hosted bot pass through Cloudflare, Inc. (Cloudflare Tunnel), which acts as processor for the operator and sees the technical connection data such as your IP address.',
-      'When the bot is removed from a Discord server, the data of that server is deleted, including its settings and the links of its players.',
+      'When the bot is removed from a Discord server, the data of that server is deleted 7 days later, including its settings and the links of its players. The operator deletes it earlier on request.',
     ],
   },
   {
@@ -65,7 +65,7 @@ export const PRIVACY_SECTIONS: readonly LegalSection[] = [
     heading: 'How long data is kept',
     body: [
       'Aggregate counters and per-instance statistics are kept as long as they are useful for the public counters and for planning, and they contain no personal data.',
-      'Hosted bot data is kept while the bot is in your server. Ban records are kept for as long as the ban applies. Audit log entries of moderation actions are kept for 180 days. You can ask for earlier deletion.',
+      'Hosted bot data is kept while the bot is in your server and for 7 days after it was removed. Ban records are kept for as long as the ban applies. Audit log entries of moderation actions are kept for 180 days. You can ask for earlier deletion.',
       'Request data held by Cloudflare is kept according to Cloudflare policy.',
     ],
   },
