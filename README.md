@@ -21,130 +21,24 @@
 
 I built DiscordMute because my friend group kept talking during live rounds and didn't want to manually mute and unmute themselves every game. It's made up of two pieces you install together: an Among Us plugin (`DLL`) and a Discord bot (`DiscordBot`).
 
-## 2. Installation
+## 2. Quick start
 
-### 2.1 Install BepInEx
+1. Install the 64-bit BepInEx build into your Among Us folder and copy `DiscordMute.dll` into `BepInEx/plugins`.
+2. Start Among Us once, then set `ip`, `secret` and `exe` in the plugin `config.json` that DiscordMute creates in `BepInEx/DiscordMute`.
+3. In `DiscordBot`, rename `config.example.json` to `config.json` and fill in `token`, `clientId`, `guildId` and the same `secret`.
+4. Host a lobby (online or LAN), join a Discord voice channel and run `/link self`.
+5. Send the phrase the bot gives you in Among Us Free Chat. You are linked.
 
-DiscordMute requires BepInEx.
+The full walkthrough, including the itch.io note and path escaping, is in [docs/setup-self-host.md](docs/setup-self-host.md).
 
-- If you already use another Among Us mod that ships with BepInEx, you can usually skip this step.
-- Otherwise, download the 64-bit BepInEx build. Among Us is a 64-bit game on Epic Games and the Microsoft Store, and the current Steam version is 64-bit too, so all of them use the same file:
-  - Steam / Epic Games / Microsoft Store: [`BepInEx-Unity.IL2CPP-win-x64-6.0.0-be.735+5fef357.zip`](https://builds.bepinex.dev/projects/bepinex_be/735/BepInEx-Unity.IL2CPP-win-x64-6.0.0-be.735%2B5fef357.zip)
-- itch.io builds are still 32-bit and are not supported.
-- Extract it into your Among Us folder first. If you used an older 32-bit (x86) BepInEx before the Steam update, replace it with this build.
+### Documentation
 
-If the Steam version does not start or cannot connect to Steam correctly, make sure Steam is open. Also check that your Among Us folder contains a file named `steam_appid.txt` with this content:
-
-```text
-945360
-```
-
-### 2.2 Install the DiscordMute plugin
-
-1. Open your Among Us folder.
-2. Go to `BepInEx/plugins`.
-3. Copy `DiscordMute.dll` into that folder.
-4. Start Among Us once.
-5. Close Among Us again.
-
-After the first launch, DiscordMute creates its own config folder inside BepInEx.
-
-Example path:
-
-```text
-C:\Steam\steamapps\common\Among Us-Modded\BepInEx\DiscordMute
-```
-
-Open `config.json` in that folder and configure it.
-
-#### Plugin config
-
-| Field                    | Meaning                                                                                                                     |
-|--------------------------|-----------------------------------------------------------------------------------------------------------------------------|
-| `ip`                     | IP address of the machine running the Discord bot. Use `localhost` when the bot runs on the same PC.                        |
-| `botPort`                | Port used by the Discord bot. Default: `7264`.                                                                              |
-| `secret`                 | Shared secret used by the plugin and the bot. Set the same value in both configs.                                           |
-| `exe`                    | Full path to the bot start file. This should point to `start.bat` inside the `DiscordBot` folder from the downloaded ZIP.   |
-| `bridgeLogsToBotConsole` | When `true`, forwards all plugin/BepInEx logs to the bot console. Own DiscordMute warnings and errors are always forwarded. |
-
-Example:
-
-```json
-{
-  "ip": "localhost",
-  "botPort": 7264,
-  "secret": "replace-this-with-your-own-secret",
-  "exe": "C:\\Path\\To\\DiscordBot\\start.bat",
-  "bridgeLogsToBotConsole": false
-}
-```
-
-> [!IMPORTANT]
-> **Update the plugin and the bot together.** The two only talk over a single WebSocket connection. The bot rejects an older plugin with an "outdated" message, and a new plugin simply can't connect to an older bot, so always update both.
-
-> [!IMPORTANT]
-> **Use double backslashes (`\\`) or forward slashes (`/`) in the `exe` path.**
-> In JSON a single backslash is an escape character, so `"C:\Users\Me\start.bat"` makes the whole file invalid.
-> The plugin then silently falls back to its default values (including the secret `change-me`), and the connection
-> to the bot is rejected, even if your secrets are identical. The bot console shows a hint and `BepInEx/LogOutput.log` contains "Bot rejected the secret".
->
-> | Correct                              | Wrong                              |
-> |--------------------------------------|------------------------------------|
-> | `"C:\\Users\\Me\\DiscordBot\\start.bat"` | `"C:\Users\Me\DiscordBot\start.bat"` |
-> | `"C:/Users/Me/DiscordBot/start.bat"`     |                                    |
->
-> If something doesn't work, check `BepInEx/LogOutput.log` for `Failed to read plugin config`.
-
-### 2.3 Discord bot setup
-
-1. Open the `DiscordBot` folder from the downloaded ZIP.
-2. Rename `config.example.json` to `config.json`.
-3. Create a Discord application and bot in the [Discord Developer Portal](https://discord.com/developers/applications).
-4. Fill in the bot config.
-
-#### Bot config
-
-| Field             | Meaning                                                                                            |
-|-------------------|----------------------------------------------------------------------------------------------------|
-| `token`           | Bot token from the Discord Developer Portal.                                                       |
-| `clientId`        | Application / client ID of your Discord bot.                                                       |
-| `guildId`         | ID of the Discord server where the bot should be used.                                             |
-| `channelIds`      | Optional. Fallback voice channels, used only when the bot can't tell which channel the host is in. Leave it as `[]` if you don't need it. |
-| `secret`          | Must be exactly the same shared secret as in the plugin config. Replace the default `change-me` with your own value. |
-| `botIp`           | Address the bot listens on for the plugin. Use `localhost` when the plugin runs on the same PC (recommended). Default: `0.0.0.0` (all interfaces). |
-| `botPort`         | Port used by the Discord bot. Default: `7264`.                                                     |
-| `databaseDialect` | Storage backend for links: `sqlite` (default) or `postgres`.                                       |
-| `databaseUrl`     | Optional. Connection URL, required when `databaseDialect` is `postgres`.                           |
-| `sqlitePath`      | Optional. Location of the SQLite file. Default: `./data/linking.sqlite`.                           |
-| `clusters`        | Optional. `{ "total": 1, "shardsPerCluster": 1 }`. The defaults suit a single server.              |
-
-Example:
-
-```json
-{
-  "token": "YOUR_BOT_TOKEN",
-  "clientId": "YOUR_CLIENT_ID",
-  "guildId": "YOUR_GUILD_ID",
-  "channelIds": [],
-  "secret": "replace-this-with-your-own-secret",
-  "botIp": "localhost",
-  "botPort": 7264,
-  "databaseDialect": "sqlite"
-}
-```
-
-### 2.4 First start
-
-Once both configs are set up:
-
-1. Start Among Us.
-2. Create a lobby as host (online or LAN, not Freeplay). The plugin does nothing when you are not the host.
-3. The Discord bot should start automatically through the `exe` path configured in the plugin.
-4. Link your account with `/link self` (see below) and join a Discord voice channel.
-
-DiscordMute mutes the voice channel the lobby host is sitting in, so the host must be linked. If the host can't be resolved, the bot falls back to the channels in `channelIds`. The bot keeps a record of the players it muted and unmutes them again after a crash or restart. It only lifts mutes it applied itself and leaves mutes that were already in place alone.
-
-You can check that the bot is running with `GET /health` on the bot's port.
+- [Self-host setup](docs/setup-self-host.md)
+- [Hosted setup](docs/setup-hosted.md)
+- [Configuration](docs/configuration.md)
+- [Commands](docs/commands.md)
+- [Monitoring](docs/monitoring.md)
+- [FAQ](docs/faq.md)
 
 ## 3. Linking Discord users to Among Us players
 
@@ -193,7 +87,7 @@ If EHR is not installed, DiscordMute still works normally; only EHR-specific Bla
 - **Crash-safe mutes**: the bot unmutes the players it muted after a crash or restart and only lifts mutes it applied itself.
 - **Log bridging**: optionally forward plugin/BepInEx logs to the bot console for easier debugging.
 
-## Server setup
+## 6. Server setup
 
 Server admins (Manage Server permission) configure the bot per server with `/setup`. It covers:
 
@@ -210,8 +104,41 @@ Update **both** the bot and the plugin: the player list, deaths and match result
 
 Details for every setting are in [`docs/content/7.server-setup/`](docs/content/7.server-setup/).
 
+## 7. Telemetry
+
+DiscordMute sends a small anonymous usage packet by default. Please leave it on: these few numbers are the only way I can see how DiscordMute is really used, which versions are still out there and where it needs to get better. It is a counter, not a tracker.
+
+What is sent, every 5 minutes, to `mute.yonn2222.com`:
+
+- A random instance id, generated once on first start and stored in the bot database. It is not derived from anything about you or your machine.
+- A random id for each packet and a schema version.
+- Whether the bot runs self-hosted or hosted.
+- The bot version, plus how many connected plugins run each plugin version and each Among Us version.
+- Counts: linked users, active games, servers the bot is in and connected plugins.
+- Counts since the last packet: games muted, mutes, unmutes, Discord rate limit hits, and lobbies, game starts, meeting starts and meeting ends reported by plugins.
+- Mute latency: the average in milliseconds and how many samples it is based on.
+- For each optional feature, how many servers have it enabled (a number only, never which servers).
+
+Never sent: Discord IDs, server or channel names, player names, IP addresses, secrets, or hashes of any of these. The packet format is strict, so the server refuses anything beyond the fields above.
+
+Telemetry is only active in the compiled `bot.exe` from a release. It is off when you run from source (`bun run dev`) unless you set the environment variable `DISCORDMUTE_TELEMETRY=1`.
+
+To turn it off, add this to the bot `config.json`:
+
+```json
+"disableTelemetry": true
+```
+
+The key is not in `config.example.json` on purpose. See [docs/configuration.md](docs/configuration.md).
+
+## 8. Update check
+
+The bot and the plugin look up the latest release with one request to the GitHub API (`api.github.com/repos/YONN2222/AmongUs-DiscordMute/releases/latest`). No data about you is sent, only the usual request headers including a `User-Agent` with the DiscordMute version. The bot logs a notice when a newer release exists (at start and then daily). The plugin checks once per game launch, when you become lobby host, and shows a one-time notice in lobby chat.
+
+Turn it off with `"disableUpdateCheck": true` in the bot `config.json` and, separately, in the plugin `config.json`.
+
 <details>
-<summary><h2 style="display:inline;">6. Technical details</h2></summary>
+<summary><h2 style="display:inline;">9. Technical details</h2></summary>
 
 ### Tech Stack
 
