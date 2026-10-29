@@ -11,7 +11,7 @@ import { InMemoryClusterRouter } from "../../src/Routing/ClusterRouter";
 import { LinkingService } from "../../src/Utils/LinkingService";
 import { createTestDatabase } from "../helpers/testDatabase";
 
-const SECRET = "[REDACTED:API key param]";
+const SECRET = "test-secret";
 const GUILD = "guild-1";
 
 function hello(pluginVersion = "3.0.0"): string {
