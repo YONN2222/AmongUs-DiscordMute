@@ -44,10 +44,11 @@ export const PRIVACY_SECTIONS: readonly LegalSection[] = [
     id: 'hosted-bot',
     heading: 'The hosted bot',
     body: [
-      'If you add the hosted bot to your Discord server, it stores the data it needs to work. This is the Discord user ID of each player who links their account, together with the in-game name used when linking; the settings of your server; and a hash of the server secret that connects your Among Us host to the bot.',
+      'If you add the hosted bot to your Discord server, it stores the data it needs to work. This is the Discord user ID of each player who links their account, together with the in-game name and the Among Us friend code used when linking, so the bot can link a player again after they change their in-game name; the settings of your server; and a hash of the server secret that connects your Among Us host to the bot.',
+      'While a game runs with nickname sync turned on, the bot keeps the original server nickname of each player it renames and puts it back when the game ends.',
       'To run the service the bot also stores the server name, the server icon, the Discord user ID of the server owner and the member count. This data is deleted together with the rest of the data of your server.',
       'The bot also keeps ban records, which are the Discord IDs of users or servers that were blocked from the hosted bot, so that a ban stays effective. A ban record includes the reason for the ban.',
-      'The operator keeps an audit log of moderation actions on the hosted bot, such as blocks and removals. An entry holds the Discord ID of the operator who acted and the Discord ID of the affected user or server. Audit log entries are kept for 180 days.',
+      'The operator keeps an audit log of moderation actions on the hosted bot, such as blocks and removals. An entry holds the Discord ID of the operator who acted and the Discord ID of the affected user or server. When the operator removes the bot from a server, the entry also holds the reason the operator gave. Audit log entries are kept for 180 days.',
       'The legal basis is your use of the service (Article 6(1)(b) GDPR) and the legitimate interest in keeping the service secure and free of abuse (Article 6(1)(f) GDPR). Data is not sold and not shared with third parties, apart from the hosting providers that run the bot. Connections from the Among Us plugin to the hosted bot pass through Cloudflare, Inc. (Cloudflare Tunnel), which acts as processor for the operator and sees the technical connection data such as your IP address.',
       'When the bot is removed from a Discord server, the data of that server is deleted, including its settings and the links of its players.',
     ],

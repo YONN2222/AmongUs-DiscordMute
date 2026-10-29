@@ -34,6 +34,18 @@ describe('legal content', () => {
     expect(hosted).toMatch(/member count/i)
   })
 
+  it('privacy mentions friend codes for relinking and nicknames kept during a game', () => {
+    const hosted = section(PRIVACY_SECTIONS, 'hosted-bot')
+    expect(hosted).toMatch(/friend code/i)
+    expect(hosted).toMatch(/link .*again/i)
+    expect(hosted).toMatch(/original server nickname/i)
+    expect(hosted).toMatch(/puts it back when the game ends/i)
+  })
+
+  it('privacy says audit entries of a removal include the reason given', () => {
+    expect(section(PRIVACY_SECTIONS, 'hosted-bot')).toMatch(/reason the operator gave/i)
+  })
+
   it('privacy names Cloudflare as processor for plugin connections to the hosted bot', () => {
     const hosted = section(PRIVACY_SECTIONS, 'hosted-bot')
     expect(hosted).toContain('Cloudflare, Inc.')
