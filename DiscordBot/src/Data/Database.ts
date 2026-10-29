@@ -1,7 +1,7 @@
 import pg from "pg";
 import { Sequelize } from "sequelize";
 import { SequelizeStorage, Umzug } from "umzug";
-import type { Config } from "../Infrastructure/ConfigSchema";
+import type { Config } from "../Config/ConfigSchema";
 import { bunSqliteDriver } from "./BunSqliteDriver";
 import { initialMigration } from "./Migrations/0001-initial";
 import { guildSettingsMigration } from "./Migrations/0002-guild-settings";

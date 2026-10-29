@@ -2,7 +2,7 @@ import type { REST } from "discord.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { logger } from "../src/Logging/Logger";
 
-vi.mock("../src/Config", () => ({ DISCORD_CLIENT_ID: "1500000000000000001", DISCORD_TOKEN: "test-token" }));
+vi.mock("../src/Config/LoadedConfig", () => ({ config: { clientId: "1500000000000000001", token: "test-token" } }));
 
 const CLIENT_ID = "1500000000000000001";
 const GUILD_ID = "1200000000000000001";

@@ -3,7 +3,7 @@ import { Cluster, ShardingUtil } from "galactic.ts";
 import { Registry } from "prom-client";
 import { isClusterInfoRequest } from "../Admin/ClusterInfo";
 import type { CommandContext } from "../Commands/Command";
-import { config, DISCORD_GUILD_ID } from "../Config";
+import { config } from "../Config/LoadedConfig";
 import { databaseOptionsFrom, openDatabase } from "../Data/Database";
 import { deployCommands } from "../DeployCommands";
 import { GuildEventBus } from "../Events/GuildEvents";
@@ -67,7 +67,7 @@ function createCommandContext(
  */
 function startupDeployTarget(cluster: Cluster<Client>): { guildId: string } | "global" | null {
     if (isHosted(config)) return cluster.clusterID === 0 ? "global" : null;
-    const guildId = DISCORD_GUILD_ID;
+    const guildId = config.guildId;
     if (!guildId) return null;
     return cluster.shardList.includes(ShardingUtil.getShardIDForGuild(guildId, cluster.totalShards))
         ? { guildId }

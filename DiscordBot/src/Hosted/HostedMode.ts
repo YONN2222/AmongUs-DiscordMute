@@ -1,4 +1,4 @@
-import type { Config } from "../Infrastructure/ConfigSchema";
+import type { Config } from "../Config/ConfigSchema";
 
 const MIN_ADMIN_TOKEN_LENGTH = 32;
 

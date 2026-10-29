@@ -1,6 +1,6 @@
 import { REST, Routes } from "discord.js";
 import { commandRegistry } from "./Commands/Command";
-import { DISCORD_CLIENT_ID, DISCORD_TOKEN } from "./Config";
+import { config } from "./Config/LoadedConfig";
 import { logger, logModules } from "./Logging/Logger";
 
 type DeployCommandsProps = {
@@ -12,13 +12,13 @@ type DeployCommandsProps = {
 
 export async function deployCommands({
     target,
-    rest = new REST({ version: "10" }).setToken(DISCORD_TOKEN),
+    rest = new REST({ version: "10" }).setToken(config.token),
 }: DeployCommandsProps): Promise<void> {
     const place = target === "global" ? "all guilds" : `guild ${target.guildId}`;
     const route =
         target === "global"
-            ? Routes.applicationCommands(DISCORD_CLIENT_ID)
-            : Routes.applicationGuildCommands(DISCORD_CLIENT_ID, target.guildId);
+            ? Routes.applicationCommands(config.clientId)
+            : Routes.applicationGuildCommands(config.clientId, target.guildId);
     const commandsData = commandRegistry.getCommandData();
 
     const totalSubcommands = commandsData.reduce((sum: number, cmd) => {

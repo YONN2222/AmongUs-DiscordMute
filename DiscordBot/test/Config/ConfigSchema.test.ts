@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { Config, parseConfig } from "../../src/Infrastructure/ConfigSchema";
+import { Config, parseConfig } from "../../src/Config/ConfigSchema";
 
 const base = {
     token: "t",

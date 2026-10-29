@@ -5,8 +5,8 @@ import { connect, createServer } from "node:net";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ADMIN_API_PREFIX } from "../src/Admin/Contract";
+import { type Config, parseConfig } from "../src/Config/ConfigSchema";
 import { type GatewayDeps, type GatewayInstance, type RunningGateway, runGateway } from "../src/Gateway/RunGateway";
-import { type Config, parseConfig } from "../src/Infrastructure/ConfigSchema";
 import { logger } from "../src/Logging/Logger";
 import { postgresUrl } from "./Helpers/TestDatabase";
 
