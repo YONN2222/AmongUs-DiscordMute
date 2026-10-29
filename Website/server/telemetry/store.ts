@@ -1,7 +1,9 @@
 import { MIN_INTERVAL_SECONDS } from '../../shared/telemetry/contract'
-import type { TelemetryPacket } from '../../shared/telemetry/schema'
+import type { TelemetryMode, TelemetryPacket } from '../../shared/telemetry/schema'
 
 type RecordResult = 'accepted' | 'duplicate' | 'rate_limited'
+
+export type InstanceLastSeen = { lastSeenAt: number; lastPacketId: string; mode: TelemetryMode }
 
 export function utcDay(now: number): string {
   return new Date(now).toISOString().slice(0, 10)
@@ -10,12 +12,12 @@ export function utcDay(now: number): string {
 export async function getInstanceLastSeen(
   db: D1Database,
   instanceId: string,
-): Promise<{ lastSeenAt: number; lastPacketId: string } | null> {
+): Promise<InstanceLastSeen | null> {
   const row = await db
-    .prepare('SELECT last_seen_at, last_packet_id FROM instances WHERE instance_id = ?1')
+    .prepare('SELECT last_seen_at, last_packet_id, mode FROM instances WHERE instance_id = ?1')
     .bind(instanceId)
-    .first<{ last_seen_at: number; last_packet_id: string }>()
-  return row ? { lastSeenAt: row.last_seen_at, lastPacketId: row.last_packet_id } : null
+    .first<{ last_seen_at: number; last_packet_id: string; mode: TelemetryMode }>()
+  return row ? { lastSeenAt: row.last_seen_at, lastPacketId: row.last_packet_id, mode: row.mode } : null
 }
 
 function metricsOf(packet: TelemetryPacket): Array<[string, number]> {
@@ -68,8 +70,9 @@ export async function recordPacket(
   db: D1Database,
   packet: TelemetryPacket,
   now: number,
+  known?: InstanceLastSeen | null,
 ): Promise<RecordResult> {
-  const previous = await getInstanceLastSeen(db, packet.instanceId)
+  const previous = known === undefined ? await getInstanceLastSeen(db, packet.instanceId) : known
   if (previous?.lastPacketId === packet.packetId) return 'duplicate'
 
   const upsert = db.prepare(UPSERT_INSTANCE).bind(

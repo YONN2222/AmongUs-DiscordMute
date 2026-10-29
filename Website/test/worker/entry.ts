@@ -1,5 +1,7 @@
+import { routeTelemetry } from '../../server/telemetry/route'
+
 export default {
-  async fetch(_request: Request, _bindings: Env): Promise<Response> {
-    return new Response('Not found', { status: 404 })
+  async fetch(request: Request, bindings: Env): Promise<Response> {
+    return (await routeTelemetry(request, bindings)) ?? new Response('Not found', { status: 404 })
   },
 }

@@ -32,6 +32,7 @@
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "cf-typegen": "wrangler types",
     "schema:export": "bun scripts/export-telemetry-schema.ts",
+    "check:entry": "bun scripts/check-worker-entry.ts",
     "postinstall": "nuxt prepare"
   }
 }

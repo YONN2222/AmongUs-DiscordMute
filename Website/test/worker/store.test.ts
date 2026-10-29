@@ -48,6 +48,7 @@ describe('recordPacket', () => {
     expect(await getInstanceLastSeen(env.DB, packet.instanceId)).toEqual({
       lastSeenAt: NOW,
       lastPacketId: packet.packetId,
+      mode: 'self-host',
     })
   })
 
@@ -96,7 +97,27 @@ describe('recordPacket', () => {
     expect(await getInstanceLastSeen(env.DB, first.instanceId)).toEqual({
       lastSeenAt: NOW,
       lastPacketId: first.packetId,
+      mode: 'self-host',
     })
+  })
+
+  it('skips the instance lookup when the caller passes it in', async () => {
+    const packet = makePacket()
+    const queries: string[] = []
+    const db = new Proxy(env.DB, {
+      get(target, key) {
+        if (key === 'prepare') {
+          return (sql: string) => {
+            queries.push(sql)
+            return target.prepare(sql)
+          }
+        }
+        const value = Reflect.get(target, key)
+        return typeof value === 'function' ? value.bind(target) : value
+      },
+    })
+    expect(await recordPacket(db, packet, NOW, null)).toBe('accepted')
+    expect(queries.filter((sql) => sql.startsWith('SELECT last_seen_at'))).toHaveLength(0)
   })
 
   it('mode cannot change after first packet', async () => {

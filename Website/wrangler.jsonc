@@ -17,6 +17,7 @@
     { "binding": "DB", "database_name": "discordmute-website", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }
   ],
   "ratelimits": [
-    { "name": "INGEST_LIMITER", "namespace_id": "4101", "simple": { "limit": 20, "period": 60 } }
+    { "name": "INGEST_LIMITER", "namespace_id": "4101", "simple": { "limit": 20, "period": 60 } },
+    { "name": "NEW_INSTANCE_LIMITER", "namespace_id": "4102", "simple": { "limit": 3, "period": 60 } }
   ]
 }
