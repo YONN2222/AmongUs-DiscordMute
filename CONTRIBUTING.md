@@ -12,7 +12,8 @@ DiscordMute is a small monorepo with two main parts:
 ### For the Among Us plugin
 
 - [.NET SDK 6](https://dotnet.microsoft.com/en-us/download/dotnet/6.0)
-- A local 64-bit Among Us installation (Steam 2026.9.29 or newer, Epic Games or Microsoft Store); the plugin builds against `AmongUs.GameLibs.Steam` 2026.9.29
+- A local 64-bit Among Us installation (Steam, Epic Games or Microsoft Store); the plugin builds against game libs 2026.9.29 (`AmongUs.GameLibs.Steam`), and later game updates need a GameLibs bump
+- itch.io builds are still 32-bit and are not supported
 - The 64-bit (`win-x64`) BepInEx Unity IL2CPP build from the README installed in your Among Us folder if you want to test the plugin in-game
 
 ### For the Discord bot
