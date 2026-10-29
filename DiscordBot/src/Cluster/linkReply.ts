@@ -1,4 +1,5 @@
 import { DiscordAPIError, MessageFlags, type REST, Routes } from "discord.js";
+import { type Locale, t } from "../i18n";
 import { logger, logModules } from "../Logging/logger";
 import { ContainerBuilder } from "../Utils/ContainerBuilder";
 import type { ConfirmedLinkReply } from "./clusterRequestHandler";
@@ -10,7 +11,7 @@ function describeRestError(error: unknown): string {
 }
 
 /** Edits the original ephemeral /link reply through the interaction webhook once the plugin confirmed the code. */
-export async function updateOriginalLinkReply(rest: REST, link: ConfirmedLinkReply): Promise<boolean> {
+export async function updateOriginalLinkReply(rest: REST, link: ConfirmedLinkReply, locale: Locale): Promise<boolean> {
     if (!link.applicationId || !link.interactionToken) {
         logger.warn(
             logModules.Command,
@@ -20,11 +21,9 @@ export async function updateOriginalLinkReply(rest: REST, link: ConfirmedLinkRep
     }
 
     const container = new ContainerBuilder()
-        .title("Link Complete", "✅")
+        .title(t(locale, "link.complete.title"), "✅")
         .divider()
-        .text(
-            `Your Discord account is now linked.\n\n**Discord ID:** \`${link.discordId}\`\n**Among Us Account:** \`${link.accountName}\``,
-        )
+        .text(t(locale, "link.complete.body", { discordId: link.discordId, accountName: link.accountName }))
         .success();
 
     try {

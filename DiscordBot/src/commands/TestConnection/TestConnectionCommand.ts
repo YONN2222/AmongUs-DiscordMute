@@ -1,4 +1,5 @@
 import { type ChatInputCommandInteraction, MessageFlags, SlashCommandBuilder } from "discord.js";
+import { descriptionLocalizations, localeFrom, t } from "../../i18n";
 import { ContainerBuilder } from "../../Utils/ContainerBuilder";
 import type { Command, CommandContext } from "../Command";
 
@@ -7,21 +8,23 @@ export class TestConnectionCommand implements Command {
 
     data = new SlashCommandBuilder()
         .setName("testconnection")
-        .setDescription("Test the connection to the Among Us DiscordMute plugin");
+        .setDescription(t("en", "testConnection.description"))
+        .setDescriptionLocalizations(descriptionLocalizations("testConnection.description"));
 
     async execute(interaction: ChatInputCommandInteraction, ctx: CommandContext): Promise<void> {
+        const locale = localeFrom(interaction.locale);
         const connected = interaction.guildId !== null && (await ctx.isPluginConnected(interaction.guildId));
 
         const container = connected
             ? new ContainerBuilder()
-                  .title("Connection Successful", "✅")
+                  .title(t(locale, "testConnection.ok.title"), "✅")
                   .divider()
-                  .text("The Among Us plugin is connected via WebSocket.")
+                  .text(t(locale, "testConnection.ok.body"))
                   .success()
             : new ContainerBuilder()
-                  .title("Connection Failed", "❌")
+                  .title(t(locale, "testConnection.fail.title"), "❌")
                   .divider()
-                  .text("The Among Us plugin is not connected.\n\nStart the game with the plugin loaded and try again.")
+                  .text(t(locale, "testConnection.fail.body"))
                   .error();
 
         await interaction.reply({

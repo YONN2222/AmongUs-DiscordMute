@@ -1,0 +1,52 @@
+import type { MessageKey } from "./en";
+
+export const de: Record<MessageKey, string> = {
+    "error.title": "Fehler",
+    "error.generic": "Es ist ein Fehler beim Ausführen dieses Befehls aufgetreten. Bitte versuche es später erneut.",
+    "error.commandUnavailable": "Dieser Befehl ist nicht verfügbar.",
+
+    "notice.hostNotLinked": "Verknüpfe zuerst dein eigenes Discord-Konto mit /link self.",
+    "notice.hostNotInVoice": "Tritt einem Sprachkanal in Discord bei, damit DiscordMute weiß, wo dein Spiel läuft.",
+
+    "link.description": "Verknüpfe ein Discord-Konto mit einem Among-Us-Konto, erzwinge oder löse die Verknüpfung.",
+    "link.self.description": "Verknüpft dein Discord-Konto mit deinem Among-Us-Kontonamen.",
+    "link.force.description": "Verknüpft einen Discord-Nutzer manuell mit einem Among-Us-Anzeigenamen.",
+    "link.force.user.description": "Der Discord-Nutzer, der verknüpft werden soll",
+    "link.force.displayName.description": "Der Among-Us-Anzeigename",
+    "link.reset.description": "Löst eine Verknüpfung. Lass 'user' leer, um deine eigene zu lösen.",
+    "link.reset.user.description": "Der Discord-Nutzer, dessen Verknüpfung gelöst wird (benötigt Server verwalten)",
+
+    "link.failed.title": "Verknüpfung fehlgeschlagen",
+    "link.guildOnly": "Dieser Befehl funktioniert nur auf einem Server.",
+    "link.alreadyLinked.title": "Bereits verknüpft",
+    "link.alreadyLinked.body": "Du bist mit dem Among-Us-Konto **{name}** verknüpft.",
+    "link.unlinkButton": "Verknüpfung lösen",
+    "link.pluginNotReady":
+        "Das Among-Us-Plugin hat die ausstehende Verknüpfung nicht angenommen.\n\nStarte das Spiel mit geladenem Plugin und führe `/link self` erneut aus.",
+    "link.self.title": "Konto verknüpfen",
+    "link.self.instructions":
+        "Öffne in Among Us in einer Lobby den **Freien Chat** und schreibe genau diesen Text:\n\n**`{phrase}`**\n\nKein Zugriff auf den Freien Chat? Sende diese zwei Schnellchat-Sätze als zwei getrennte Nachrichten, in beliebiger Reihenfolge, innerhalb von 20 Sekunden:\n\n**{quickChat1}** und **{quickChat2}**\n\nDieser Code läuft in **5 Minuten** ab.",
+    "link.complete.title": "Verknüpfung abgeschlossen",
+    "link.complete.body":
+        "Dein Discord-Konto ist jetzt verknüpft.\n\n**Discord-ID:** `{discordId}`\n**Among-Us-Konto:** `{accountName}`",
+    "link.force.title": "Verknüpfung erzwungen",
+    "link.force.body": "**Discord-Nutzer:** {user}\n**Among-Us-Name:** `{name}`",
+    "link.force.error": "Beim manuellen Verknüpfen des Kontos ist ein Fehler aufgetreten.",
+    "link.error.title": "Verknüpfungsfehler",
+    "link.reset.title": "Verknüpfung gelöst",
+    "link.reset.selfDone": "Du bist nicht mehr verknüpft.",
+    "link.reset.selfNone": "Du warst gar nicht verknüpft.",
+    "link.reset.userDone": "{user} ist nicht mehr mit einem Among-Us-Konto verknüpft.",
+    "link.reset.userNone": "{user} war gar nicht verknüpft.",
+    "link.reset.error": "Beim Lösen der Verknüpfung ist ein Fehler aufgetreten.",
+    "link.permission.title": "Fehlende Berechtigung",
+    "link.permission.body":
+        "Dafür brauchst du die Berechtigung **Server verwalten**, wenn es um einen anderen Nutzer geht.",
+
+    "testConnection.description": "Testet die Verbindung zum Among-Us-Plugin von DiscordMute",
+    "testConnection.ok.title": "Verbindung erfolgreich",
+    "testConnection.ok.body": "Das Among-Us-Plugin ist per WebSocket verbunden.",
+    "testConnection.fail.title": "Verbindung fehlgeschlagen",
+    "testConnection.fail.body":
+        "Das Among-Us-Plugin ist nicht verbunden.\n\nStarte das Spiel mit geladenem Plugin und versuche es erneut.",
+};

@@ -1,7 +1,8 @@
-import { extractText } from "probe.ts";
+import { buildSlashCommandInteractionDispatch, extractText } from "probe.ts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CommandContext } from "../../src/commands/Command";
 import type { Database } from "../../src/Data/database";
+import { t } from "../../src/i18n";
 import { logger } from "../../src/Logging/logger";
 import { LinkingService } from "../../src/Utils/LinkingService";
 import { createTestProbe } from "../helpers/probe";
@@ -48,5 +49,19 @@ describe("/link self", () => {
         const [, phrase] = pushLinkPending.mock.calls[0];
         expect(extractText(reply)).toContain(phrase);
         expect(Number(reply.flags) & EPHEMERAL).toBe(EPHEMERAL);
+    });
+
+    it.each([
+        ["de", "de"],
+        ["en-US", "en"],
+    ] as const)("replies in the language of an interaction with locale %s", async (discordLocale, locale) => {
+        const dispatch = buildSlashCommandInteractionDispatch("link self");
+        probe.injectDispatch({ ...dispatch, d: { ...dispatch.d, locale: discordLocale } } as typeof dispatch);
+
+        await vi.waitFor(() => expect(probe.lastReply()).toBeDefined());
+        const [, phrase] = pushLinkPending.mock.calls[0];
+        expect(extractText(probe.lastReply() ?? {})).toContain(t(locale, "link.self.title"));
+        expect(extractText(probe.lastReply() ?? {})).toContain(phrase);
+        expect(t("de", "link.self.title")).not.toBe(t("en", "link.self.title"));
     });
 });

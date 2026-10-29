@@ -67,6 +67,7 @@ describe("gateway to mute", () => {
                 links: db.links,
                 memberVoiceChannel: async (_guildId, discordId) => (voice.inChannel.has(discordId) ? CHANNEL : null),
                 fallbackChannelIds: [],
+                localeOf: async () => "en",
             }),
         });
         const router = new InMemoryClusterRouter();

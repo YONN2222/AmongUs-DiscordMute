@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Database } from "../../src/Data/database";
+import { type Locale, t } from "../../src/i18n";
 import { logger, logModules } from "../../src/Logging/logger";
 import { createVoiceTargetResolver } from "../../src/Mute/VoiceTargetResolver";
 import { createTestDatabase, purgeTestRows, uniqueId } from "../helpers/testDatabase";
@@ -18,9 +19,14 @@ describe("VoiceTargetResolver", () => {
         await db.close();
     });
 
-    function resolver(channelOf: string | null, fallbackChannelIds: string[] = []) {
+    function resolver(channelOf: string | null, fallbackChannelIds: string[] = [], locale: Locale = "en") {
         const memberVoiceChannel = vi.fn(async () => channelOf);
-        const resolve = createVoiceTargetResolver({ links: db.links, memberVoiceChannel, fallbackChannelIds });
+        const resolve = createVoiceTargetResolver({
+            links: db.links,
+            memberVoiceChannel,
+            fallbackChannelIds,
+            localeOf: async () => locale,
+        });
         return { resolve, memberVoiceChannel };
     }
 
@@ -41,7 +47,18 @@ describe("VoiceTargetResolver", () => {
     it("returns a host-not-linked notice", async () => {
         const { resolve } = resolver("vc-1");
         expect(await resolve(guildId, "Nobody")).toEqual({
-            notice: { code: "host-not-linked", message: "Link your own Discord account first with /link self." },
+            notice: { code: "host-not-linked", message: t("en", "notice.hostNotLinked") },
+        });
+    });
+
+    it("words the notices in the language of the server", async () => {
+        const { resolve } = resolver(null, [], "de");
+        expect(await resolve(guildId, "Nobody")).toEqual({
+            notice: { code: "host-not-linked", message: t("de", "notice.hostNotLinked") },
+        });
+        await db.links.upsert(guildId, "u1", "Crew");
+        expect(await resolve(guildId, "Crew")).toEqual({
+            notice: { code: "host-not-in-voice", message: t("de", "notice.hostNotInVoice") },
         });
     });
 
@@ -51,7 +68,7 @@ describe("VoiceTargetResolver", () => {
         expect(await resolve(guildId, "Crew")).toEqual({
             notice: {
                 code: "host-not-in-voice",
-                message: "Join a voice channel in Discord so DiscordMute knows where your game is.",
+                message: t("en", "notice.hostNotInVoice"),
             },
         });
     });
@@ -66,6 +83,7 @@ describe("VoiceTargetResolver", () => {
                     throw error;
                 },
                 fallbackChannelIds,
+                localeOf: async () => "en",
             });
             return { resolve, log, error };
         };

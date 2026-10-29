@@ -2,6 +2,7 @@ import { extractText, restError } from "probe.ts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createDiscordClient } from "../../src/Cluster/createDiscordClient";
 import { updateOriginalLinkReply } from "../../src/Cluster/linkReply";
+import { t } from "../../src/i18n";
 import { logger } from "../../src/Logging/logger";
 import { createTestProbe } from "../helpers/probe";
 
@@ -34,18 +35,25 @@ describe("updateOriginalLinkReply", () => {
     };
 
     it("edits the original /link reply through the interaction webhook", async () => {
-        expect(await updateOriginalLinkReply(client.rest, link)).toBe(true);
+        expect(await updateOriginalLinkReply(client.rest, link, "en")).toBe(true);
 
         expect(probe.lastReply()).toBeDefined();
         expect(extractText(probe.lastReply() ?? {})).toContain("Red");
+        expect(extractText(probe.lastReply() ?? {})).toContain(t("en", "link.complete.title"));
         expect(probe.capturedRequests().some((r) => r.method === "PATCH" && ORIGINAL.test(r.url))).toBe(true);
     });
 
+    it("writes the reply in the given language", async () => {
+        expect(await updateOriginalLinkReply(client.rest, link, "de")).toBe(true);
+
+        expect(extractText(probe.lastReply() ?? {})).toContain(t("de", "link.complete.title"));
+    });
+
     it("reports false when the webhook data is missing or Discord refuses", async () => {
-        expect(await updateOriginalLinkReply(client.rest, { ...link, interactionToken: undefined })).toBe(false);
+        expect(await updateOriginalLinkReply(client.rest, { ...link, interactionToken: undefined }, "en")).toBe(false);
 
         probe.respond("PATCH", ORIGINAL, () => restError(404, { code: 10015, message: "Unknown Webhook" }));
-        expect(await updateOriginalLinkReply(client.rest, link)).toBe(false);
+        expect(await updateOriginalLinkReply(client.rest, link, "en")).toBe(false);
         expect(logger.error).toHaveBeenCalled();
         expect(JSON.stringify(vi.mocked(logger.error).mock.calls)).not.toContain("token-1");
         expect(vi.mocked(logger.error).mock.calls[0].join(" ")).toContain("10015");

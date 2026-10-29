@@ -11,6 +11,7 @@ import { createVoiceTargetResolver } from "../Mute/VoiceTargetResolver";
 import { CLUSTER_EXIT_LOGIN_FAILED, loginFailureExitCode } from "../Process/processRole";
 import { GalacticGatewayLink } from "../Routing/ClusterRouter";
 import type { RouterReply } from "../Routing/messages";
+import { SettingsService } from "../Settings/SettingsService";
 import { LinkingService } from "../Utils/LinkingService";
 import { createClusterRequestHandler } from "./clusterRequestHandler";
 import { createDiscordClient } from "./createDiscordClient";
@@ -73,6 +74,7 @@ export async function runCluster(): Promise<void> {
     cluster.client = client;
 
     const db = await openDatabase(databaseOptionsFrom(config), { migrate: false });
+    const settings = new SettingsService(db.settings);
     const voice = new DiscordVoiceAdapter(client);
     const mute = new MuteService({
         voice,
@@ -82,13 +84,15 @@ export async function runCluster(): Promise<void> {
             links: db.links,
             memberVoiceChannel: (guildId, discordId) => voice.voiceChannelOf(guildId, discordId),
             fallbackChannelIds: config.channelIds,
+            localeOf: (guildId) => settings.get(guildId).then((s) => s.language),
         }),
     });
 
     let ready = false;
     const handleRequest = createClusterRequestHandler({
         mute,
-        updateLinkReply: (link) => updateOriginalLinkReply(client.rest, link),
+        updateLinkReply: async (link) =>
+            updateOriginalLinkReply(client.rest, link, (await settings.get(link.guildId)).language),
         isReady: () => ready,
     });
     cluster.on("request", (data, resolve) => {

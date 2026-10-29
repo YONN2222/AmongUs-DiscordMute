@@ -1,4 +1,5 @@
 import type { LinkRepository } from "../Data/repositories/LinkRepository";
+import { type Locale, type MessageKey, t } from "../i18n";
 import { logger, logModules } from "../Logging/logger";
 import type { VoiceTarget } from "./VoiceTarget";
 
@@ -6,22 +7,31 @@ export interface VoiceTargetResolverDeps {
     links: Pick<LinkRepository, "findByAccountName">;
     memberVoiceChannel: (guildId: string, discordId: string) => Promise<string | null>;
     fallbackChannelIds: string[];
+    localeOf: (guildId: string) => Promise<Locale>;
 }
 
 export function createVoiceTargetResolver(
     deps: VoiceTargetResolverDeps,
 ): (guildId: string, hostAccountName: string) => Promise<VoiceTarget> {
-    const fallback = (notice: Extract<VoiceTarget, { notice: unknown }>): VoiceTarget =>
-        deps.fallbackChannelIds.length > 0 ? { channelIds: [...deps.fallbackChannelIds] } : notice;
+    const noticeOrFallback = async (
+        guildId: string,
+        code: "host-not-linked" | "host-not-in-voice",
+        key: MessageKey,
+    ): Promise<VoiceTarget> => {
+        if (deps.fallbackChannelIds.length > 0) return { channelIds: [...deps.fallbackChannelIds] };
+        let locale: Locale = "en";
+        try {
+            locale = await deps.localeOf(guildId);
+        } catch (err) {
+            logger.error(logModules.Mute, `Could not look up the language of guild ${guildId}`, err);
+        }
+        return { notice: { code, message: t(locale, key) } };
+    };
 
     return async (guildId, hostAccountName) => {
         const matches = await deps.links.findByAccountName(guildId, hostAccountName);
         const hosts = new Set(matches.map((entry) => entry.discordId));
-        if (hosts.size !== 1) {
-            return fallback({
-                notice: { code: "host-not-linked", message: "Link your own Discord account first with /link self." },
-            });
-        }
+        if (hosts.size !== 1) return noticeOrFallback(guildId, "host-not-linked", "notice.hostNotLinked");
         const [hostId] = hosts;
         let channelId: string | null = null;
         try {
@@ -29,14 +39,7 @@ export function createVoiceTargetResolver(
         } catch (err) {
             logger.error(logModules.Mute, `Could not look up the voice channel of ${hostId} in guild ${guildId}`, err);
         }
-        if (channelId === null) {
-            return fallback({
-                notice: {
-                    code: "host-not-in-voice",
-                    message: "Join a voice channel in Discord so DiscordMute knows where your game is.",
-                },
-            });
-        }
+        if (channelId === null) return noticeOrFallback(guildId, "host-not-in-voice", "notice.hostNotInVoice");
         return { channelIds: [channelId] };
     };
 }

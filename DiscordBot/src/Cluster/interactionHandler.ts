@@ -1,6 +1,7 @@
 import { type ChatInputCommandInteraction, type Client, Events, MessageFlags } from "discord.js";
 import { type CommandContext, commandRegistry } from "../commands/Command";
 import { handleLinkSelfUnlinkButton, LINK_SELF_UNLINK_BUTTON_ID } from "../commands/Link/LinkCommand";
+import { localeFrom, t } from "../i18n";
 import { logger, logModules } from "../Logging/logger";
 import { ContainerBuilder } from "../Utils/ContainerBuilder";
 
@@ -19,9 +20,10 @@ function describeOptions(interaction: ChatInputCommandInteraction): string {
 async function replyCommandFailed(interaction: ChatInputCommandInteraction): Promise<void> {
     if (interaction.replied || interaction.deferred) return;
     try {
+        const locale = localeFrom(interaction.locale);
         const container = new ContainerBuilder()
-            .title("Fehler", "❌")
-            .text("Es ist ein Fehler beim Ausführen dieses Befehls aufgetreten. Bitte versuche es später erneut.")
+            .title(t(locale, "error.title"), "❌")
+            .text(t(locale, "error.generic"))
             .error();
         await interaction.reply({
             components: [container.toJSON()],
@@ -50,7 +52,10 @@ async function handleChatInput(interaction: ChatInputCommandInteraction, ctx: Co
     if (!command) {
         logger.warn(logModules.Command, `No handler found for command: ${commandName}`);
         try {
-            await interaction.reply({ content: "Command is not available.", flags: MessageFlags.Ephemeral });
+            await interaction.reply({
+                content: t(localeFrom(interaction.locale), "error.commandUnavailable"),
+                flags: MessageFlags.Ephemeral,
+            });
         } catch (replyError) {
             logger.error(logModules.Command, "Failed to send 'command not available' message", replyError);
         }

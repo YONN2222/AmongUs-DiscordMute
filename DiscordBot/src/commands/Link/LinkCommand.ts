@@ -8,69 +8,105 @@ import {
     PermissionFlagsBits,
     SlashCommandBuilder,
 } from "discord.js";
+import { descriptionLocalizations, type Locale, localeFrom, type MessageKey, t } from "../../i18n";
 import { logger, logModules } from "../../Logging/logger";
 import { ContainerBuilder } from "../../Utils/ContainerBuilder";
 import type { Command, CommandContext } from "../Command";
 
 export const LINK_SELF_UNLINK_BUTTON_ID = "link-self-unlink";
 
+const describe = (key: MessageKey) => ({
+    description: t("en", key),
+    localizations: descriptionLocalizations(key),
+});
+
 export async function handleLinkSelfUnlinkButton(interaction: ButtonInteraction, ctx: CommandContext): Promise<void> {
     if (!interaction.guildId) return;
+    const locale = localeFrom(interaction.locale);
 
     const removed = await ctx.linking.removeLink(interaction.guildId, interaction.user.id);
 
     const container = removed
-        ? new ContainerBuilder().title("Link Reset", "✅").divider().text("You are no longer linked.").success()
-        : new ContainerBuilder().title("Link Reset", "⚠️").text("You were not linked to begin with.").warning();
+        ? new ContainerBuilder()
+              .title(t(locale, "link.reset.title"), "✅")
+              .divider()
+              .text(t(locale, "link.reset.selfDone"))
+              .success()
+        : new ContainerBuilder()
+              .title(t(locale, "link.reset.title"), "⚠️")
+              .text(t(locale, "link.reset.selfNone"))
+              .warning();
 
     await interaction.reply({
         flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
         components: [container],
     });
 }
+
+async function replyEphemeral(interaction: ChatInputCommandInteraction, container: ContainerBuilder) {
+    await interaction.reply({
+        flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+        components: [container],
+    });
+}
+
 export class LinkCommand implements Command {
     name = "link";
 
     data = new SlashCommandBuilder()
         .setName("link")
-        .setDescription("Link, force-link, or unlink a Discord account and an Among Us account.")
+        .setDescription(describe("link.description").description)
+        .setDescriptionLocalizations(describe("link.description").localizations)
         .addSubcommand((sub) =>
-            sub.setName("self").setDescription("Links your Discord account to your Among Us account name."),
+            sub
+                .setName("self")
+                .setDescription(describe("link.self.description").description)
+                .setDescriptionLocalizations(describe("link.self.description").localizations),
         )
         .addSubcommand((sub) =>
             sub
                 .setName("force")
-                .setDescription("Manually links a Discord user to an Among Us display name.")
+                .setDescription(describe("link.force.description").description)
+                .setDescriptionLocalizations(describe("link.force.description").localizations)
                 .addUserOption((option) =>
-                    option.setName("user").setDescription("The Discord user to link").setRequired(true),
+                    option
+                        .setName("user")
+                        .setDescription(describe("link.force.user.description").description)
+                        .setDescriptionLocalizations(describe("link.force.user.description").localizations)
+                        .setRequired(true),
                 )
                 .addStringOption((option) =>
-                    option.setName("display-name").setDescription("The Among Us display name").setRequired(true),
+                    option
+                        .setName("display-name")
+                        .setDescription(describe("link.force.displayName.description").description)
+                        .setDescriptionLocalizations(describe("link.force.displayName.description").localizations)
+                        .setRequired(true),
                 ),
         )
         .addSubcommand((sub) =>
             sub
                 .setName("reset")
-                .setDescription("Unlinks a Discord account. Leave 'user' empty to unlink yourself.")
+                .setDescription(describe("link.reset.description").description)
+                .setDescriptionLocalizations(describe("link.reset.description").localizations)
                 .addUserOption((option) =>
                     option
                         .setName("user")
-                        .setDescription("The Discord user to unlink (requires Manage Server)")
+                        .setDescription(describe("link.reset.user.description").description)
+                        .setDescriptionLocalizations(describe("link.reset.user.description").localizations)
                         .setRequired(false),
                 ),
         );
 
     async execute(interaction: ChatInputCommandInteraction, ctx: CommandContext) {
         if (!interaction.guildId) {
-            await interaction.reply({
-                flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
-                components: [
-                    new ContainerBuilder()
-                        .title("Link Failed", "⚠️")
-                        .text("This command can only be used inside a server.")
-                        .warning(),
-                ],
-            });
+            const locale = localeFrom(interaction.locale);
+            await replyEphemeral(
+                interaction,
+                new ContainerBuilder()
+                    .title(t(locale, "link.failed.title"), "⚠️")
+                    .text(t(locale, "link.guildOnly"))
+                    .warning(),
+            );
             return;
         }
 
@@ -86,19 +122,20 @@ export class LinkCommand implements Command {
 
     private async executeSelf(interaction: ChatInputCommandInteraction, ctx: CommandContext) {
         const guildId = interaction.guildId as string;
+        const locale = localeFrom(interaction.locale);
 
         const existing = await ctx.linking.getLink(guildId, interaction.user.id);
         if (existing) {
             const container = new ContainerBuilder()
-                .title("Already Linked", "🔗")
+                .title(t(locale, "link.alreadyLinked.title"), "🔗")
                 .divider()
-                .text(`You're linked to the Among Us account **${existing.accountName}**.`)
+                .text(t(locale, "link.alreadyLinked.body", { name: existing.accountName }))
                 .info();
 
             const unlinkRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
                 new ButtonBuilder()
                     .setCustomId(LINK_SELF_UNLINK_BUTTON_ID)
-                    .setLabel("Unlink")
+                    .setLabel(t(locale, "link.unlinkButton"))
                     .setStyle(ButtonStyle.Danger),
             );
 
@@ -116,40 +153,32 @@ export class LinkCommand implements Command {
         if (!pluginReady) {
             logger.warn(logModules.Command, "Plugin is not connected for this server; cannot send pending link");
 
-            const container = new ContainerBuilder()
-                .title("Link Failed", "⚠️")
-                .divider()
-                .text(
-                    "The Among Us plugin did not accept the pending link request.\n\n" +
-                        "Start the game with the plugin loaded and run `/link self` again.",
-                )
-                .warning();
-
-            await interaction.reply({
-                flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
-                components: [container],
-            });
+            await replyEphemeral(
+                interaction,
+                new ContainerBuilder()
+                    .title(t(locale, "link.failed.title"), "⚠️")
+                    .divider()
+                    .text(t(locale, "link.pluginNotReady"))
+                    .warning(),
+            );
             return;
         }
 
         const container = new ContainerBuilder()
-            .title("Link Account", "🔗")
+            .title(t(locale, "link.self.title"), "🔗")
             .divider()
             .text(
-                "Open **Free Chat** in Among Us while in a lobby and type this phrase exactly:\n\n" +
-                    `**\`${phrase}\`**\n\n` +
-                    "No Free Chat access? Send these two Quick Chat phrases as two separate messages, in any order, within 20 seconds:\n\n" +
-                    `**${quickChatLabels[0]}** and **${quickChatLabels[1]}**\n\n` +
-                    "This code expires in **5 minutes**.",
+                t(locale, "link.self.instructions", {
+                    phrase,
+                    quickChat1: quickChatLabels[0],
+                    quickChat2: quickChatLabels[1],
+                }),
             )
             .info();
 
         logger.debug(logModules.Command, `Link phrase sent to ${interaction.user.id}: "${phrase}"`);
 
-        await interaction.reply({
-            flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
-            components: [container],
-        });
+        await replyEphemeral(interaction, container);
 
         await ctx.linking.attachInteractionResponse(
             guildId,
@@ -165,6 +194,7 @@ export class LinkCommand implements Command {
             return;
         }
 
+        const locale = localeFrom(interaction.locale);
         const user = interaction.options.getUser("user", true);
         const displayName = interaction.options.getString("display-name", true);
         const guildId = interaction.guildId as string;
@@ -172,34 +202,24 @@ export class LinkCommand implements Command {
         try {
             await ctx.linking.forceLink(guildId, user.id, displayName);
 
-            const container = new ContainerBuilder()
-                .title("Force Link Complete", "✅")
-                .divider()
-                .text(`**Discord User:** ${user.toString()}\n**Among Us Name:** \`${displayName}\``)
-                .success();
-
-            await interaction.reply({
-                flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
-                components: [container],
-            });
+            await replyEphemeral(
+                interaction,
+                new ContainerBuilder()
+                    .title(t(locale, "link.force.title"), "✅")
+                    .divider()
+                    .text(t(locale, "link.force.body", { user: user.toString(), name: displayName }))
+                    .success(),
+            );
         } catch (error) {
             logger.error(logModules.Command, `Failed to force-link ${user.id} to ${displayName}`, error);
-
-            const container = new ContainerBuilder()
-                .title("Link Error", "❌")
-                .text("An error occurred while manually linking the account.")
-                .error();
-
-            await interaction.reply({
-                flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
-                components: [container],
-            });
+            await this.replyError(interaction, locale, "link.force.error");
         }
     }
 
     private async executeReset(interaction: ChatInputCommandInteraction, ctx: CommandContext) {
         const targetUser = interaction.options.getUser("user") ?? interaction.user;
         const guildId = interaction.guildId as string;
+        const locale = localeFrom(interaction.locale);
 
         if (targetUser.id !== interaction.user.id && !this.hasManageGuild(interaction)) {
             await this.replyMissingPermission(interaction);
@@ -208,35 +228,31 @@ export class LinkCommand implements Command {
 
         try {
             const removed = await ctx.linking.removeLink(guildId, targetUser.id);
+            const params = { user: targetUser.toString() };
 
             const container = removed
                 ? new ContainerBuilder()
-                      .title("Link Reset", "✅")
+                      .title(t(locale, "link.reset.title"), "✅")
                       .divider()
-                      .text(`${targetUser.toString()} is no longer linked to an Among Us account.`)
+                      .text(t(locale, "link.reset.userDone", params))
                       .success()
                 : new ContainerBuilder()
-                      .title("Link Reset", "⚠️")
-                      .text(`${targetUser.toString()} was not linked to begin with.`)
+                      .title(t(locale, "link.reset.title"), "⚠️")
+                      .text(t(locale, "link.reset.userNone", params))
                       .warning();
 
-            await interaction.reply({
-                flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
-                components: [container],
-            });
+            await replyEphemeral(interaction, container);
         } catch (error) {
             logger.error(logModules.Command, `Failed to reset link for ${targetUser.id}`, error);
-
-            const container = new ContainerBuilder()
-                .title("Link Error", "❌")
-                .text("An error occurred while unlinking the account.")
-                .error();
-
-            await interaction.reply({
-                flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
-                components: [container],
-            });
+            await this.replyError(interaction, locale, "link.reset.error");
         }
+    }
+
+    private async replyError(interaction: ChatInputCommandInteraction, locale: Locale, key: MessageKey) {
+        await replyEphemeral(
+            interaction,
+            new ContainerBuilder().title(t(locale, "link.error.title"), "❌").text(t(locale, key)).error(),
+        );
     }
 
     private hasManageGuild(interaction: ChatInputCommandInteraction): boolean {
@@ -248,14 +264,13 @@ export class LinkCommand implements Command {
     }
 
     private async replyMissingPermission(interaction: ChatInputCommandInteraction) {
-        await interaction.reply({
-            flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
-            components: [
-                new ContainerBuilder()
-                    .title("Missing Permission", "⚠️")
-                    .text("You need the **Manage Server** permission to do this for another user.")
-                    .warning(),
-            ],
-        });
+        const locale = localeFrom(interaction.locale);
+        await replyEphemeral(
+            interaction,
+            new ContainerBuilder()
+                .title(t(locale, "link.permission.title"), "⚠️")
+                .text(t(locale, "link.permission.body"))
+                .warning(),
+        );
     }
 }
