@@ -1,0 +1,290 @@
+diff --git a/dist/index.cjs b/dist/index.cjs
+index b4cd3b8e6e28f696aff104176434f608c563bcba..eab02aa1e76784f917c14d03fcdc2f91af3fff4a 100644
+--- a/dist/index.cjs
++++ b/dist/index.cjs
+@@ -935,11 +935,13 @@ var ClusterProcess = class {
+ var BotInstance = class {
+ 	entryPoint;
+ 	execArgv;
++	spawnOptions;
+ 	clusters = /* @__PURE__ */ new Map();
+ 	_shuttingDown = false;
+-	constructor(entryPoint, execArgv) {
++	constructor(entryPoint, execArgv, spawnOptions) {
+ 		this.entryPoint = entryPoint;
+ 		this.execArgv = execArgv ?? [];
++		this.spawnOptions = spawnOptions;
+ 	}
+ 	eventMap = {
+ 		"message": void 0,
+@@ -963,8 +965,7 @@ var BotInstance = class {
+ 	};
+ 	startProcess(instanceID, clusterID, shardList, totalShards, token, intents) {
+ 		try {
+-			const childProcess = (0, child_process.fork)(this.entryPoint, {
+-				env: {
++			const env = {
+ 					INSTANCE_ID: instanceID.toString(),
+ 					CLUSTER_ID: clusterID.toString(),
+ 					SHARD_LIST: shardList.join(","),
+@@ -972,7 +973,21 @@ var BotInstance = class {
+ 					TOKEN: token,
+ 					INTENTS: intents.join(","),
+ 					FORCE_COLOR: "true"
++				};
++			const childProcess = this.spawnOptions ? (0, child_process.spawn)(this.spawnOptions.command, this.spawnOptions.args, {
++				env: {
++					...process.env,
++					...env
+ 				},
++				stdio: [
++					"inherit",
++					"inherit",
++					"inherit",
++					"ipc"
++				],
++				detached: this.spawnOptions.detached ?? false
++			}) : (0, child_process.fork)(this.entryPoint, {
++				env,
+ 				stdio: "inherit",
+ 				execArgv: this.execArgv,
+ 				silent: false,
+@@ -1032,6 +1047,9 @@ var BotInstance = class {
+ 			clusterProcess.child.once("exit", () => res());
+ 		}));
+ 	}
++	stopRespawning() {
++		this._shuttingDown = true;
++	}
+ 	onMessage(clusterProcess, message) {
+ 		if (message.type === "CLUSTER_READY") {
+ 			clusterProcess.status = "running";
+@@ -1087,8 +1105,8 @@ var ManagedInstance = class extends BotInstance {
+ 	connectionStatus = BridgeConnectionStatus.DISCONNECTED;
+ 	data;
+ 	dev = false;
+-	constructor(entryPoint, host, port, instanceID, data, execArgv, dev) {
+-		super(entryPoint, execArgv);
++	constructor(entryPoint, host, port, instanceID, data, execArgv, dev, spawnOptions) {
++		super(entryPoint, execArgv, spawnOptions);
+ 		this.host = host;
+ 		this.port = port;
+ 		this.instanceID = instanceID;
+@@ -1287,8 +1305,8 @@ var StandaloneInstance = class extends BotInstance {
+ 	shardsPerCluster;
+ 	token;
+ 	intents;
+-	constructor(entryPoint, shardsPerCluster, totalClusters, token, intents, execArgv) {
+-		super(entryPoint, execArgv);
++	constructor(entryPoint, shardsPerCluster, totalClusters, token, intents, execArgv, spawnOptions) {
++		super(entryPoint, execArgv, spawnOptions);
+ 		this.shardsPerCluster = shardsPerCluster;
+ 		this.totalClusters = totalClusters;
+ 		this.token = token;
+diff --git a/dist/index.d.cts b/dist/index.d.cts
+index b663e7e40bc55adb09e18babb4f2f29d62135bc4..21cb884676c4b299b8838f8df86ff2d1c45e7a80 100644
+--- a/dist/index.d.cts
++++ b/dist/index.d.cts
+@@ -265,12 +265,18 @@ declare class ShardingUtil {
+ }
+ //#endregion
+ //#region src/instance/BotInstance.d.ts
++interface SpawnOptions {
++  command: string;
++  args: string[];
++  detached?: boolean;
++}
+ declare abstract class BotInstance {
+   private readonly entryPoint;
+   private readonly execArgv;
++  private readonly spawnOptions;
+   readonly clusters: Map<number, ClusterProcess>;
+   protected _shuttingDown: boolean;
+-  protected constructor(entryPoint: string, execArgv?: string[]);
++  protected constructor(entryPoint: string, execArgv?: string[], spawnOptions?: SpawnOptions);
+   protected readonly eventMap: BotInstanceEventListeners;
+   protected startProcess(instanceID: number, clusterID: number, shardList: number[], totalShards: number, token: string, intents: GatewayIntentsString[]): void;
+   protected killProcess(clusterProcess: ClusterProcess, reason: string): Promise<unknown>;
+@@ -278,6 +284,7 @@ declare abstract class BotInstance {
+   protected abstract setClusterReady(clusterProcess: ClusterProcess, guilds: number, members: number): void;
+   protected abstract setClusterSpawned(clusterProcess: ClusterProcess): void;
+   abstract start(): void;
++  stopRespawning(): void;
+   private onMessage;
+   protected abstract onRequest(clusterProcess: ClusterProcess, message: any, timeout: number): Promise<unknown>;
+   on<K extends keyof BotInstanceEventListeners>(event: K, listener: BotInstanceEventListeners[K]): void;
+@@ -320,7 +327,7 @@ declare class ManagedInstance extends BotInstance {
+   private connectionStatus;
+   private data;
+   private dev;
+-  constructor(entryPoint: string, host: string, port: number, instanceID: number, data: unknown, execArgv?: string[], dev?: boolean);
++  constructor(entryPoint: string, host: string, port: number, instanceID: number, data: unknown, execArgv?: string[], dev?: boolean, spawnOptions?: SpawnOptions);
+   start(): void;
+   private selfCheck;
+   protected setClusterStopped(client: ClusterProcess, reason: string): void;
+@@ -340,7 +347,7 @@ declare class StandaloneInstance extends BotInstance {
+   private readonly shardsPerCluster;
+   readonly token: string;
+   readonly intents: GatewayIntentsString[];
+-  constructor(entryPoint: string, shardsPerCluster: number, totalClusters: number, token: string, intents: GatewayIntentsString[], execArgv?: string[]);
++  constructor(entryPoint: string, shardsPerCluster: number, totalClusters: number, token: string, intents: GatewayIntentsString[], execArgv?: string[], spawnOptions?: SpawnOptions);
+   get totalShards(): number;
+   private calculateClusters;
+   start(): void;
+@@ -352,5 +359,5 @@ declare class StandaloneInstance extends BotInstance {
+   protected onRequest(clusterProcess: ClusterProcess, message: any, timeout: number): Promise<unknown>;
+ }
+ //#endregion
+-export { BotInstance, BotInstanceEventListeners, Bridge, BridgeClusterConnection, BridgeClusterConnectionStatus, BridgeConnectionStatus, BridgeEventListeners, BridgeInstanceConnection, BridgeInstanceConnectionStatus, Cluster, ClusterCalculator, ClusterEventListeners, ClusterProcess, ClusterProcessState, EventManager, EventPayload, HeartbeatResponse, ManagedInstance, ShardingUtil, StandaloneInstance };
++export { BotInstance, BotInstanceEventListeners, Bridge, BridgeClusterConnection, BridgeClusterConnectionStatus, BridgeConnectionStatus, BridgeEventListeners, BridgeInstanceConnection, BridgeInstanceConnectionStatus, Cluster, ClusterCalculator, ClusterEventListeners, ClusterProcess, ClusterProcessState, EventManager, EventPayload, HeartbeatResponse, ManagedInstance, ShardingUtil, SpawnOptions, StandaloneInstance };
+ //# sourceMappingURL=index.d.cts.map
+\ No newline at end of file
+diff --git a/dist/index.d.mts b/dist/index.d.mts
+index e697d8aeae13517a44a13db483316fd933b7714f..5ac46bdf0bee65cc67098d01dad4329d1ed67cc1 100644
+--- a/dist/index.d.mts
++++ b/dist/index.d.mts
+@@ -265,12 +265,18 @@ declare class ShardingUtil {
+ }
+ //#endregion
+ //#region src/instance/BotInstance.d.ts
++interface SpawnOptions {
++  command: string;
++  args: string[];
++  detached?: boolean;
++}
+ declare abstract class BotInstance {
+   private readonly entryPoint;
+   private readonly execArgv;
++  private readonly spawnOptions;
+   readonly clusters: Map<number, ClusterProcess>;
+   protected _shuttingDown: boolean;
+-  protected constructor(entryPoint: string, execArgv?: string[]);
++  protected constructor(entryPoint: string, execArgv?: string[], spawnOptions?: SpawnOptions);
+   protected readonly eventMap: BotInstanceEventListeners;
+   protected startProcess(instanceID: number, clusterID: number, shardList: number[], totalShards: number, token: string, intents: GatewayIntentsString[]): void;
+   protected killProcess(clusterProcess: ClusterProcess, reason: string): Promise<unknown>;
+@@ -278,6 +284,7 @@ declare abstract class BotInstance {
+   protected abstract setClusterReady(clusterProcess: ClusterProcess, guilds: number, members: number): void;
+   protected abstract setClusterSpawned(clusterProcess: ClusterProcess): void;
+   abstract start(): void;
++  stopRespawning(): void;
+   private onMessage;
+   protected abstract onRequest(clusterProcess: ClusterProcess, message: any, timeout: number): Promise<unknown>;
+   on<K extends keyof BotInstanceEventListeners>(event: K, listener: BotInstanceEventListeners[K]): void;
+@@ -320,7 +327,7 @@ declare class ManagedInstance extends BotInstance {
+   private connectionStatus;
+   private data;
+   private dev;
+-  constructor(entryPoint: string, host: string, port: number, instanceID: number, data: unknown, execArgv?: string[], dev?: boolean);
++  constructor(entryPoint: string, host: string, port: number, instanceID: number, data: unknown, execArgv?: string[], dev?: boolean, spawnOptions?: SpawnOptions);
+   start(): void;
+   private selfCheck;
+   protected setClusterStopped(client: ClusterProcess, reason: string): void;
+@@ -340,7 +347,7 @@ declare class StandaloneInstance extends BotInstance {
+   private readonly shardsPerCluster;
+   readonly token: string;
+   readonly intents: GatewayIntentsString[];
+-  constructor(entryPoint: string, shardsPerCluster: number, totalClusters: number, token: string, intents: GatewayIntentsString[], execArgv?: string[]);
++  constructor(entryPoint: string, shardsPerCluster: number, totalClusters: number, token: string, intents: GatewayIntentsString[], execArgv?: string[], spawnOptions?: SpawnOptions);
+   get totalShards(): number;
+   private calculateClusters;
+   start(): void;
+@@ -352,5 +359,5 @@ declare class StandaloneInstance extends BotInstance {
+   protected onRequest(clusterProcess: ClusterProcess, message: any, timeout: number): Promise<unknown>;
+ }
+ //#endregion
+-export { BotInstance, BotInstanceEventListeners, Bridge, BridgeClusterConnection, BridgeClusterConnectionStatus, BridgeConnectionStatus, BridgeEventListeners, BridgeInstanceConnection, BridgeInstanceConnectionStatus, Cluster, ClusterCalculator, ClusterEventListeners, ClusterProcess, ClusterProcessState, EventManager, EventPayload, HeartbeatResponse, ManagedInstance, ShardingUtil, StandaloneInstance };
++export { BotInstance, BotInstanceEventListeners, Bridge, BridgeClusterConnection, BridgeClusterConnectionStatus, BridgeConnectionStatus, BridgeEventListeners, BridgeInstanceConnection, BridgeInstanceConnectionStatus, Cluster, ClusterCalculator, ClusterEventListeners, ClusterProcess, ClusterProcessState, EventManager, EventPayload, HeartbeatResponse, ManagedInstance, ShardingUtil, SpawnOptions, StandaloneInstance };
+ //# sourceMappingURL=index.d.mts.map
+\ No newline at end of file
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 7f39b3ec0598b9b5b3bfecd881258ac8c2123bfc..ce2a52671e617bce297933c595fbcc0c7000d9c8 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -1,6 +1,6 @@
+ import { Client, Server } from "net-ipc";
+ import os from "os";
+-import { fork } from "child_process";
++import { fork, spawn } from "child_process";
+ //#region src/bridge/BridgeClusterConnection.ts
+ let BridgeClusterConnectionStatus = /* @__PURE__ */ function(BridgeClusterConnectionStatus) {
+ 	BridgeClusterConnectionStatus["REQUESTING"] = "requesting";
+@@ -911,11 +911,13 @@ var ClusterProcess = class {
+ var BotInstance = class {
+ 	entryPoint;
+ 	execArgv;
++	spawnOptions;
+ 	clusters = /* @__PURE__ */ new Map();
+ 	_shuttingDown = false;
+-	constructor(entryPoint, execArgv) {
++	constructor(entryPoint, execArgv, spawnOptions) {
+ 		this.entryPoint = entryPoint;
+ 		this.execArgv = execArgv ?? [];
++		this.spawnOptions = spawnOptions;
+ 	}
+ 	eventMap = {
+ 		"message": void 0,
+@@ -939,8 +941,7 @@ var BotInstance = class {
+ 	};
+ 	startProcess(instanceID, clusterID, shardList, totalShards, token, intents) {
+ 		try {
+-			const childProcess = fork(this.entryPoint, {
+-				env: {
++			const env = {
+ 					INSTANCE_ID: instanceID.toString(),
+ 					CLUSTER_ID: clusterID.toString(),
+ 					SHARD_LIST: shardList.join(","),
+@@ -948,7 +949,21 @@ var BotInstance = class {
+ 					TOKEN: token,
+ 					INTENTS: intents.join(","),
+ 					FORCE_COLOR: "true"
++				};
++			const childProcess = this.spawnOptions ? spawn(this.spawnOptions.command, this.spawnOptions.args, {
++				env: {
++					...process.env,
++					...env
+ 				},
++				stdio: [
++					"inherit",
++					"inherit",
++					"inherit",
++					"ipc"
++				],
++				detached: this.spawnOptions.detached ?? false
++			}) : fork(this.entryPoint, {
++				env,
+ 				stdio: "inherit",
+ 				execArgv: this.execArgv,
+ 				silent: false,
+@@ -1008,6 +1023,9 @@ var BotInstance = class {
+ 			clusterProcess.child.once("exit", () => res());
+ 		}));
+ 	}
++	stopRespawning() {
++		this._shuttingDown = true;
++	}
+ 	onMessage(clusterProcess, message) {
+ 		if (message.type === "CLUSTER_READY") {
+ 			clusterProcess.status = "running";
+@@ -1063,8 +1081,8 @@ var ManagedInstance = class extends BotInstance {
+ 	connectionStatus = BridgeConnectionStatus.DISCONNECTED;
+ 	data;
+ 	dev = false;
+-	constructor(entryPoint, host, port, instanceID, data, execArgv, dev) {
+-		super(entryPoint, execArgv);
++	constructor(entryPoint, host, port, instanceID, data, execArgv, dev, spawnOptions) {
++		super(entryPoint, execArgv, spawnOptions);
+ 		this.host = host;
+ 		this.port = port;
+ 		this.instanceID = instanceID;
+@@ -1263,8 +1281,8 @@ var StandaloneInstance = class extends BotInstance {
+ 	shardsPerCluster;
+ 	token;
+ 	intents;
+-	constructor(entryPoint, shardsPerCluster, totalClusters, token, intents, execArgv) {
+-		super(entryPoint, execArgv);
++	constructor(entryPoint, shardsPerCluster, totalClusters, token, intents, execArgv, spawnOptions) {
++		super(entryPoint, execArgv, spawnOptions);
+ 		this.shardsPerCluster = shardsPerCluster;
+ 		this.totalClusters = totalClusters;
+ 		this.token = token;
