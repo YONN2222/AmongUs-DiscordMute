@@ -11,13 +11,17 @@ import { voiceLedgerMigration } from "./Migrations/0005-voice-ledger";
 import { linkFriendCodeMigration } from "./Migrations/0006-link-friend-code";
 import { nicknameLedgerMigration } from "./Migrations/0007-nickname-ledger";
 import { botMetaMigration } from "./Migrations/0010-bot-meta";
+import { guildSecretsMigration } from "./Migrations/0011-guild-secrets";
+import { hostedGuildsMigration } from "./Migrations/0012-hosted-guilds";
 import { initGuildSettingsModel } from "./Models/GuildSettingsModel";
 import { initLinkModel } from "./Models/LinkModel";
 import { initMuteLedgerModel } from "./Models/MuteLedgerModel";
 import { initNicknameLedgerModel } from "./Models/NicknameLedgerModel";
 import { initPendingLinkModel } from "./Models/PendingLinkModel";
 import { initTrackedMessageModel } from "./Models/TrackedMessageModel";
+import { createGuildSecretRepository, type GuildSecretRepository } from "./Repositories/GuildSecretRepository";
 import { createGuildSettingsRepository, type GuildSettingsRepository } from "./Repositories/GuildSettingsRepository";
+import { createHostedGuildRepository, type HostedGuildRepository } from "./Repositories/HostedGuildRepository";
 import { createLinkRepository, type LinkRepository } from "./Repositories/LinkRepository";
 import { createMuteLedgerRepository, type MuteLedgerRepository } from "./Repositories/MuteLedgerRepository";
 import { createNicknameLedgerRepository, type NicknameLedgerRepository } from "./Repositories/NicknameLedgerRepository";
@@ -34,6 +38,8 @@ export interface Database {
     settings: GuildSettingsRepository;
     trackedMessages: TrackedMessageRepository;
     telemetry: TelemetryRepository;
+    guildSecrets: GuildSecretRepository;
+    hostedGuilds: HostedGuildRepository;
     close(): Promise<void>;
 }
 
@@ -73,6 +79,8 @@ async function runMigrations(sequelize: Sequelize): Promise<void> {
             linkFriendCodeMigration,
             nicknameLedgerMigration,
             botMetaMigration,
+            guildSecretsMigration,
+            hostedGuildsMigration,
         ],
         context: sequelize.getQueryInterface(),
         storage: new SequelizeStorage({ sequelize, tableName: "schema_migrations" }),
@@ -114,6 +122,8 @@ export async function openDatabase(
         settings: createGuildSettingsRepository(guildSettingsModel),
         trackedMessages: createTrackedMessageRepository(trackedMessageModel),
         telemetry: createTelemetryRepository(sequelize),
+        guildSecrets: createGuildSecretRepository(sequelize),
+        hostedGuilds: createHostedGuildRepository(sequelize),
         close: () => sequelize.close(),
     };
 }
