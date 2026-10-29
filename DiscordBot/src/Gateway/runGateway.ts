@@ -3,7 +3,7 @@ import { type ClusterProcess, StandaloneInstance } from "galactic.ts";
 import { DISCORD_INTENTS } from "../Cluster/createDiscordClient";
 import { config, DISCORD_TOKEN } from "../config";
 import { databaseOptionsFrom, openDatabase } from "../Data/database";
-import { logger, logModules } from "../Logging/logger";
+import { configureLogger, logger, logModules } from "../Logging/logger";
 import { clusterSpawnOptions } from "../Process/processRole";
 import { GalacticClusterRouter } from "../Routing/ClusterRouter";
 import { LinkingService } from "../Utils/LinkingService";
@@ -66,6 +66,7 @@ function logClusterEvents(
 
 /** The gateway owns the plugin connections and the database migrations; Discord itself runs in the clusters. */
 export async function runGateway(): Promise<void> {
+    configureLogger({ format: config.logFormat, processName: "gateway" });
     const db = await openDatabase(databaseOptionsFrom(config));
     logger.success(logModules.Database, "Database is ready!");
 

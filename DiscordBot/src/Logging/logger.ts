@@ -22,6 +22,9 @@ export const logTheme = {
     timestamp: "#f7f7f8",
     divider: "#303034",
     database: "#22d3ee",
+    metrics: "#7dd3fc",
+    telemetry: "#a78bfa",
+    updates: "#86efac",
     embeds: {
         blue: "#4f5cc8",
         red: "#e84d50",
@@ -38,6 +41,9 @@ export const logModules = {
     Mute: { name: "mute", tint: logTheme.mute } as LogModule,
     AmongUs: { name: "among-us", tint: logTheme.amongUs } as LogModule,
     Database: { name: "database", tint: logTheme.database } as LogModule,
+    Metrics: { name: "metrics", tint: logTheme.metrics } as LogModule,
+    Telemetry: { name: "telemetry", tint: logTheme.telemetry } as LogModule,
+    Updates: { name: "updates", tint: logTheme.updates } as LogModule,
 };
 
 const levelLabels: Record<LogLevel, string> = {
@@ -71,8 +77,93 @@ function formatLine(level: LogLevel, module: LogModule, message: string): string
     return `${time} ${divider} ${label} ${divider} ${source} ${divider} ${message}`;
 }
 
-function write(level: LogLevel, module: LogModule, message: string): void {
+export type LogFormat = "pretty" | "json";
+
+let activeFormat: LogFormat = "pretty";
+let activeProcess = "main";
+
+export function configureLogger(opts: { format: LogFormat; processName: string }): void {
+    activeFormat = opts.format;
+    activeProcess = opts.processName;
+}
+
+const SENSITIVE_KEY = /token|secret|authorization|password|cookie/i;
+const URL_TOKEN = /(\/(?:webhooks|interactions)\/\d+\/)[\w.-]+/g;
+const BEARER = /\b(Bearer|Bot)\s+(?=[\w.~+/=-]*\d)[\w.~+/=-]{16,}/gi;
+const BASIC = /\b(Basic)\s+(?=[A-Za-z0-9+/]*[\d+/=])[A-Za-z0-9+/]{8,}={0,2}/g;
+const KEY_VALUE = /(authorization|token|secret)(["']?\s*[:=]\s*["']?)(?:(?:Bearer|Bot|Basic)\s+)?[^\s,;"'}]+/gi;
+
+function redact(text: string): string {
+    return text
+        .replace(URL_TOKEN, "$1[redacted]")
+        .replace(BEARER, "$1 [redacted]")
+        .replace(BASIC, "$1 [redacted]")
+        .replace(KEY_VALUE, "$1$2[redacted]");
+}
+
+function errorText(error: Error): string {
+    const code = (error as { code?: unknown }).code;
+    const base = error.stack ?? `${error.name}: ${error.message}`;
+    return code === undefined ? base : `${base}\ncode: ${String(code)}`;
+}
+
+function jsonContext(context: unknown): string {
+    if (context instanceof Error) return redact(errorText(context));
+    if (typeof context === "string") return redact(context);
+
+    try {
+        const seen = new WeakSet<object>();
+        const text = JSON.stringify(context, (key, value: unknown) => {
+            if (SENSITIVE_KEY.test(key)) return "[redacted]";
+            if (typeof value === "bigint") return value.toString();
+            if (value instanceof Error) return errorText(value);
+            if (typeof value === "object" && value !== null) {
+                if (seen.has(value)) return "[Circular]";
+                seen.add(value);
+            }
+            return value;
+        });
+        return redact(text ?? "undefined");
+    } catch {
+        return "[unserialisable]";
+    }
+}
+
+function safeText(value: unknown): string {
+    try {
+        return String(value);
+    } catch {
+        return "[unserialisable]";
+    }
+}
+
+function writeJson(level: LogLevel, module: LogModule, message: string, context?: unknown): void {
+    try {
+        const entry: Record<string, string> = {
+            time: new Date().toISOString(),
+            level,
+            module: module.name,
+            process: activeProcess,
+            msg: redact(safeText(message)),
+        };
+        if (context !== undefined) entry.error = jsonContext(context);
+
+        process.stdout.write(`${JSON.stringify(entry)}\n`);
+    } catch {
+        // a logging fault must never reach the caller
+    }
+}
+
+function write(level: LogLevel, module: LogModule, message: string, context?: unknown): void {
+    if (activeFormat === "json") {
+        writeJson(level, module, message, context);
+        return;
+    }
+
     process.stdout.write(`${formatLine(level, module, message)}\n`);
+    if (context !== undefined) {
+        process.stderr.write(`${stringifyContext(context)}\n`);
+    }
 }
 
 function stringifyContext(context: unknown): string {
@@ -96,11 +187,5 @@ export const logger = {
     warn: (module: LogModule, message: string) => write("warn", module, message),
     success: (module: LogModule, message: string) => write("success", module, message),
     debug: (module: LogModule, message: string) => write("debug", module, message),
-    error: (module: LogModule, message: string, context?: unknown) => {
-        write("error", module, message);
-
-        if (context !== undefined) {
-            process.stderr.write(`${stringifyContext(context)}\n`);
-        }
-    },
+    error: (module: LogModule, message: string, context?: unknown) => write("error", module, message, context),
 };

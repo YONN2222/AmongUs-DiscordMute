@@ -12,7 +12,7 @@ import { sweepTrackedMessages } from "../Game/trackedMessageSweeper";
 import { SHUTDOWN_SIGNALS } from "../Gateway/shutdown";
 import { LinkOverviewPublisher } from "../LinkOverview/LinkOverviewPublisher";
 import { LogChannelWriter } from "../LogChannel/LogChannelWriter";
-import { logger, logModules } from "../Logging/logger";
+import { configureLogger, logger, logModules } from "../Logging/logger";
 import { MuteService } from "../Mute/MuteService";
 import { createVoiceTargetResolver } from "../Mute/VoiceTargetResolver";
 import { CLUSTER_EXIT_LOGIN_FAILED, loginFailureExitCode } from "../Process/processRole";
@@ -90,6 +90,7 @@ async function onReady(
 /** A cluster process runs the Discord client for its shards and serves the requests the gateway routes to it. */
 export async function runCluster(): Promise<void> {
     const cluster = Cluster.initial<Client>();
+    configureLogger({ format: config.logFormat, processName: `cluster-${cluster.clusterID}` });
     // Ctrl+C, a process-group SIGTERM and closing the console reach every process; the gateway alone drives
     // shutdown so the clusters still lift every mute. A cluster exits through SELF_DESTRUCT from the gateway or a
     // lost IPC channel.
