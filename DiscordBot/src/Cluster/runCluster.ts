@@ -6,6 +6,7 @@ import { databaseOptionsFrom, openDatabase } from "../Data/database";
 import { deployCommands } from "../deploy-commands";
 import { GuildEventBus } from "../Events/GuildEvents";
 import { SHUTDOWN_SIGNALS } from "../Gateway/shutdown";
+import { LinkOverviewPublisher } from "../LinkOverview/LinkOverviewPublisher";
 import { LogChannelWriter } from "../LogChannel/LogChannelWriter";
 import { logger, logModules } from "../Logging/logger";
 import { MuteService } from "../Mute/MuteService";
@@ -30,9 +31,16 @@ function failure(error: unknown): RouterReply {
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
 }
 
-function createCommandContext(gateway: GalacticGatewayLink, linking: LinkingService): CommandContext {
+function createCommandContext(
+    gateway: GalacticGatewayLink,
+    linking: LinkingService,
+    events: GuildEventBus,
+    settings: SettingsService,
+): CommandContext {
     return {
         linking,
+        events,
+        settings,
         pushLinkPending: async (guildId, phrase, quickChatCode, discordId) =>
             (await gateway.send({ kind: "push-link-pending", guildId, phrase, quickChatCode, discordId })).ok,
         isPluginConnected: async (guildId) => (await gateway.send({ kind: "is-plugin-connected", guildId })).ok,
@@ -43,6 +51,7 @@ async function onReady(
     client: Client<true>,
     cluster: Cluster<Client>,
     mute: MuteService,
+    overview: LinkOverviewPublisher,
     markReady: () => void,
 ): Promise<void> {
     logger.success(logModules.Discord, `Cluster ${cluster.clusterID} logged in as ${client.user.tag}`);
@@ -57,6 +66,9 @@ async function onReady(
     // A respawned cluster has no active sessions in memory: recovery lifts every ledger mute and the next
     // game event of a running game mutes again.
     await mute.recover([...client.guilds.cache.keys()]);
+    overview.resume([...client.guilds.cache.keys()]).catch((error: unknown) => {
+        logger.error(logModules.Bot, `Cluster ${cluster.clusterID} could not refresh the link overviews`, error);
+    });
     markReady();
     const members = client.guilds.cache.reduce((sum, guild) => sum + guild.memberCount, 0);
     cluster.triggerReady(client.guilds.cache.size, members);
@@ -80,8 +92,17 @@ export async function runCluster(): Promise<void> {
     const events = new GuildEventBus();
     const settings = new SettingsService(db.settings, events);
     const guildLanguage = (guildId: string) => settings.get(guildId).then((s) => s.language);
-    const logWriter = new LogChannelWriter({ port: createDiscordMessagePort(client), settings });
+    const messagePort = createDiscordMessagePort(client);
+    const logWriter = new LogChannelWriter({ port: messagePort, settings });
     events.on((event) => logWriter.handle(event));
+    const overview = new LinkOverviewPublisher({
+        port: messagePort,
+        links: db.links,
+        pending: db.pendingLinks,
+        tracked: db.trackedMessages,
+        settings,
+    });
+    events.on((event) => overview.handle(event));
     const voice = new DiscordVoiceAdapter(client);
     const mute = new MuteService({
         events,
@@ -108,10 +129,13 @@ export async function runCluster(): Promise<void> {
         handleRequest(data).then(resolve, (error: unknown) => resolve(failure(error)));
     });
 
-    registerInteractionHandlers(client, createCommandContext(new GalacticGatewayLink(cluster), new LinkingService(db)));
+    registerInteractionHandlers(
+        client,
+        createCommandContext(new GalacticGatewayLink(cluster), new LinkingService(db, events), events, settings),
+    );
     registerVoiceRejoin(client, mute);
     client.once(Events.ClientReady, (readyClient) => {
-        onReady(readyClient, cluster, mute, () => {
+        onReady(readyClient, cluster, mute, overview, () => {
             ready = true;
         }).catch((error: unknown) =>
             logger.error(logModules.Bot, `Cluster ${cluster.clusterID} failed to finish starting`, error),

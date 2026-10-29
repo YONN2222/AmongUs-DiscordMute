@@ -1,3 +1,4 @@
+import { col, fn } from "sequelize";
 import { matchesAccountName } from "../accountNameMatch";
 import type { LinkModel } from "../models/LinkModel";
 
@@ -13,6 +14,9 @@ export interface LinkRepository {
     upsert(guildId: string, discordId: string, accountName: string): Promise<void>;
     remove(guildId: string, discordId: string): Promise<boolean>;
     listByGuild(guildId: string): Promise<LinkEntry[]>;
+    countByGuild(guildId: string): Promise<number>;
+    /** One page ordered by account name (case-insensitive), then Discord id; sorted and cut in SQL. */
+    listPage(guildId: string, offset: number, limit: number): Promise<LinkEntry[]>;
     findByAccountName(guildId: string, accountName: string): Promise<LinkEntry[]>;
 }
 
@@ -39,6 +43,21 @@ export function createLinkRepository(model: typeof LinkModel): LinkRepository {
         },
         async listByGuild(guildId) {
             const rows = await model.findAll({ where: { guildId } });
+            return rows.map(toEntry);
+        },
+        async countByGuild(guildId) {
+            return model.count({ where: { guildId } });
+        },
+        async listPage(guildId, offset, limit) {
+            const rows = await model.findAll({
+                where: { guildId },
+                order: [
+                    [fn("LOWER", col("account_name")), "ASC"],
+                    ["discordId", "ASC"],
+                ],
+                offset,
+                limit,
+            });
             return rows.map(toEntry);
         },
         async findByAccountName(guildId, accountName) {

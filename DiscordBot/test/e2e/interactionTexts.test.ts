@@ -1,6 +1,6 @@
 import { buildButtonInteractionDispatch, buildSlashCommandInteractionDispatch, extractText } from "probe.ts";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { LINK_SELF_UNLINK_BUTTON_ID } from "../../src/commands/Link/LinkCommand";
+import { LINK_SELF_UNLINK_BUTTON_ID } from "../../src/Linking/selfUnlink";
 import { type CommandProbe, createCommandProbe } from "../helpers/commandProbe";
 
 describe("german replies", () => {

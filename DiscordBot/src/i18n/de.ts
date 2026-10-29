@@ -70,4 +70,24 @@ export const de: Record<MessageKey, string> = {
     "log.voiceNotEditable":
         "Sprachänderung fehlgeschlagen{member}: Die Rolle des Bots muss über der höchsten Rolle dieses Mitglieds stehen (Rollenreihenfolge), sonst lehnt Discord die Änderung ab.",
     "log.more": "und {count} weitere",
+
+    "error.missingPermission": "Dafür brauchst du die Berechtigung **Server verwalten**.",
+
+    "overview.title": "Verknüpfte Spieler",
+    "overview.count": "{count} verknüpft",
+    "overview.empty": "Noch niemand ist verknüpft. Drücke **Verknüpfen**, um dein Among-Us-Konto zu verbinden.",
+    "overview.page": "Seite {page} von {pages}",
+    "overview.pending": "Wartet auf eine Verknüpfung: {users}",
+    "overview.button.link": "Verknüpfen",
+    "overview.button.unlink": "Trennen",
+    "overview.button.more": "Mehr anzeigen",
+    "overview.button.prev": "Zurück",
+    "overview.button.next": "Weiter",
+    "overview.admin.unlinkPlaceholder": "Verknüpfung eines Mitglieds aufheben",
+    "overview.admin.force": "Manuell verknüpfen",
+    "overview.force.title": "Manuell verknüpfen",
+    "overview.force.userLabel": "Discord-Nutzer (ID oder Erwähnung)",
+    "overview.force.nameLabel": "Among-Us-Name",
+    "overview.force.unknownUser": "Dieser Nutzer wurde auf diesem Server nicht gefunden.",
+    "overview.force.invalidName": "Gib einen Namen mit 1 bis 64 Zeichen ein.",
 };

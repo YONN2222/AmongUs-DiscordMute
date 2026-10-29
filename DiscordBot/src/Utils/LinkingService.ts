@@ -1,6 +1,7 @@
 import { UniqueConstraintError } from "sequelize";
 import type { Database } from "../Data/database";
 import type { LinkEntry as StoredLink } from "../Data/repositories/LinkRepository";
+import type { GuildEventSink } from "../Events/GuildEvents";
 import type { Locale } from "../i18n";
 import { logger, logModules } from "../Logging/logger";
 import { describePhrase, formatQuickChatCode, pickQuickChatPhrases } from "./QuickChatCatalog";
@@ -49,7 +50,10 @@ export class LinkingService {
     private readonly recentPhrases: string[] = [];
     private readonly recentQuickChatCodes = new Set<string>();
 
-    constructor(private readonly db: Database) {}
+    constructor(
+        private readonly db: Database,
+        private readonly events?: GuildEventSink,
+    ) {}
 
     private pickPhrase(): string {
         let code: string;
@@ -143,20 +147,47 @@ export class LinkingService {
         };
     }
 
-    async forceLink(guildId: string, discordId: string, accountName: string): Promise<void> {
+    async forceLink(guildId: string, discordId: string, accountName: string, actorId: string): Promise<void> {
+        const previous = await this.db.links.get(guildId, discordId);
         await this.db.links.upsert(guildId, discordId, accountName);
         logger.info(
             logModules.Command,
             `Force Linked Discord ${discordId} -> Among Us "${accountName}" in guild ${guildId}`,
         );
+        this.events?.emit({
+            type: "link-changed",
+            guildId,
+            discordId,
+            change: "force-linked",
+            accountName,
+            actorId,
+            ...(previous ? { previousName: previous.accountName } : {}),
+        });
     }
 
-    async removeLink(guildId: string, discordId: string): Promise<boolean> {
+    async removeLink(guildId: string, discordId: string, actorId: string): Promise<boolean> {
+        const previous = await this.db.links.get(guildId, discordId);
         const deleted = await this.db.links.remove(guildId, discordId);
         if (deleted) {
             logger.info(logModules.Command, `Unlinked Discord ${discordId} in guild ${guildId}`);
+            this.events?.emit({
+                type: "link-changed",
+                guildId,
+                discordId,
+                change: "unlinked",
+                actorId,
+                ...(previous ? { previousName: previous.accountName } : {}),
+            });
         }
         return deleted;
+    }
+
+    countLinks(guildId: string): Promise<number> {
+        return this.db.links.countByGuild(guildId);
+    }
+
+    async listLinkPage(guildId: string, offset: number, limit: number): Promise<StoredLink[]> {
+        return this.db.links.listPage(guildId, offset, limit);
     }
 
     async getLink(guildId: string, discordId: string): Promise<LinkEntry | undefined> {

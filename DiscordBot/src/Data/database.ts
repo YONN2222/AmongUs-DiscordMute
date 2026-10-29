@@ -6,14 +6,17 @@ import { bunSqliteDriver } from "./bunSqliteDriver";
 import { initialMigration } from "./migrations/0001-initial";
 import { guildSettingsMigration } from "./migrations/0002-guild-settings";
 import { pendingLinkLocaleMigration } from "./migrations/0003-pending-link-locale";
+import { trackedMessagesMigration } from "./migrations/0004-tracked-messages";
 import { initGuildSettingsModel } from "./models/GuildSettingsModel";
 import { initLinkModel } from "./models/LinkModel";
 import { initMuteLedgerModel } from "./models/MuteLedgerModel";
 import { initPendingLinkModel } from "./models/PendingLinkModel";
+import { initTrackedMessageModel } from "./models/TrackedMessageModel";
 import { createGuildSettingsRepository, type GuildSettingsRepository } from "./repositories/GuildSettingsRepository";
 import { createLinkRepository, type LinkRepository } from "./repositories/LinkRepository";
 import { createMuteLedgerRepository, type MuteLedgerRepository } from "./repositories/MuteLedgerRepository";
 import { createPendingLinkRepository, type PendingLinkRepository } from "./repositories/PendingLinkRepository";
+import { createTrackedMessageRepository, type TrackedMessageRepository } from "./repositories/TrackedMessageRepository";
 
 export interface Database {
     sequelize: Sequelize;
@@ -21,6 +24,7 @@ export interface Database {
     pendingLinks: PendingLinkRepository;
     muteLedger: MuteLedgerRepository;
     settings: GuildSettingsRepository;
+    trackedMessages: TrackedMessageRepository;
     close(): Promise<void>;
 }
 
@@ -51,7 +55,7 @@ function createSequelize(opts: DatabaseOptions): Sequelize {
 
 async function runMigrations(sequelize: Sequelize): Promise<void> {
     const umzug = new Umzug({
-        migrations: [initialMigration, guildSettingsMigration, pendingLinkLocaleMigration],
+        migrations: [initialMigration, guildSettingsMigration, pendingLinkLocaleMigration, trackedMessagesMigration],
         context: sequelize.getQueryInterface(),
         storage: new SequelizeStorage({ sequelize, tableName: "schema_migrations" }),
         logger: undefined,
@@ -80,6 +84,7 @@ export async function openDatabase(
     const pendingLinkModel = initPendingLinkModel(sequelize);
     const muteLedgerModel = initMuteLedgerModel(sequelize);
     const guildSettingsModel = initGuildSettingsModel(sequelize);
+    const trackedMessageModel = initTrackedMessageModel(sequelize);
 
     return {
         sequelize,
@@ -87,6 +92,7 @@ export async function openDatabase(
         pendingLinks: createPendingLinkRepository(pendingLinkModel),
         muteLedger: createMuteLedgerRepository(muteLedgerModel),
         settings: createGuildSettingsRepository(guildSettingsModel),
+        trackedMessages: createTrackedMessageRepository(trackedMessageModel),
         close: () => sequelize.close(),
     };
 }

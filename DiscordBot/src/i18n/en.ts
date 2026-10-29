@@ -68,6 +68,26 @@ export const en = {
     "log.voiceNotEditable":
         "Voice update failed{member}: the bot role must be above the highest role of that member (role order), otherwise Discord refuses the change.",
     "log.more": "and {count} more",
+
+    "error.missingPermission": "You need the **Manage Server** permission to do this.",
+
+    "overview.title": "Linked players",
+    "overview.count": "{count} linked",
+    "overview.empty": "Nobody is linked yet. Press **Link** to connect your Among Us account.",
+    "overview.page": "Page {page} of {pages}",
+    "overview.pending": "Waiting for a link: {users}",
+    "overview.button.link": "Link",
+    "overview.button.unlink": "Unlink",
+    "overview.button.more": "Show more",
+    "overview.button.prev": "Previous",
+    "overview.button.next": "Next",
+    "overview.admin.unlinkPlaceholder": "Unlink a member",
+    "overview.admin.force": "Force link",
+    "overview.force.title": "Force link",
+    "overview.force.userLabel": "Discord user (ID or mention)",
+    "overview.force.nameLabel": "Among Us name",
+    "overview.force.unknownUser": "That user could not be found on this server.",
+    "overview.force.invalidName": "Enter a name between 1 and 64 characters.",
 };
 
 export type MessageKey = keyof typeof en;

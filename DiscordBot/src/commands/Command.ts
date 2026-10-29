@@ -1,10 +1,14 @@
 import type { ChatInputCommandInteraction, SlashCommandBuilder } from "discord.js";
+import type { GuildEventBus } from "../Events/GuildEvents";
 import { logger, logModules } from "../Logging/logger";
+import type { SettingsService } from "../Settings/SettingsService";
 import type { LinkingService } from "../Utils/LinkingService";
 import { commandConstructors } from "./generated";
 
 export interface CommandContext {
     linking: LinkingService;
+    events: Pick<GuildEventBus, "emit">;
+    settings: Pick<SettingsService, "get" | "update">;
     pushLinkPending(guildId: string, phrase: string, quickChatCode: string, discordId: string): Promise<boolean>;
     isPluginConnected(guildId: string): Promise<boolean>;
 }

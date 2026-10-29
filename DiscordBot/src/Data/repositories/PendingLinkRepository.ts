@@ -28,6 +28,9 @@ export interface PendingLinkRepository {
         locale?: Locale,
     ): Promise<void>;
     deleteExpired(now: number): Promise<number>;
+    /** Active (not expired) pending links of a guild, the ones expiring first coming first. */
+    listActiveByGuild(guildId: string, now: number, limit: number): Promise<PendingLink[]>;
+    countActive(guildId: string, now: number): Promise<number>;
 }
 
 function toPendingLink(row: PendingLinkModel): PendingLink {
@@ -92,6 +95,17 @@ export function createPendingLinkRepository(model: typeof PendingLinkModel): Pen
         },
         async deleteExpired(now) {
             return model.destroy({ where: { expiresAt: { [Op.lte]: now } } });
+        },
+        async listActiveByGuild(guildId, now, limit) {
+            const rows = await model.findAll({
+                where: { guildId, expiresAt: { [Op.gt]: now } },
+                order: [["expiresAt", "ASC"]],
+                limit,
+            });
+            return rows.map(toPendingLink);
+        },
+        async countActive(guildId, now) {
+            return model.count({ where: { guildId, expiresAt: { [Op.gt]: now } } });
         },
     };
 }

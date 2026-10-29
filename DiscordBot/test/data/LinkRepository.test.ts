@@ -66,6 +66,23 @@ describe.each(backends)("LinkRepository (%s)", (backend) => {
             expect(found.map((e) => e.discordId).sort()).toEqual(["u1", "u2"]);
         });
 
+        it("pages links in case-insensitive name order", async () => {
+            for (let i = 0; i < 43; i++) {
+                const n = String(i).padStart(2, "0");
+                await db.links.upsert(g1, `u${n}`, `Name${n}`);
+            }
+            await db.links.upsert(g1, "ua", "alice");
+            await db.links.upsert(g1, "ub", "Bob");
+            await db.links.upsert(g2, "other", "Other");
+
+            expect(await db.links.countByGuild(g1)).toBe(45);
+            expect(await db.links.countByGuild("test-nobody")).toBe(0);
+            const last = await db.links.listPage(g1, 40, 20);
+            expect(last).toHaveLength(5);
+            const first = await db.links.listPage(g1, 0, 3);
+            expect(first.map((e) => e.accountName)).toEqual(["alice", "Bob", "Name00"]);
+        });
+
         it("listByGuild is guild-scoped", async () => {
             await db.links.upsert(g1, "u1", "A");
             await db.links.upsert(g2, "u2", "B");

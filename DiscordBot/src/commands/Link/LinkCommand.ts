@@ -1,42 +1,9 @@
-import {
-    ActionRowBuilder,
-    ButtonBuilder,
-    type ButtonInteraction,
-    ButtonStyle,
-    type ChatInputCommandInteraction,
-    MessageFlags,
-    PermissionFlagsBits,
-    SlashCommandBuilder,
-} from "discord.js";
+import { type ChatInputCommandInteraction, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } from "discord.js";
 import { type Locale, localeFrom, localized, type MessageKey, t } from "../../i18n";
+import { startSelfLink } from "../../Linking/startSelfLink";
 import { logger, logModules } from "../../Logging/logger";
 import { ContainerBuilder } from "../../Utils/ContainerBuilder";
 import type { Command, CommandContext } from "../Command";
-
-export const LINK_SELF_UNLINK_BUTTON_ID = "link-self-unlink";
-
-export async function handleLinkSelfUnlinkButton(interaction: ButtonInteraction, ctx: CommandContext): Promise<void> {
-    if (!interaction.guildId) return;
-    const locale = localeFrom(interaction.locale);
-
-    const removed = await ctx.linking.removeLink(interaction.guildId, interaction.user.id);
-
-    const container = removed
-        ? new ContainerBuilder()
-              .title(t(locale, "link.reset.title"), "✅")
-              .divider()
-              .text(t(locale, "link.reset.selfDone"))
-              .success()
-        : new ContainerBuilder()
-              .title(t(locale, "link.reset.noneTitle"), "⚠️")
-              .text(t(locale, "link.reset.selfNone"))
-              .warning();
-
-    await interaction.reply({
-        flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
-        components: [container],
-    });
-}
 
 async function replyEphemeral(interaction: ChatInputCommandInteraction, container: ContainerBuilder) {
     await interaction.reply({
@@ -89,72 +56,7 @@ export class LinkCommand implements Command {
     }
 
     private async executeSelf(interaction: ChatInputCommandInteraction, ctx: CommandContext) {
-        const guildId = interaction.guildId as string;
-        const locale = localeFrom(interaction.locale);
-
-        const existing = await ctx.linking.getLink(guildId, interaction.user.id);
-        if (existing) {
-            const container = new ContainerBuilder()
-                .title(t(locale, "link.alreadyLinked.title"), "🔗")
-                .divider()
-                .text(t(locale, "link.alreadyLinked.body", { name: existing.accountName }))
-                .info();
-
-            const unlinkRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-                new ButtonBuilder()
-                    .setCustomId(LINK_SELF_UNLINK_BUTTON_ID)
-                    .setLabel(t(locale, "link.unlinkButton"))
-                    .setStyle(ButtonStyle.Danger),
-            );
-
-            await interaction.reply({
-                flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
-                components: [container, unlinkRow],
-            });
-            return;
-        }
-        const { phrase, quickChatCode, quickChatLabels } = await ctx.linking.createPendingLink(
-            guildId,
-            interaction.user.id,
-        );
-        const pluginReady = await ctx.pushLinkPending(guildId, phrase, quickChatCode, interaction.user.id);
-        if (!pluginReady) {
-            logger.warn(logModules.Command, "Plugin is not connected for this server; cannot send pending link");
-
-            await replyEphemeral(
-                interaction,
-                new ContainerBuilder()
-                    .title(t(locale, "link.failed.title"), "⚠️")
-                    .divider()
-                    .text(t(locale, "link.pluginNotReady"))
-                    .warning(),
-            );
-            return;
-        }
-
-        const container = new ContainerBuilder()
-            .title(t(locale, "link.self.title"), "🔗")
-            .divider()
-            .text(
-                t(locale, "link.self.instructions", {
-                    phrase,
-                    quickChat1: quickChatLabels[0],
-                    quickChat2: quickChatLabels[1],
-                }),
-            )
-            .info();
-
-        logger.debug(logModules.Command, `Link phrase sent to ${interaction.user.id}: "${phrase}"`);
-
-        await replyEphemeral(interaction, container);
-
-        await ctx.linking.attachInteractionResponse(
-            guildId,
-            interaction.user.id,
-            interaction.applicationId,
-            interaction.token,
-            locale,
-        );
+        return startSelfLink(interaction, ctx);
     }
 
     private async executeForce(interaction: ChatInputCommandInteraction, ctx: CommandContext) {
@@ -169,7 +71,7 @@ export class LinkCommand implements Command {
         const guildId = interaction.guildId as string;
 
         try {
-            await ctx.linking.forceLink(guildId, user.id, displayName);
+            await ctx.linking.forceLink(guildId, user.id, displayName, interaction.user.id);
 
             await replyEphemeral(
                 interaction,
@@ -196,7 +98,7 @@ export class LinkCommand implements Command {
         }
 
         try {
-            const removed = await ctx.linking.removeLink(guildId, targetUser.id);
+            const removed = await ctx.linking.removeLink(guildId, targetUser.id, interaction.user.id);
             const params = { user: targetUser.toString() };
 
             const container = removed

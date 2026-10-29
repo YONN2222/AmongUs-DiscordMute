@@ -44,6 +44,20 @@ describe.each(backends)("PendingLinkRepository (%s)", (backend) => {
             expect(await db.pendingLinks.getActive(guildId, "u1", now)).toEqual(p);
         });
 
+        it("lists active pending links of a guild by expiry, with a limit and a total", async () => {
+            await db.pendingLinks.create(pending({ discordId: "u1", expiresAt: now + 3000 }));
+            await db.pendingLinks.create(pending({ discordId: "u2", expiresAt: now + 1000 }));
+            await db.pendingLinks.create(pending({ discordId: "u3", expiresAt: now + 2000 }));
+            await db.pendingLinks.create(pending({ discordId: "u4", expiresAt: now - 1 }));
+            await db.pendingLinks.create(pending({ guildId: uniqueId("other"), discordId: "u5" }));
+
+            expect((await db.pendingLinks.listActiveByGuild(guildId, now, 2)).map((p) => p.discordId)).toEqual([
+                "u2",
+                "u3",
+            ]);
+            expect(await db.pendingLinks.countActive(guildId, now)).toBe(3);
+        });
+
         it("getActive ignores expired rows", async () => {
             await db.pendingLinks.create(pending({ expiresAt: now - 1 }));
             expect(await db.pendingLinks.getActive(guildId, "u1", now)).toBeNull();

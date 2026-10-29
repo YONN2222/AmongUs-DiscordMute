@@ -1,9 +1,11 @@
 import { type ChatInputCommandInteraction, type Client, Events, MessageFlags } from "discord.js";
 import { type CommandContext, commandRegistry } from "../commands/Command";
-import { handleLinkSelfUnlinkButton, LINK_SELF_UNLINK_BUTTON_ID } from "../commands/Link/LinkCommand";
 import { localeFrom, t } from "../i18n";
+import { LINK_SELF_UNLINK_BUTTON_ID, unlinkSelf } from "../Linking/selfUnlink";
+import { registerLinkOverviewComponents } from "../LinkOverview/linkOverviewComponents";
 import { logger, logModules } from "../Logging/logger";
 import { ContainerBuilder } from "../Utils/ContainerBuilder";
+import { isComponentInteraction, registerComponent, routeComponent } from "./componentRouter";
 
 function describeOptions(interaction: ChatInputCommandInteraction): string {
     return interaction.options.data
@@ -71,14 +73,19 @@ async function handleChatInput(interaction: ChatInputCommandInteraction, ctx: Co
     }
 }
 
+/** Every component prefix the bot answers; later features add their own registration here. */
+function registerComponents(): void {
+    registerComponent(LINK_SELF_UNLINK_BUTTON_ID, async (interaction, ctx) => {
+        if (interaction.isButton()) await unlinkSelf(interaction, ctx);
+    });
+    registerLinkOverviewComponents();
+}
+
 export function registerInteractionHandlers(client: Client, ctx: CommandContext): void {
+    registerComponents();
     client.on(Events.InteractionCreate, async (interaction) => {
-        if (interaction.isButton() && interaction.customId === LINK_SELF_UNLINK_BUTTON_ID) {
-            try {
-                await handleLinkSelfUnlinkButton(interaction, ctx);
-            } catch (error) {
-                logger.error(logModules.Command, `Failed to handle unlink button for ${interaction.user.tag}`, error);
-            }
+        if (isComponentInteraction(interaction)) {
+            await routeComponent(interaction, ctx);
             return;
         }
         if (interaction.isChatInputCommand()) await handleChatInput(interaction, ctx);
