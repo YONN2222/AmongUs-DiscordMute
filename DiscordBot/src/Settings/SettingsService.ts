@@ -1,6 +1,6 @@
 import type { GuildSettingsRepository } from "../Data/repositories/GuildSettingsRepository";
 import type { GuildEventSink } from "../Events/GuildEvents";
-import { GuildQueue } from "../Util/GuildQueue";
+import { GuildQueue } from "../Utils/GuildQueue";
 import { diffSettings, type GuildSettings, mergeSettings, type SettingsPatch } from "./GuildSettings";
 
 export class SettingsService {

@@ -4,7 +4,7 @@ import type { NicknameLedgerEntry, NicknameLedgerRepository } from "../Data/repo
 import type { GuildEvent, GuildEventBus } from "../Events/GuildEvents";
 import { logger, logModules } from "../Logging/logger";
 import type { SettingsService } from "../Settings/SettingsService";
-import { GuildQueue } from "../Util/GuildQueue";
+import { GuildQueue } from "../Utils/GuildQueue";
 
 const MAX_NICKNAME_LENGTH = 32;
 const DISCORD_MISSING_PERMISSIONS = 50013;

@@ -5,7 +5,7 @@ import { logger, logModules } from "../Logging/logger";
 import type { ClusterRequest, RouterReply } from "../Routing/messages";
 import type { VoiceAction } from "../Settings/GuildSettings";
 import type { SettingsService } from "../Settings/SettingsService";
-import { GuildQueue } from "../Util/GuildQueue";
+import { GuildQueue } from "../Utils/GuildQueue";
 import { computeDesiredState, type DesiredState } from "./desiredState";
 import type { VoiceTarget } from "./VoiceTarget";
 import { delayFor, effectiveRules, type Phase, phaseOf } from "./voiceRules";
