@@ -68,6 +68,8 @@ describe.each(backends)("leaving a guild during a game (%s)", (backend) => {
         let ownerId: string;
         let operatorId: string;
         let atLeave: LeaveSnapshot | null;
+        /** Runs between ending the games and the leave itself, where Discord takes its time. */
+        let duringLeave: () => Promise<void>;
 
         const info = (): GuildInfo => ({ guildId, name: "Crew", icon: null, ownerId, memberCount: 5 });
 
@@ -75,6 +77,7 @@ describe.each(backends)("leaving a guild during a game (%s)", (backend) => {
         function discordPort(): GuildPort {
             return {
                 leave: async (id) => {
+                    await duringLeave();
                     atLeave = { muted: [...discord.muted].sort(), nicks: Object.fromEntries(discord.nicks) };
                     await lifecycle.onGuildDelete(id);
                     return true;
@@ -86,11 +89,11 @@ describe.each(backends)("leaving a guild during a game (%s)", (backend) => {
             };
         }
 
-        function gameEvent(event: "game-start" | "meeting-end") {
+        function gameEvent(event: "game-start" | "meeting-end", sessionId = SESSION) {
             return {
                 kind: "game-event" as const,
                 guildId,
-                sessionId: SESSION,
+                sessionId,
                 hostAccountName: "Red",
                 event,
                 players: ["Red", "Blue"],
@@ -118,6 +121,7 @@ describe.each(backends)("leaving a guild during a game (%s)", (backend) => {
             ownerId = uniqueId("owner");
             operatorId = uniqueId("operator");
             atLeave = null;
+            duringLeave = async () => {};
             discord = new FakeDiscord();
             await db.links.upsert(guildId, "u-host", "Red");
             await db.links.upsert(guildId, "u-crew", "Blue");
@@ -146,10 +150,17 @@ describe.each(backends)("leaving a guild during a game (%s)", (backend) => {
                 hostedGuilds: db.hostedGuilds,
                 blocks,
                 audit: db.audit,
-                endGames: async (id) => {
-                    await mute.endGuild(id);
-                    await nicknames.endGuild(id);
+                games: {
+                    end: async (id) => {
+                        await mute.endGuild(id);
+                        await nicknames.endGuild(id);
+                    },
+                    reopen: (id) => {
+                        mute.reopenGuild(id);
+                        nicknames.reopenGuild(id);
+                    },
                 },
+                disconnectBlocked: async () => {},
             });
             router = new InMemoryClusterRouter();
             router.register(
@@ -204,6 +215,18 @@ describe.each(backends)("leaving a guild during a game (%s)", (backend) => {
         it("an auto leave for a blocked owner unmutes everyone and restores nicknames first", async () => {
             await startGame();
             await db.blocks.create({ type: "user", targetId: ownerId, reason: "spam", blockedBy: operatorId });
+
+            await lifecycle.onGuildUpdate(info());
+
+            expectNobodyMutedOrRenamed();
+        });
+
+        it("a game start that arrives while the bot leaves after an auto leave is dropped", async () => {
+            await startGame();
+            await db.blocks.create({ type: "user", targetId: ownerId, reason: "spam", blockedBy: operatorId });
+            duringLeave = async () => {
+                await router.send(guildId, gameEvent("game-start", "session-2"));
+            };
 
             await lifecycle.onGuildUpdate(info());
 

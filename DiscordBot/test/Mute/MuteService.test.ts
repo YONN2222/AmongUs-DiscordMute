@@ -871,6 +871,36 @@ describe("MuteService", () => {
             expect(await ledgerIds()).toEqual([]);
         });
 
+        it("endGuild drops a game start that arrives while the guild is left, until reopenGuild", async () => {
+            const service = createParallelService();
+            await service.endGuild(GUILD);
+
+            await service.handleGameEvent(eventOf("A", "game-start", ["Red", "Blue"]));
+            expect(voice.muted.size).toBe(0);
+            expect(await ledgerIds()).toEqual([]);
+
+            service.reopenGuild(GUILD);
+            await service.handleGameEvent(eventOf("B", "game-start", ["Green", "Yellow"]));
+            expect([...voice.muted].sort()).toEqual(["u3", "u4"]);
+        });
+
+        it("endGuild cancels the delayed game start of a game that is still in the lobby", async () => {
+            settings = { ...DEFAULT_SETTINGS, delaysMs: { gameStart: 3000, meetingStart: 0, meetingEnd: 0, lobby: 0 } };
+            const wake: Array<() => void> = [];
+            sleep = () => new Promise<void>((resolve) => wake.push(resolve));
+            const service = createParallelService();
+            await service.handleGameEvent(eventOf("A", "game-start", ["Red", "Blue"]));
+            await vi.waitFor(() => expect(wake).toHaveLength(1));
+
+            await service.endGuild(GUILD);
+            service.reopenGuild(GUILD);
+            wake[0]();
+
+            await new Promise((resolve) => setTimeout(resolve, 20));
+            expect(voice.muted.size).toBe(0);
+            expect(await ledgerIds()).toEqual([]);
+        });
+
         it("recover still releases every row", async () => {
             await startBoth(createParallelService());
 

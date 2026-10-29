@@ -2,7 +2,7 @@ import type { Database } from "../Data/Database";
 import type { BlockOutcome } from "../Data/Repositories/BlockRepository";
 import type { HostedGuildRow } from "../Data/Repositories/HostedGuildRepository";
 import type { PluginGateway } from "../Gateway/PluginGateway";
-import { CLOSE_BLOCKED, CLOSE_BOT_LEFT } from "../Protocol/PluginProtocol";
+import { LEAVE_DISCONNECTS } from "../Hosted/LeaveDisconnects";
 import type { ClusterRouter } from "../Routing/ClusterRouter";
 import type { GuildLeaveReason, RouterReply } from "../Routing/Messages";
 import type {
@@ -26,13 +26,6 @@ import type {
 const DAY_MS = 24 * 3600 * 1000;
 const GUILD_ICON_SIZE = 128;
 const USER_BLOCK_LEAVE_BUDGET_MS = 30_000;
-
-/** Close code and reason the plugin receives; the close frame allows 123 bytes for the reason. */
-const DISCONNECTS: Record<GuildLeaveReason, { code: number; reason: string }> = {
-    "guild-blocked": { code: CLOSE_BLOCKED, reason: "Server blocked" },
-    "owner-blocked": { code: CLOSE_BLOCKED, reason: "Server owner blocked" },
-    admin: { code: CLOSE_BOT_LEFT, reason: "The bot left this server" },
-};
 
 export interface Page<T> {
     rows: T[];
@@ -103,7 +96,7 @@ export function createAdminHandlers(deps: AdminHandlerDeps): AdminHandlers {
 
     /** Tells the plugin why it is disconnected, then lets the owning cluster end the games and leave. */
     async function leaveThroughCluster(guildId: string, reason: GuildLeaveReason): Promise<RouterReply> {
-        const disconnect = DISCONNECTS[reason];
+        const disconnect = LEAVE_DISCONNECTS[reason];
         plugins.disconnectGuild(guildId, disconnect.code, disconnect.reason);
         return deps.router.send(guildId, { kind: "leave-guild", guildId, reason });
     }

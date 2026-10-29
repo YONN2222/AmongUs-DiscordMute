@@ -59,10 +59,13 @@ export class NicknameSync {
     private readonly reportedGames = new Set<string>();
     /** The sessions per guild that renamed members in their running game. */
     private readonly activeSessions = new ActiveSessions();
+    /** Guilds the bot is leaving; nobody is renamed there until the leave returned. */
+    private readonly leavingGuilds = new Set<string>();
 
     constructor(private readonly deps: NicknameSyncDeps) {}
 
     handle(event: GuildEvent): Promise<void> {
+        if (this.leavingGuilds.has(event.guildId)) return Promise.resolve();
         // session-ended is restored by the cluster request handler, which awaits it before the cluster can stop.
         if (event.type === "game-event" && event.event === "lobby") {
             return this.restoreSession(event.guildId, event.sessionId);
@@ -90,14 +93,25 @@ export class NicknameSync {
     /** Runs once on cluster ready so nicknames left behind by a crash are put back. */
     async recover(guildIds: string[]): Promise<void> {
         const guilds = new Set((await this.deps.ledger.listByGuilds(guildIds)).map((entry) => entry.guildId));
-        await Promise.all([...guilds].map((guildId) => this.endGuild(guildId)));
+        await Promise.all([...guilds].map((guildId) => this.restoreGuild(guildId)));
     }
 
     /**
-     * Forgets every game running in the guild and puts back every nickname on record there; runs on recover and
-     * before the bot leaves the guild, because its ledger is purged afterwards.
+     * Puts back every nickname of the guild before the bot leaves it, because its ledger is purged afterwards.
+     * Game events of the guild are ignored until reopenGuild.
      */
     endGuild(guildId: string): Promise<void> {
+        this.leavingGuilds.add(guildId);
+        return this.restoreGuild(guildId);
+    }
+
+    /** Called once the leave returned; if the bot is still in the guild, new games rename again. */
+    reopenGuild(guildId: string): void {
+        this.leavingGuilds.delete(guildId);
+    }
+
+    /** Forgets every game running in the guild and puts back every nickname on record there. */
+    private restoreGuild(guildId: string): Promise<void> {
         return this.queue.run(guildId, async () => {
             for (const sessionId of this.activeSessions.of(guildId)) {
                 this.reportedGames.delete(sessionId);

@@ -79,6 +79,7 @@ class DelayedEvent {
 }
 
 interface PendingDelay {
+    guildId: string;
     cancelled: boolean;
 }
 
@@ -93,6 +94,8 @@ export class MuteService {
     private readonly activeSessions = new ActiveSessions();
     /** A late game event of an ended session must not start it again, or its mutes would stay until restart. */
     private readonly endedSessions = new EndedSessions();
+    /** Guilds the bot is leaving; their games are over, so every event of them is dropped until the leave returned. */
+    private readonly leavingGuilds = new Set<string>();
     /** Counts the events of a session in arrival order; a delayed event that was overtaken is dropped. */
     private readonly sequence = new Map<string, number>();
     private readonly pendingDelays = new Map<string, Set<PendingDelay>>();
@@ -108,7 +111,7 @@ export class MuteService {
 
     async handleGameEvent(req: GameEventRequest): Promise<GameEventReply> {
         const { guildId, sessionId } = req;
-        if (this.hasEnded(sessionId)) return { ok: true };
+        if (this.isDropped(guildId, sessionId)) return { ok: true };
         // A death does not change the phase, so it must not supersede a delayed phase change.
         const isDeath = req.event === "player-died";
         const seq = isDeath ? (this.sequence.get(sessionId) ?? 0) : this.nextSequence(sessionId);
@@ -131,11 +134,11 @@ export class MuteService {
 
     /** Resolves the target up front so the host still gets the notice or the channels in the reply. */
     private async acceptDelayed(req: GameEventRequest, delayMs: number): Promise<GameEventReply | DelayedEvent> {
-        if (req.event === "lobby") return new DelayedEvent(delayMs, this.registerDelay(req.sessionId));
+        if (req.event === "lobby") return new DelayedEvent(delayMs, this.registerDelay(req));
         try {
             const target = await this.deps.resolveTarget(req.guildId, req.hostAccountName);
             if ("notice" in target) return { ok: true, notice: target.notice };
-            return new DelayedEvent(delayMs, this.registerDelay(req.sessionId), target.channelIds);
+            return new DelayedEvent(delayMs, this.registerDelay(req), target.channelIds);
         } catch (err) {
             logger.error(logModules.Mute, `Game event ${req.event} failed in guild ${req.guildId}`, err);
             return { ok: false, error: "mute update failed" };
@@ -143,8 +146,8 @@ export class MuteService {
     }
 
     /** Registered inside the queue, so an endSession queued behind the event always sees it. */
-    private registerDelay(sessionId: string): PendingDelay {
-        const pending: PendingDelay = { cancelled: false };
+    private registerDelay({ guildId, sessionId }: GameEventRequest): PendingDelay {
+        const pending: PendingDelay = { guildId, cancelled: false };
         const set = this.pendingDelays.get(sessionId) ?? new Set<PendingDelay>();
         set.add(pending);
         this.pendingDelays.set(sessionId, set);
@@ -177,6 +180,10 @@ export class MuteService {
             });
     }
 
+    private isDropped(guildId: string, sessionId: string): boolean {
+        return this.hasEnded(sessionId) || this.leavingGuilds.has(guildId);
+    }
+
     /** True once endSession was called for the session, before its release even ran. */
     hasEnded(sessionId: string): boolean {
         return this.endedSessions.has(sessionId);
@@ -196,20 +203,26 @@ export class MuteService {
     }
 
     /**
-     * Ends every game running in the guild and lifts every mute on record there; runs before the bot leaves the
-     * guild, because its ledger is purged afterwards. Rejects when the ledger cannot be read, so the bot stays.
+     * Ends every game in the guild and lifts every mute on record there; runs before the bot leaves the guild,
+     * because its ledger is purged afterwards. Every later event of the guild, including one still waiting out its
+     * delay, is dropped until reopenGuild. Rejects when the ledger cannot be read, so the bot stays.
      */
     endGuild(guildId: string): Promise<void> {
-        // Marked right away like in endSession, and again in the queue for a game that started in the meantime.
-        for (const sessionId of this.activeSessions.of(guildId)) this.endedSessions.add(sessionId);
+        this.leavingGuilds.add(guildId);
         return this.enqueue(guildId, async () => {
             for (const sessionId of this.activeSessions.of(guildId)) {
                 this.endedSessions.add(sessionId);
                 this.forgetSession(sessionId);
                 this.activeSessions.delete(guildId, sessionId);
             }
+            this.cancelDelaysOf(guildId);
             await this.releaseGuild(guildId);
         });
+    }
+
+    /** Called once the leave returned; if the bot is still in the guild, new games work again. */
+    reopenGuild(guildId: string): void {
+        this.leavingGuilds.delete(guildId);
     }
 
     /** Runs once on cluster ready so mutes left behind by a crash are lifted. */
@@ -268,6 +281,13 @@ export class MuteService {
         for (const pending of this.pendingDelays.get(sessionId) ?? []) pending.cancelled = true;
     }
 
+    /** Also cancels the delays of games that are still in the lobby and therefore not active yet. */
+    private cancelDelaysOf(guildId: string): void {
+        for (const delays of this.pendingDelays.values()) {
+            for (const pending of delays) if (pending.guildId === guildId) pending.cancelled = true;
+        }
+    }
+
     private nextSequence(sessionId: string): number {
         const next = (this.sequence.get(sessionId) ?? 0) + 1;
         this.sequence.set(sessionId, next);
@@ -293,7 +313,7 @@ export class MuteService {
 
     private async applyGameEvent(req: GameEventRequest): Promise<GameEventReply> {
         const { guildId, sessionId } = req;
-        if (this.hasEnded(sessionId)) return { ok: true };
+        if (this.isDropped(guildId, sessionId)) return { ok: true };
         if (req.event === "lobby") {
             this.phases.delete(sessionId);
             await this.releaseSession(guildId, sessionId);

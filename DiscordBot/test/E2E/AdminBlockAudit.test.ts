@@ -68,7 +68,8 @@ describe.each(backends)("admin API block through the cluster (%s)", (backend) =>
                 hostedGuilds: db.hostedGuilds,
                 blocks,
                 audit: db.audit,
-                endGames: async () => {},
+                games: { end: async () => {}, reopen: () => {} },
+                disconnectBlocked: async () => {},
             });
             const router = new InMemoryClusterRouter();
             router.register(

@@ -3,7 +3,8 @@ import type { Cluster } from "galactic.ts";
 import type { HostedCommandContext } from "../Commands/Command";
 import type { Database } from "../Data/Database";
 import { BlockChecker } from "../Hosted/BlockChecker";
-import { GuildLifecycle } from "../Hosted/GuildLifecycle";
+import { type BlockLeaveReason, type GuildGames, GuildLifecycle } from "../Hosted/GuildLifecycle";
+import { LEAVE_DISCONNECTS } from "../Hosted/LeaveDisconnects";
 import { logger, logModules } from "../Logging/Logger";
 import type { GatewayLink } from "../Routing/ClusterRouter";
 import { DiscordGuildPort, toGuildInfo } from "./DiscordGuildPort";
@@ -20,9 +21,14 @@ export function createHostedCluster(deps: {
     client: Client;
     cluster: Pick<Cluster<Client>, "shardList" | "totalShards">;
     gateway: GatewayLink;
-    endGames: (guildId: string) => Promise<void>;
+    games: GuildGames;
 }): HostedCluster {
     const { db, gateway } = deps;
+    const disconnectBlocked = async (guildId: string, reason: BlockLeaveReason) => {
+        const { code, reason: closeReason } = LEAVE_DISCONNECTS[reason];
+        const reply = await gateway.send({ kind: "disconnect-guild", guildId, code, reason: closeReason });
+        if (!reply.ok) logger.warn(logModules.Bot, `Guild ${guildId}: could not disconnect its plugins before leaving`);
+    };
     const blocks = new BlockChecker({ blocks: db.blocks, hostedGuilds: db.hostedGuilds });
     return {
         blocks,
@@ -38,7 +44,8 @@ export function createHostedCluster(deps: {
             hostedGuilds: db.hostedGuilds,
             blocks,
             audit: db.audit,
-            endGames: deps.endGames,
+            games: deps.games,
+            disconnectBlocked,
         }),
     };
 }

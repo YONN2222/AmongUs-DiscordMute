@@ -28,13 +28,23 @@ export interface GuildPort {
     fetchMemberGuildIds(): Promise<Set<string>>;
 }
 
+export type BlockLeaveReason = Exclude<GuildLeaveReason, "admin">;
+
+/** The games of a guild, ended before the bot leaves it so nobody stays muted or renamed once its data is purged. */
+export interface GuildGames {
+    /** Ends every game and ignores new game events of the guild until reopen. */
+    end(guildId: string): Promise<void>;
+    reopen(guildId: string): void;
+}
+
 export interface GuildLifecycleDeps {
     port: GuildPort;
     hostedGuilds: HostedGuildRepository;
     blocks: Pick<BlockChecker, "isUserBlocked" | "isGuildBlocked">;
     audit: Pick<AuditLogRepository, "record">;
-    /** Ends the games running in the guild, so nobody stays muted or renamed once its data is purged. */
-    endGames: (guildId: string) => Promise<void>;
+    games: GuildGames;
+    /** Tells the plugins of a guild it is blocked before an automatic leave; the admin API does this itself. */
+    disconnectBlocked: (guildId: string, reason: BlockLeaveReason) => Promise<void>;
     now?: () => number;
 }
 
@@ -72,11 +82,16 @@ export class GuildLifecycle {
 
     /**
      * Ends the games of the guild, then leaves it; the data is purged when Discord reports the removal. The bot stays
-     * when the games could not be ended. The caller audits a requested leave.
+     * when the games could not be ended. The games reopen once the leave returned, in case the bot is still there.
+     * The caller audits a requested leave.
      */
     async leave(guildId: string): Promise<boolean> {
-        await this.deps.endGames(guildId);
-        return this.deps.port.leave(guildId);
+        try {
+            await this.deps.games.end(guildId);
+            return await this.deps.port.leave(guildId);
+        } finally {
+            this.deps.games.reopen(guildId);
+        }
     }
 
     private async purgeRemovedGuilds(): Promise<void> {
@@ -99,7 +114,9 @@ export class GuildLifecycle {
         const now = this.now();
         await this.deps.hostedGuilds.upsert({ ...info, joinedAt: now }, now);
         const reason = await this.blockReason(info);
-        if (reason && (await this.leave(info.guildId))) await this.auditAutoLeave(info.guildId, reason);
+        if (!reason) return;
+        await this.deps.disconnectBlocked(info.guildId, reason);
+        if (await this.leave(info.guildId)) await this.auditAutoLeave(info.guildId, reason);
     }
 
     private auditAutoLeave(guildId: string, reason: GuildLeaveReason): Promise<unknown> {
@@ -112,7 +129,7 @@ export class GuildLifecycle {
         });
     }
 
-    private async blockReason(info: GuildInfo): Promise<GuildLeaveReason | null> {
+    private async blockReason(info: GuildInfo): Promise<BlockLeaveReason | null> {
         const { blocks } = this.deps;
         if (await blocks.isUserBlocked(info.ownerId)) return "owner-blocked";
         return (await blocks.isGuildBlocked(info.guildId)) ? "guild-blocked" : null;

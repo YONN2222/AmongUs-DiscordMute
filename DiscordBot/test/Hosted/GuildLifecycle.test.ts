@@ -81,9 +81,17 @@ describe.each(backends)("GuildLifecycle (%s)", (backend) => {
                 hostedGuilds: db.hostedGuilds,
                 blocks: new BlockChecker({ blocks: db.blocks, hostedGuilds: db.hostedGuilds }),
                 audit: db.audit,
-                endGames: async (id) => {
-                    if (endGamesFailure) throw endGamesFailure;
-                    steps.push(`end games ${id}`);
+                games: {
+                    end: async (id) => {
+                        if (endGamesFailure) throw endGamesFailure;
+                        steps.push(`end games ${id}`);
+                    },
+                    reopen: (id) => {
+                        steps.push(`reopen ${id}`);
+                    },
+                },
+                disconnectBlocked: async (id, reason) => {
+                    steps.push(`disconnect ${id} ${reason}`);
                 },
                 now: () => NOW,
             });
@@ -153,7 +161,12 @@ describe.each(backends)("GuildLifecycle (%s)", (backend) => {
 
             await lifecycle.onGuildUpdate(info());
 
-            expect(steps).toEqual([`end games ${guildId}`, `leave ${guildId}`]);
+            expect(steps).toEqual([
+                `disconnect ${guildId} owner-blocked`,
+                `end games ${guildId}`,
+                `leave ${guildId}`,
+                `reopen ${guildId}`,
+            ]);
         });
 
         it("an update refreshes the stored name and member count", async () => {
@@ -290,10 +303,16 @@ describe.each(backends)("GuildLifecycle (%s)", (backend) => {
                 expect(await auditRows()).toEqual([]);
             });
 
-            it("ends the games of the guild first", async () => {
+            it("ends the games of the guild first and reopens it once the leave returned", async () => {
                 await lifecycle.leave(guildId);
 
-                expect(steps).toEqual([`end games ${guildId}`, `leave ${guildId}`]);
+                expect(steps).toEqual([`end games ${guildId}`, `leave ${guildId}`, `reopen ${guildId}`]);
+            });
+
+            it("does not disconnect the plugins itself, the admin path already did", async () => {
+                await lifecycle.leave(guildId);
+
+                expect(steps.some((step) => step.startsWith("disconnect"))).toBe(false);
             });
 
             it("stays in the guild when its games could not be ended", async () => {
@@ -302,6 +321,7 @@ describe.each(backends)("GuildLifecycle (%s)", (backend) => {
                 await expect(lifecycle.leave(guildId)).rejects.toThrow("database down");
 
                 expect(port.left).toEqual([]);
+                expect(steps).toEqual([`reopen ${guildId}`]);
             });
         });
     });
