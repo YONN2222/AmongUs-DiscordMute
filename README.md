@@ -29,16 +29,19 @@ I built DiscordMute because my friend group kept talking during live rounds and 
 4. Host a lobby (online or LAN), join a Discord voice channel and run `/link self`.
 5. Send the phrase the bot gives you in Among Us Free Chat. You are linked.
 
-The full walkthrough, including the itch.io note and path escaping, is in [docs/setup-self-host.md](docs/setup-self-host.md).
+The full walkthrough, including the itch.io note and path escaping, is in [docs/content/1.getting-started/2.self-host-setup.md](docs/content/1.getting-started/2.self-host-setup.md).
 
 ### Documentation
 
-- [Self-host setup](docs/setup-self-host.md)
-- [Hosted setup](docs/setup-hosted.md)
-- [Configuration](docs/configuration.md)
-- [Commands](docs/commands.md)
-- [Monitoring](docs/monitoring.md)
-- [FAQ](docs/faq.md)
+The documentation is a Docus site in `docs/`. To read it as a website, run `cd docs && bun install && bun run dev`.
+
+- [Self-host setup](docs/content/1.getting-started/2.self-host-setup.md)
+- [Hosted setup](docs/content/1.getting-started/3.hosted-setup.md)
+- [Bot configuration](docs/content/2.configuration/1.bot-config.md) and [plugin configuration](docs/content/2.configuration/2.plugin-config.md)
+- [Commands](docs/content/3.commands/1.slash-commands.md)
+- [Metrics](docs/content/4.monitoring/1.metrics.md) and [JSON logs](docs/content/4.monitoring/2.json-logs.md)
+- [Telemetry](docs/content/5.privacy/1.telemetry.md) and [update check](docs/content/5.privacy/2.update-check.md)
+- [FAQ](docs/content/6.faq/1.faq.md)
 
 ## 3. Linking Discord users to Among Us players
 
@@ -129,7 +132,7 @@ To turn it off, add this to the bot `config.json`:
 "disableTelemetry": true
 ```
 
-The key is not in `config.example.json` on purpose. See [docs/configuration.md](docs/configuration.md).
+The key is not in `config.example.json` on purpose. See [docs/content/2.configuration/1.bot-config.md](docs/content/2.configuration/1.bot-config.md).
 
 ## 8. Update check
 
