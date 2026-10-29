@@ -25,6 +25,26 @@ function failure(error: unknown): RouterReply {
     };
 }
 
+/** Resolves to a "timeout" failure when no reply comes within `timeoutMs`; never rejects. */
+export async function sendWithTimeout(
+    router: ClusterRouter,
+    guildId: string,
+    req: ClusterRequest,
+    timeoutMs: number,
+): Promise<RouterReply> {
+    let timer: NodeJS.Timeout | undefined;
+    const timeout = new Promise<RouterReply>((resolve) => {
+        timer = setTimeout(() => resolve({ ok: false, error: "timeout" }), timeoutMs);
+    });
+    try {
+        return await Promise.race([router.send(guildId, req), timeout]);
+    } catch (error) {
+        return failure(error);
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
 export class GalacticClusterRouter implements ClusterRouter {
     constructor(private readonly instance: GalacticInstanceLike) {}
 
