@@ -4,9 +4,9 @@ export const Config = z
     .object({
         token: z.string().min(1),
         clientId: z.string().min(1),
-        guildId: z.string().min(1),
+        guildId: z.string().min(1).optional(),
         channelIds: z.array(z.string().min(1)).default([]),
-        secret: z.string().min(1),
+        secret: z.string().min(1).optional(),
         botIp: z.string().default("0.0.0.0"),
         botPort: z.number().int().positive().default(7264),
         databaseDialect: z.enum(["sqlite", "postgres"]).default("sqlite"),
@@ -29,6 +29,17 @@ export const Config = z
                 token: z.string().min(16).optional(),
             })
             .default({ enabled: false, host: "127.0.0.1", port: 9464 }),
+        mode: z.enum(["self-host", "hosted"]).default("self-host"),
+        adminApi: z
+            .object({
+                host: z.string().default("127.0.0.1"),
+                port: z.number().int().min(1).max(65535).default(9465),
+            })
+            .default({ host: "127.0.0.1", port: 9465 }),
+    })
+    .refine((c) => c.mode !== "self-host" || (c.guildId !== undefined && c.secret !== undefined), {
+        message: 'guildId and secret are required when mode is "self-host"',
+        path: ["guildId"],
     })
     .refine((c) => c.databaseDialect !== "postgres" || c.databaseUrl !== undefined, {
         message: 'databaseUrl is required when databaseDialect is "postgres"',

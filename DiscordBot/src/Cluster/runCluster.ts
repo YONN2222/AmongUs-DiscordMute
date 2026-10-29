@@ -66,9 +66,10 @@ async function onReady(
 ): Promise<void> {
     logger.success(logModules.Discord, `Cluster ${cluster.clusterID} logged in as ${client.user.tag}`);
     // Only the cluster that owns the configured guild deploys, so several clusters never race on it.
-    if (cluster.shardList.includes(ShardingUtil.getShardIDForGuild(DISCORD_GUILD_ID, cluster.totalShards))) {
+    const guildId = DISCORD_GUILD_ID;
+    if (guildId && cluster.shardList.includes(ShardingUtil.getShardIDForGuild(guildId, cluster.totalShards))) {
         try {
-            await deployCommands({ guildId: DISCORD_GUILD_ID, rest: client.rest });
+            await deployCommands({ guildId, rest: client.rest });
         } catch (error) {
             logger.error(logModules.Command, "Failed to deploy commands during startup", error);
         }

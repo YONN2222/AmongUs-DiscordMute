@@ -88,4 +88,33 @@ describe("parseConfig", () => {
         expect(Config.safeParse({ ...base, logFormat: "xml" }).success).toBe(false);
         expect(parseConfig({ ...base, logFormat: "json" }).logFormat).toBe("json");
     });
+
+    it("example config is self-host and has no hosted keys", () => {
+        const text = readFileSync(resolve(__dirname, "../../config.example.json"), "utf-8");
+        const config = parseConfig(JSON.parse(text));
+        expect(config.mode).toBe("self-host");
+        expect(text).not.toContain('"mode"');
+        expect(text).not.toContain('"adminApi"');
+    });
+
+    it("hosted config needs no guildId or secret", () => {
+        const config = parseConfig({ token: "t", clientId: "c", mode: "hosted" });
+        expect(config.mode).toBe("hosted");
+        expect(config.guildId).toBeUndefined();
+        expect(config.secret).toBeUndefined();
+    });
+
+    it("self-host config without secret is rejected", () => {
+        const result = Config.safeParse({ token: "t", clientId: "c", guildId: "g" });
+        expect(result.success).toBe(false);
+        const issue = result.error?.issues[0];
+        expect(issue?.message).toBe('guildId and secret are required when mode is "self-host"');
+        expect(issue?.path).toEqual(["guildId"]);
+    });
+
+    it("partial adminApi keeps defaults", () => {
+        expect(parseConfig({ ...base, adminApi: {} }).adminApi).toEqual({ host: "127.0.0.1", port: 9465 });
+        expect(parseConfig({ ...base, adminApi: { port: 9000 } }).adminApi).toEqual({ host: "127.0.0.1", port: 9000 });
+        expect(parseConfig(base).adminApi).toEqual({ host: "127.0.0.1", port: 9465 });
+    });
 });

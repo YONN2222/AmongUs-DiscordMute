@@ -1,5 +1,4 @@
 import { createHash, timingSafeEqual } from "node:crypto";
-import type { Config } from "../Infrastructure/ConfigSchema";
 
 export interface ResolvedSecret {
     guildId: string;
@@ -16,7 +15,7 @@ function digest(value: string): Buffer {
 export class SelfHostSecretResolver implements SecretResolver {
     private readonly expected: Buffer;
 
-    constructor(private readonly config: Pick<Config, "secret" | "guildId">) {
+    constructor(private readonly config: { secret: string; guildId: string }) {
         this.expected = digest(config.secret);
     }
 

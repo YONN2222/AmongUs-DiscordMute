@@ -107,6 +107,13 @@ async function createTelemetryService(
     return new TelemetryService({ target, fetch, collect: () => collector.snapshots(), builder });
 }
 
+function selfHostResolver(cfg: Pick<typeof config, "guildId" | "secret">): SelfHostSecretResolver {
+    if (cfg.guildId === undefined || cfg.secret === undefined) {
+        throw new Error('guildId and secret are required when mode is "self-host"');
+    }
+    return new SelfHostSecretResolver({ guildId: cfg.guildId, secret: cfg.secret });
+}
+
 /** The gateway owns the plugin connections and the database migrations; Discord itself runs in the clusters. */
 export async function runGateway(): Promise<void> {
     configureLogger({ format: config.logFormat, processName: "gateway" });
@@ -121,7 +128,7 @@ export async function runGateway(): Promise<void> {
         clusters: new GalacticSnapshotSource(instance, () => gatewayMetrics.clusterSnapshotFailures.inc()),
     });
     const pluginGateway = new PluginGateway({
-        resolver: new SelfHostSecretResolver(config),
+        resolver: selfHostResolver(config),
         router: new GalacticClusterRouter(instance),
         linking: new LinkingService(db),
         observer: createGatewayMetricsObserver(gatewayMetrics),
