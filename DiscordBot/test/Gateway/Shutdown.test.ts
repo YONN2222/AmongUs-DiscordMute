@@ -12,7 +12,7 @@ import {
 } from "../../src/Gateway/Shutdown";
 import type { LinkingService } from "../../src/Linking/LinkingService";
 import { logger } from "../../src/Logging/Logger";
-import { CLUSTER_EXIT_LOGIN_FAILED } from "../../src/Process/ProcessRole";
+import { EXIT_CONFIG } from "../../src/Process/ExitCodes";
 import { PROTOCOL_VERSION } from "../../src/Protocol/PluginProtocol";
 import { InMemoryClusterRouter } from "../../src/Routing/ClusterRouter";
 
@@ -135,10 +135,10 @@ describe("createClusterExitHandler", () => {
         return { calls, onExit };
     }
 
-    it("stops respawning, then shuts down ordered with exit code 1 after an invalid token", () => {
+    it("stops respawning, then shuts down ordered with exit code 78 after an invalid token", () => {
         const { calls, onExit } = setup();
-        onExit(0, CLUSTER_EXIT_LOGIN_FAILED);
-        expect(calls).toEqual(["stop respawning", "shutdown 1"]);
+        onExit(0, EXIT_CONFIG);
+        expect(calls).toEqual(["stop respawning", "shutdown 78"]);
     });
 
     it("leaves respawning to galactic for other exits", () => {

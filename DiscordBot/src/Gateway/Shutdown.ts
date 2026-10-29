@@ -1,5 +1,5 @@
 import { logger, logModules } from "../Logging/Logger";
-import { CLUSTER_EXIT_LOGIN_FAILED } from "../Process/ProcessRole";
+import { EXIT_CONFIG } from "../Process/ExitCodes";
 
 /** SIGHUP is what Windows sends when the console window is closed. */
 export const SHUTDOWN_SIGNALS = ["SIGINT", "SIGTERM", "SIGHUP"] as const;
@@ -44,13 +44,13 @@ export interface ClusterExitDeps {
 /** galactic restarts a cluster that exits; only a Discord refusal a restart cannot fix stops the whole bot. */
 export function createClusterExitHandler(deps: ClusterExitDeps): (clusterId: number, code: number | null) => void {
     return (clusterId, code) => {
-        if (code === CLUSTER_EXIT_LOGIN_FAILED) {
+        if (code === EXIT_CONFIG) {
             logger.error(
                 logModules.Bot,
                 `Cluster ${clusterId}: Discord refused the bot, see the error above. Shutting down.`,
             );
             deps.stopRespawning();
-            deps.shutdown(1);
+            deps.shutdown(EXIT_CONFIG);
             return;
         }
         if (code !== 0) logger.warn(logModules.Bot, `Cluster ${clusterId} exited with code ${code}, restarting it`);

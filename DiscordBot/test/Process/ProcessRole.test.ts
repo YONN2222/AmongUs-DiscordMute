@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { EXIT_CONFIG } from "../../src/Process/ExitCodes";
 import {
-    CLUSTER_EXIT_LOGIN_FAILED,
     clusterSpawnOptions,
     isClusterProcess,
     isCompiledExecutable,
@@ -53,7 +53,7 @@ describe("loginFailureExitCode", () => {
     it("stops the bot only when Discord rejected the token", () => {
         expect(
             loginFailureExitCode(Object.assign(new Error("An invalid token was provided."), { code: "TokenInvalid" })),
-        ).toBe(CLUSTER_EXIT_LOGIN_FAILED);
+        ).toBe(EXIT_CONFIG);
     });
 
     it("lets galactic respawn the cluster after any other failure", () => {

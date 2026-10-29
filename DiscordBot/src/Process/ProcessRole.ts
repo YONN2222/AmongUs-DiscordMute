@@ -1,16 +1,11 @@
 import { win32 } from "node:path";
 import type { SpawnOptions } from "galactic.ts";
-
-/**
- * A cluster exits with this code when Discord refuses the bot in a way a restart cannot fix (token, intents,
- * shards), so the gateway stops instead of respawning it.
- */
-export const CLUSTER_EXIT_LOGIN_FAILED = 78;
+import { EXIT_CONFIG } from "./ExitCodes";
 
 /** Only an invalid token is final; any other failure exits 1 so galactic starts the cluster again. */
 export function loginFailureExitCode(error: unknown): number {
     const code = typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
-    return code === "TokenInvalid" ? CLUSTER_EXIT_LOGIN_FAILED : 1;
+    return code === "TokenInvalid" ? EXIT_CONFIG : 1;
 }
 
 /** galactic starts every cluster process with these variables; the gateway process never has them. */

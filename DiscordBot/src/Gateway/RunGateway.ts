@@ -10,6 +10,7 @@ import { configureLogger, logger, logModules } from "../Logging/Logger";
 import { createGatewayMetrics, createGatewayMetricsObserver } from "../Metrics/GatewayMetrics";
 import { GalacticSnapshotSource, MetricsCollector } from "../Metrics/MetricsCollector";
 import { createMetricsServer } from "../Metrics/MetricsServer";
+import { EXIT_CONFIG } from "../Process/ExitCodes";
 import { clusterSpawnOptions, isCompiledExecutable } from "../Process/ProcessRole";
 import { GalacticClusterRouter } from "../Routing/ClusterRouter";
 import { readInstanceId } from "../Telemetry/ReadInstanceId";
@@ -29,8 +30,6 @@ import { createClusterExitHandler, onShutdownSignal, shutdownGateway } from "./S
  * clusters and the database still need time after that, so the forced exit comes well later.
  */
 const SHUTDOWN_TIMEOUT_MS = 45_000;
-/** sysexits EX_CONFIG: the configuration cannot work, so a restart would fail the same way. */
-const EXIT_CONFIG_INVALID = 78;
 
 /** The parts of the galactic instance the gateway uses, so a test can start the gateway without clusters. */
 export type GatewayInstance = Pick<
@@ -159,7 +158,7 @@ export async function runGateway(
         adminToken = isHosted(config) ? readHostedAdminTokenOrThrow(config, deps.env) : undefined;
     } catch (error) {
         logger.error(logModules.Bot, error instanceof Error ? error.message : String(error));
-        deps.exit(EXIT_CONFIG_INVALID);
+        deps.exit(EXIT_CONFIG);
         return undefined;
     }
 
