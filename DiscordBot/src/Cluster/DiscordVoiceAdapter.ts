@@ -1,8 +1,13 @@
 import type { Client, Guild, VoiceState } from "discord.js";
-import type { VoiceAdapter, VoiceMember } from "../Mute/MuteService";
+import type { VoiceAdapter, VoiceMember, VoiceStatePatch } from "../Mute/MuteService";
 
 function toVoiceMember(state: VoiceState): VoiceMember {
-    return { discordId: state.id, serverMuted: state.serverMute === true };
+    return {
+        discordId: state.id,
+        serverMuted: state.serverMute === true,
+        serverDeafened: state.serverDeaf === true,
+        isBot: state.member?.user.bot === true,
+    };
 }
 
 /** Reads voice channels from the gateway-fed voice state cache, so listing members needs no REST call. */
@@ -20,8 +25,8 @@ export class DiscordVoiceAdapter implements VoiceAdapter {
         return state ? toVoiceMember(state) : null;
     }
 
-    async setServerMute(guildId: string, discordId: string, mute: boolean): Promise<void> {
-        await this.guild(guildId).members.edit(discordId, { mute });
+    async setVoiceState(guildId: string, discordId: string, patch: VoiceStatePatch): Promise<void> {
+        await this.guild(guildId).members.edit(discordId, patch);
     }
 
     async voiceChannelOf(guildId: string, discordId: string): Promise<string | null> {

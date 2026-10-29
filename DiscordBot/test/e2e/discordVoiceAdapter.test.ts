@@ -7,6 +7,7 @@ import { registerVoiceRejoin } from "../../src/Cluster/voiceRejoin";
 import type { Database } from "../../src/Data/database";
 import { logger } from "../../src/Logging/logger";
 import { MuteService } from "../../src/Mute/MuteService";
+import { DEFAULT_SETTINGS } from "../../src/Settings/GuildSettings";
 import { createTestProbe } from "../helpers/probe";
 import { createTestDatabase } from "../helpers/testDatabase";
 
@@ -99,6 +100,7 @@ describe("DiscordVoiceAdapter", () => {
             links: db.links,
             ledger: db.muteLedger,
             resolveTarget: async () => ({ channelIds: [VOICE] }),
+            settings: { get: async () => DEFAULT_SETTINGS },
         });
         registerVoiceRejoin(client, mute);
         probe.respond("PATCH", MEMBER_ROUTE, ({ match }) => member(match[2]));
@@ -114,13 +116,18 @@ describe("DiscordVoiceAdapter", () => {
 
     it("lists the members of a voice channel with their server mute", async () => {
         expect(await adapter.membersInChannel(GUILD, VOICE)).toEqual([
-            { discordId: HOST, serverMuted: false },
-            { discordId: CREW, serverMuted: true },
+            { discordId: HOST, serverMuted: false, serverDeafened: false, isBot: false },
+            { discordId: CREW, serverMuted: true, serverDeafened: false, isBot: false },
         ]);
     });
 
     it("finds members in any voice channel and nobody outside voice", async () => {
-        expect(await adapter.findVoiceMember(GUILD, OUTSIDE)).toEqual({ discordId: OUTSIDE, serverMuted: false });
+        expect(await adapter.findVoiceMember(GUILD, OUTSIDE)).toEqual({
+            discordId: OUTSIDE,
+            serverMuted: false,
+            serverDeafened: false,
+            isBot: false,
+        });
         expect(await adapter.findVoiceMember(GUILD, "1300000000000000099")).toBeNull();
         expect(await adapter.voiceChannelOf(GUILD, HOST)).toBe(VOICE);
     });
@@ -131,6 +138,31 @@ describe("DiscordVoiceAdapter", () => {
         expect(memberPatches()).toHaveLength(1);
         expect(memberPatches()[0].url).toContain(`/guilds/${GUILD}/members/${HOST}`);
         expect(memberPatches()[0].body).toEqual({ mute: true });
+    });
+
+    it("sets mute and deafen with a single PATCH", async () => {
+        await adapter.setVoiceState(GUILD, HOST, { mute: true, deaf: true });
+
+        expect(memberPatches()).toHaveLength(1);
+        expect(memberPatches()[0].url).toContain(`/guilds/${GUILD}/members/${HOST}`);
+        expect(memberPatches()[0].body).toEqual({ mute: true, deaf: true });
+    });
+
+    it("reads the deafen state and whether a member is a bot", async () => {
+        probe.injectDispatch({
+            op: GatewayOpcodes.Dispatch,
+            s: 2,
+            t: GatewayDispatchEvents.VoiceStateUpdate,
+            d: {
+                ...voiceState(HOST, VOICE),
+                deaf: true,
+                member: { ...member(HOST), user: buildUser({ id: HOST, username: "helper", bot: true }) },
+            },
+        });
+
+        await vi.waitFor(async () =>
+            expect(await adapter.findVoiceMember(GUILD, HOST)).toMatchObject({ serverDeafened: true, isBot: true }),
+        );
     });
 
     it("logs a 403 from Discord instead of throwing", async () => {

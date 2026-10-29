@@ -26,6 +26,7 @@ import { createDiscordMessagePort } from "./messagePort";
 import { registerVoiceRejoin } from "./voiceRejoin";
 
 const LOGIN_RETRY_DELAY_MS = 5000;
+const IDLE_SWEEP_INTERVAL_MS = 60_000;
 
 function failure(error: unknown): RouterReply {
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
@@ -107,6 +108,7 @@ export async function runCluster(): Promise<void> {
     const mute = new MuteService({
         events,
         voice,
+        settings,
         links: db.links,
         ledger: db.muteLedger,
         resolveTarget: createVoiceTargetResolver({
@@ -118,6 +120,13 @@ export async function runCluster(): Promise<void> {
     });
 
     let ready = false;
+    const sweepTimer = setInterval(() => {
+        if (!ready) return;
+        mute.sweepIdle([...client.guilds.cache.keys()]).catch((error: unknown) => {
+            logger.error(logModules.Mute, `Cluster ${cluster.clusterID} could not sweep leftover mutes`, error);
+        });
+    }, IDLE_SWEEP_INTERVAL_MS);
+    sweepTimer.unref();
     const handleRequest = createClusterRequestHandler({
         mute,
         updateLinkReply: async (link) =>
@@ -143,6 +152,7 @@ export async function runCluster(): Promise<void> {
     });
 
     const stop = async (): Promise<void> => {
+        clearInterval(sweepTimer);
         try {
             await logWriter.flushAll();
         } catch (error) {

@@ -115,7 +115,7 @@ internal static class MurderPlayerPatch
     [HarmonyPostfix]
     static void Postfix()
     {
-        if (!HostGate.IsActive || ShipStatus.Instance == null) return;
+        if (!HostGate.IsActive || ShipStatus.Instance == null || MeetingHud.Instance != null) return;
         _ = BotClient.SendEventAsync("player-died");
     }
 }

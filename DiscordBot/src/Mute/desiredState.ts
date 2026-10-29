@@ -1,17 +1,23 @@
 import { accountNameKeys, normalizeAccountName } from "../Data/accountNameMatch";
 import type { LinkEntry } from "../Data/repositories/LinkRepository";
 import type { GameEventName } from "../Protocol/PluginProtocol";
+import type { GuildSettings, VoiceAction } from "../Settings/GuildSettings";
+import { type Phase, phaseOf, type VoiceRules } from "./voiceRules";
 
 export interface DesiredStateInput {
     event: GameEventName;
     players: string[];
     deadPlayers: string[];
     links: LinkEntry[];
+    rules: VoiceRules;
+    nonPlayers: GuildSettings["nonPlayers"];
 }
 
 export interface DesiredState {
-    muted: Set<string>;
-    unmuted: Set<string>;
+    /** What every player that resolved to a linked member should get. */
+    actions: Map<string, VoiceAction>;
+    /** What members in the voice channel who are not in the game should get, or null to leave them alone. */
+    nonPlayerAction: VoiceAction | null;
     ambiguousNames: string[];
 }
 
@@ -27,7 +33,14 @@ function indexLinks(links: LinkEntry[]): Map<string, Set<string>> {
     return byKey;
 }
 
-export function computeDesiredState({ event, players, deadPlayers, links }: DesiredStateInput): DesiredState {
+export function computeDesiredState({
+    event,
+    players,
+    deadPlayers,
+    links,
+    rules,
+    nonPlayers,
+}: DesiredStateInput): DesiredState {
     const byKey = indexLinks(links);
     const ambiguous = new Set<string>();
 
@@ -48,18 +61,25 @@ export function computeDesiredState({ event, players, deadPlayers, links }: Desi
 
     const alive = resolve(players);
     const dead = resolve(deadPlayers);
-    const everyone = new Set([...alive, ...dead]);
+    const phase = phaseOf(event);
 
-    let muted = new Set<string>();
-    let unmuted = new Set<string>();
-    if (event === "lobby") {
-        unmuted = everyone;
-    } else if (event === "meeting-start") {
-        muted = dead;
-        unmuted = new Set([...alive].filter((id) => !dead.has(id)));
+    const actions = new Map<string, VoiceAction>();
+    if (phase === "lobby") {
+        for (const id of [...alive, ...dead]) actions.set(id, "free");
     } else {
-        muted = everyone;
+        // A player listed as alive and dead counts as dead.
+        for (const id of alive) if (!dead.has(id)) actions.set(id, rules[phase].alive);
+        for (const id of dead) actions.set(id, rules[phase].dead);
     }
 
-    return { muted, unmuted, ambiguousNames: [...ambiguous] };
+    return { actions, nonPlayerAction: nonPlayerActionFor(phase, rules, nonPlayers), ambiguousNames: [...ambiguous] };
+}
+
+function nonPlayerActionFor(
+    phase: Phase,
+    rules: VoiceRules,
+    nonPlayers: GuildSettings["nonPlayers"],
+): VoiceAction | null {
+    if (phase === "lobby" || nonPlayers === "ignore") return null;
+    return nonPlayers === "mute" ? "mute" : rules[phase].dead;
 }

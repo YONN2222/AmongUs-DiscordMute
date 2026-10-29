@@ -13,6 +13,7 @@ import { MuteService, type VoiceAdapter, type VoiceMember } from "../../src/Mute
 import { createVoiceTargetResolver } from "../../src/Mute/VoiceTargetResolver";
 import { PROTOCOL_VERSION } from "../../src/Protocol/PluginProtocol";
 import { InMemoryClusterRouter } from "../../src/Routing/ClusterRouter";
+import { DEFAULT_SETTINGS } from "../../src/Settings/GuildSettings";
 import { LinkingService } from "../../src/Utils/LinkingService";
 import { createTestDatabase } from "../helpers/testDatabase";
 
@@ -32,13 +33,13 @@ class FakeVoice implements VoiceAdapter {
         return this.inChannel.has(discordId) ? this.member(discordId) : null;
     }
 
-    async setServerMute(_guildId: string, discordId: string, mute: boolean): Promise<void> {
-        if (mute) this.muted.add(discordId);
-        else this.muted.delete(discordId);
+    async setVoiceState(_guildId: string, discordId: string, patch: { mute?: boolean }): Promise<void> {
+        if (patch.mute === true) this.muted.add(discordId);
+        if (patch.mute === false) this.muted.delete(discordId);
     }
 
     private member(discordId: string): VoiceMember {
-        return { discordId, serverMuted: this.muted.has(discordId) };
+        return { discordId, serverMuted: this.muted.has(discordId), serverDeafened: false, isBot: false };
     }
 }
 
@@ -69,6 +70,7 @@ describe("gateway to mute", () => {
         const mute = new MuteService({
             events: bus,
             voice,
+            settings: { get: async () => DEFAULT_SETTINGS },
             links: db.links,
             ledger: db.muteLedger,
             resolveTarget: createVoiceTargetResolver({

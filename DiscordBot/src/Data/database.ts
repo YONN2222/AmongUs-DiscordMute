@@ -7,6 +7,7 @@ import { initialMigration } from "./migrations/0001-initial";
 import { guildSettingsMigration } from "./migrations/0002-guild-settings";
 import { pendingLinkLocaleMigration } from "./migrations/0003-pending-link-locale";
 import { trackedMessagesMigration } from "./migrations/0004-tracked-messages";
+import { voiceLedgerMigration } from "./migrations/0005-voice-ledger";
 import { initGuildSettingsModel } from "./models/GuildSettingsModel";
 import { initLinkModel } from "./models/LinkModel";
 import { initMuteLedgerModel } from "./models/MuteLedgerModel";
@@ -55,7 +56,13 @@ function createSequelize(opts: DatabaseOptions): Sequelize {
 
 async function runMigrations(sequelize: Sequelize): Promise<void> {
     const umzug = new Umzug({
-        migrations: [initialMigration, guildSettingsMigration, pendingLinkLocaleMigration, trackedMessagesMigration],
+        migrations: [
+            initialMigration,
+            guildSettingsMigration,
+            pendingLinkLocaleMigration,
+            trackedMessagesMigration,
+            voiceLedgerMigration,
+        ],
         context: sequelize.getQueryInterface(),
         storage: new SequelizeStorage({ sequelize, tableName: "schema_migrations" }),
         logger: undefined,
