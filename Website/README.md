@@ -40,39 +40,6 @@ For e2e, install the browser once with `bunx playwright install chromium`. The s
 
 `GET /api/v1/stats` returns the public counters with a per-mode breakdown, cached for 60 seconds. Which counters are shown on the home page and in the stats response is set in `shared/counters.ts` (`PUBLIC_COUNTERS`).
 
-## Deployment
+## More
 
-1. **Create the D1 database and paste its id into `wrangler.jsonc`.** `database_id` is a placeholder (`0000...`) until you do, and the first deploy fails with it:
-   ```sh
-   bunx wrangler d1 create discordmute-website
-   ```
-   Copy the printed `database_id` into `d1_databases[0].database_id` in `wrangler.jsonc` and commit it. Workers Builds reads the repository, so the id must be in the committed file.
-2. Set the telemetry secret. Deploys fail until `HOSTED_TELEMETRY_TOKEN` exists:
-   ```sh
-   bunx wrangler secret put HOSTED_TELEMETRY_TOKEN
-   ```
-   On a Worker that does not exist yet, accept the prompt to create it, or set the secret in the dashboard after connecting Workers Builds.
-3. Connect the GitHub repository in Workers Builds:
-   - Worker name: `discordmute-website` (must match `name` in `wrangler.jsonc`)
-   - root directory: `Website`
-   - build command: `bun run build`
-   - deploy command: `bunx wrangler d1 migrations apply DB --remote && bunx wrangler deploy`
-   - build watch path: `Website/**`
-   - production branch: `master`
-   - the build token needs D1 edit rights, and Bun must be picked up from `bun.lock` (otherwise set `BUN_VERSION`)
-4. Domains: `routes` in `wrangler.jsonc` attach `mute.yonn2222.com` and `amongus-mute.yonn2222.com` as Custom Domains. Neither hostname may have an existing DNS record, so delete the old `amongus-mute` record before the first deploy.
-5. Old hostname: pages on `amongus-mute.yonn2222.com` get a 301 to `mute.yonn2222.com`. Assets and telemetry POSTs are served there without a redirect so existing bots keep working. Add a zone Redirect Rule if assets should redirect too. Check with `curl -I https://amongus-mute.yonn2222.com/privacy`.
-6. Keep these zone features off for both hostnames, because they change inline scripts and break the CSP hashes or inject blocked scripts: Rocket Loader, Zaraz, Web Analytics automatic setup, Email Address Obfuscation, JS detections and any other HTML rewriting.
-7. Workers Logs are enabled in `wrangler.jsonc` (3 days retention on Free, 7 on Paid, matching the privacy policy). Lower `head_sampling_rate` if traffic grows.
-8. The `ratelimits` `namespace_id` values (4101, 4102) must be unique in the Cloudflare account.
-9. Site switches are plain Worker variables, set in the Cloudflare dashboard (Settings, Variables and Secrets). They apply at runtime without a rebuild, and `keep_vars` in `wrangler.jsonc` stops deploys from removing them. Pages are cached for up to a minute, so a change shows within about that time.
-
-   | Variable | Values | Default | Effect |
-   |----------|--------|---------|--------|
-   | `NUXT_PUBLIC_HOSTED_STATUS` | `available`, `coming-soon`, `unavailable` | `coming-soon` | Switches every hosted bot text on the home page. `available` shows the invite button. |
-   | `NUXT_PUBLIC_HOSTED_BOT_CLIENT_ID` | Discord application ID | `1565436340114423808` | Builds the invite link. Empty or invalid behaves like `coming-soon`. |
-   | `NUXT_PUBLIC_STATS` | `visible`, `hidden` | `visible` | `hidden` removes the counter panel from the home page and the page stops requesting the stats. The stats API and telemetry ingest are not affected. |
-
-10. The optional secret `OPS_STATS_TOKEN` (at least 32 characters, set with `bunx wrangler secret put OPS_STATS_TOKEN`) enables `GET /api/v1/ops/telemetry` for Grafana and the admin dashboard. Send `Authorization: Bearer <token>` and pick `view=daily|snapshot|versions|features`, optionally with `mode`, `from` and `to` (`YYYY-MM-DD`, up to 400 days). Without the secret the route answers 404. Locally, `wrangler dev` only loads the secrets listed in `secrets.required`, so pass this one with `--var OPS_STATS_TOKEN:<token>`.
-
-`bunx wrangler deploy --dry-run --outdir .wrangler/dry-run` shows the bundle size without uploading.
+Setup guides, configuration and the FAQ are at https://docs.mute.yonn2222.com.
