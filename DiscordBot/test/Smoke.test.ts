@@ -8,10 +8,10 @@ import { ADMIN_API_PREFIX } from "../src/Admin/Contract";
 import { type Config, parseConfig } from "../src/Config/ConfigSchema";
 import { type GatewayDeps, type GatewayInstance, type RunningGateway, runGateway } from "../src/Gateway/RunGateway";
 import { logger } from "../src/Logging/Logger";
+import { EXIT_CONFIG } from "../src/Process/ExitCodes";
 import { postgresUrl } from "./Helpers/TestDatabase";
 
 const ADMIN_PORT = 9465;
-const EXIT_CONFIG_INVALID = 78;
 const TEST_ADMIN_TOKEN = "x".repeat(40);
 
 it("runs under the Bun runtime with bun:sqlite available", () => {
@@ -96,7 +96,7 @@ describe("gateway wiring", () => {
         running = await runGateway(exampleConfig({ mode: "hosted" }), deps);
 
         expect(running).toBeUndefined();
-        expect(deps.exit).toHaveBeenCalledWith(EXIT_CONFIG_INVALID);
+        expect(deps.exit).toHaveBeenCalledWith(EXIT_CONFIG);
         expect(deps.createInstance).not.toHaveBeenCalled();
         expect(error).toHaveBeenCalledWith(
             expect.anything(),
@@ -111,7 +111,7 @@ describe("gateway wiring", () => {
         running = await runGateway(exampleConfig({ mode: "hosted" }), deps);
 
         expect(running).toBeUndefined();
-        expect(deps.exit).toHaveBeenCalledWith(EXIT_CONFIG_INVALID);
+        expect(deps.exit).toHaveBeenCalledWith(EXIT_CONFIG);
         expect(error).toHaveBeenCalledWith(
             expect.anything(),
             'databaseDialect must be "postgres" (with databaseUrl) in hosted mode',
