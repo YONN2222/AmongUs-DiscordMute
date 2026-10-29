@@ -186,16 +186,29 @@ export class MuteService {
         // Recorded right away, so an event that is still on its way is dropped instead of queued behind the end.
         this.endedSessions.add(sessionId);
         return this.enqueue(guildId, async () => {
-            this.phases.delete(sessionId);
-            this.latestDeath.delete(sessionId);
-            this.sequence.delete(sessionId);
-            // Only events still waiting out their delay that belong to the session that just ended are dropped.
-            for (const pending of this.pendingDelays.get(sessionId) ?? []) pending.cancelled = true;
+            this.forgetSession(sessionId);
             try {
                 await this.releaseSession(guildId, sessionId);
             } catch (err) {
                 logger.error(logModules.Mute, `Could not end the session in guild ${guildId}`, err);
             }
+        });
+    }
+
+    /**
+     * Ends every game running in the guild and lifts every mute on record there; runs before the bot leaves the
+     * guild, because its ledger is purged afterwards. Rejects when the ledger cannot be read, so the bot stays.
+     */
+    endGuild(guildId: string): Promise<void> {
+        // Marked right away like in endSession, and again in the queue for a game that started in the meantime.
+        for (const sessionId of this.activeSessions.of(guildId)) this.endedSessions.add(sessionId);
+        return this.enqueue(guildId, async () => {
+            for (const sessionId of this.activeSessions.of(guildId)) {
+                this.endedSessions.add(sessionId);
+                this.forgetSession(sessionId);
+                this.activeSessions.delete(guildId, sessionId);
+            }
+            await this.releaseGuild(guildId);
         });
     }
 
@@ -245,6 +258,14 @@ export class MuteService {
 
     private enqueue<T>(guildId: string, task: () => Promise<T>): Promise<T> {
         return this.queue.run(guildId, task);
+    }
+
+    /** Drops the state of the session and cancels its events that still wait out their delay. */
+    private forgetSession(sessionId: string): void {
+        this.phases.delete(sessionId);
+        this.latestDeath.delete(sessionId);
+        this.sequence.delete(sessionId);
+        for (const pending of this.pendingDelays.get(sessionId) ?? []) pending.cancelled = true;
     }
 
     private nextSequence(sessionId: string): number {

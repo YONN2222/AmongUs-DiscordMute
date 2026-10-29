@@ -287,7 +287,7 @@ describe("createClusterRequestHandler", () => {
             const lifecycle = { leave: vi.fn(async () => true) };
 
             expect(await handler(undefined, { lifecycle })(leaveRequest)).toEqual({ ok: true });
-            expect(lifecycle.leave).toHaveBeenCalledWith("g", "admin");
+            expect(lifecycle.leave).toHaveBeenCalledWith("g");
         });
 
         it("replies not-in-guild when the bot was not in the guild", async () => {

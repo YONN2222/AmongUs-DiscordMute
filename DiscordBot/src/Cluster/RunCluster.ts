@@ -130,7 +130,7 @@ export async function runCluster(): Promise<void> {
 
     const db = await openDatabase(databaseOptionsFrom(config), { migrate: false });
     const gateway = new GalacticGatewayLink(cluster);
-    const hosted = isHosted(config) ? createHostedCluster({ db, client, cluster, gateway }) : undefined;
+    const hosted = isHosted(config) ? createHostedCluster({ db, client, cluster, gateway, endGames }) : undefined;
     const registry = new Registry();
     const metrics = createClusterMetrics(registry, cluster.clusterID);
     registerDiscordMetrics(client, metrics);
@@ -192,6 +192,12 @@ export async function runCluster(): Promise<void> {
             localeOf: guildLanguage,
         }),
     });
+
+    /** The hosted lifecycle calls this before it leaves a guild, which only happens once the cluster is ready. */
+    async function endGames(guildId: string): Promise<void> {
+        await mute.endGuild(guildId);
+        await nicknameSync.endGuild(guildId);
+    }
 
     let ready = false;
     const sweepTimer = setInterval(() => {

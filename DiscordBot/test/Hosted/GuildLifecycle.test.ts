@@ -15,8 +15,11 @@ class FakeGuildPort implements GuildPort {
     leaveResult = true;
     readonly left: string[] = [];
 
+    constructor(private readonly steps: string[]) {}
+
     async leave(guildId: string): Promise<boolean> {
         this.left.push(guildId);
+        this.steps.push(`leave ${guildId}`);
         return this.leaveResult;
     }
 
@@ -46,6 +49,9 @@ describe.each(backends)("GuildLifecycle (%s)", (backend) => {
         let lifecycle: GuildLifecycle;
         let guildId: string;
         let ownerId: string;
+        /** The order in which games were ended and guilds left. */
+        let steps: string[];
+        let endGamesFailure: Error | null;
 
         const info = (overrides: Partial<GuildInfo> = {}): GuildInfo => ({
             guildId,
@@ -65,7 +71,9 @@ describe.each(backends)("GuildLifecycle (%s)", (backend) => {
         beforeEach(async () => {
             vi.spyOn(logger, "error").mockImplementation(() => {});
             db = await openBackend(backend);
-            port = new FakeGuildPort();
+            steps = [];
+            endGamesFailure = null;
+            port = new FakeGuildPort(steps);
             guildId = uniqueId("guild");
             ownerId = uniqueId("owner");
             lifecycle = new GuildLifecycle({
@@ -73,6 +81,10 @@ describe.each(backends)("GuildLifecycle (%s)", (backend) => {
                 hostedGuilds: db.hostedGuilds,
                 blocks: new BlockChecker({ blocks: db.blocks, hostedGuilds: db.hostedGuilds }),
                 audit: db.audit,
+                endGames: async (id) => {
+                    if (endGamesFailure) throw endGamesFailure;
+                    steps.push(`end games ${id}`);
+                },
                 now: () => NOW,
             });
         });
@@ -133,6 +145,15 @@ describe.each(backends)("GuildLifecycle (%s)", (backend) => {
 
             expect(port.left).toEqual([guildId]);
             expect(await db.hostedGuilds.get(guildId)).toMatchObject({ ownerId: newOwner, name: "Renamed" });
+        });
+
+        it("ends the games of the guild before an auto leave", async () => {
+            await lifecycle.onGuildCreate(info());
+            await blockUser(ownerId);
+
+            await lifecycle.onGuildUpdate(info());
+
+            expect(steps).toEqual([`end games ${guildId}`, `leave ${guildId}`]);
         });
 
         it("an update refreshes the stored name and member count", async () => {
@@ -257,26 +278,31 @@ describe.each(backends)("GuildLifecycle (%s)", (backend) => {
 
         describe("leave", () => {
             it("reports whether the bot was in the guild", async () => {
-                expect(await lifecycle.leave(guildId, "admin")).toBe(true);
+                expect(await lifecycle.leave(guildId)).toBe(true);
                 port.leaveResult = false;
-                expect(await lifecycle.leave(guildId, "admin")).toBe(false);
+                expect(await lifecycle.leave(guildId)).toBe(false);
             });
 
-            it("leaves for an admin", async () => {
-                await lifecycle.leave(guildId, "admin");
+            it("leaves without an audit entry, the caller writes it", async () => {
+                await lifecycle.leave(guildId);
 
                 expect(port.left).toEqual([guildId]);
                 expect(await auditRows()).toEqual([]);
             });
 
-            it.each(["owner-blocked", "guild-blocked"] as const)(
-                "writes no audit entry for a requested %s leave",
-                async (reason) => {
-                    await lifecycle.leave(guildId, reason);
+            it("ends the games of the guild first", async () => {
+                await lifecycle.leave(guildId);
 
-                    expect(await auditRows()).toEqual([]);
-                },
-            );
+                expect(steps).toEqual([`end games ${guildId}`, `leave ${guildId}`]);
+            });
+
+            it("stays in the guild when its games could not be ended", async () => {
+                endGamesFailure = new Error("database down");
+
+                await expect(lifecycle.leave(guildId)).rejects.toThrow("database down");
+
+                expect(port.left).toEqual([]);
+            });
         });
     });
 });

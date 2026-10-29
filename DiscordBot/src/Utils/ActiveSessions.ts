@@ -14,6 +14,10 @@ export class ActiveSessions {
         if (sessions?.size === 0) this.byGuild.delete(guildId);
     }
 
+    of(guildId: string): string[] {
+        return [...(this.byGuild.get(guildId) ?? [])];
+    }
+
     /** A ledger row without a session (null) belongs to no running game. */
     has(guildId: string, sessionId: string | null): boolean {
         return sessionId !== null && (this.byGuild.get(guildId)?.has(sessionId) ?? false);

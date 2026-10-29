@@ -80,7 +80,7 @@ async function handleLeaveGuild(
     req: Extract<ClusterRequest, { kind: "leave-guild" }>,
 ): Promise<RouterReply> {
     if (!deps.lifecycle) return { ok: false, error: "not hosted" };
-    return (await deps.lifecycle.leave(req.guildId, req.reason)) ? { ok: true } : { ok: false, error: "not-in-guild" };
+    return (await deps.lifecycle.leave(req.guildId)) ? { ok: true } : { ok: false, error: "not-in-guild" };
 }
 
 /** Serves the requests the gateway routes to the cluster that owns a guild. */

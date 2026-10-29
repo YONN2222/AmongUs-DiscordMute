@@ -20,6 +20,7 @@ export function createHostedCluster(deps: {
     client: Client;
     cluster: Pick<Cluster<Client>, "shardList" | "totalShards">;
     gateway: GatewayLink;
+    endGames: (guildId: string) => Promise<void>;
 }): HostedCluster {
     const { db, gateway } = deps;
     const blocks = new BlockChecker({ blocks: db.blocks, hostedGuilds: db.hostedGuilds });
@@ -37,6 +38,7 @@ export function createHostedCluster(deps: {
             hostedGuilds: db.hostedGuilds,
             blocks,
             audit: db.audit,
+            endGames: deps.endGames,
         }),
     };
 }

@@ -33,6 +33,8 @@ export interface GuildLifecycleDeps {
     hostedGuilds: HostedGuildRepository;
     blocks: Pick<BlockChecker, "isUserBlocked" | "isGuildBlocked">;
     audit: Pick<AuditLogRepository, "record">;
+    /** Ends the games running in the guild, so nobody stays muted or renamed once its data is purged. */
+    endGames: (guildId: string) => Promise<void>;
     now?: () => number;
 }
 
@@ -68,8 +70,12 @@ export class GuildLifecycle {
         await this.purgeRemovedGuilds();
     }
 
-    /** Leaves the guild on request; the data is purged when Discord reports the removal. The caller audits it. */
-    leave(guildId: string, _reason: GuildLeaveReason): Promise<boolean> {
+    /**
+     * Ends the games of the guild, then leaves it; the data is purged when Discord reports the removal. The bot stays
+     * when the games could not be ended. The caller audits a requested leave.
+     */
+    async leave(guildId: string): Promise<boolean> {
+        await this.deps.endGames(guildId);
         return this.deps.port.leave(guildId);
     }
 
@@ -93,7 +99,7 @@ export class GuildLifecycle {
         const now = this.now();
         await this.deps.hostedGuilds.upsert({ ...info, joinedAt: now }, now);
         const reason = await this.blockReason(info);
-        if (reason && (await this.leave(info.guildId, reason))) await this.auditAutoLeave(info.guildId, reason);
+        if (reason && (await this.leave(info.guildId))) await this.auditAutoLeave(info.guildId, reason);
     }
 
     private auditAutoLeave(guildId: string, reason: GuildLeaveReason): Promise<unknown> {

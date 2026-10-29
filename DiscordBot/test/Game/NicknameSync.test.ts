@@ -123,6 +123,21 @@ describe.each(backends)("NicknameSync (%s)", (backend) => {
             expect(adapter.nicks.get("u2")).toBe("Ann");
         });
 
+        it("endGuild puts back the nicknames of every game in the guild", async () => {
+            await db.links.upsert(guildId, "u1", "Red");
+            await db.links.upsert(guildId, "u2", "Blue");
+            adapter.join("u1", "Bob");
+            adapter.join("u2", "Ann", "v2");
+            await sync.handle(gameEvent("game-start", ["Red"]));
+            await sync.handle(gameEvent("game-start", ["Blue"], ["v2"], "s2"));
+
+            await sync.endGuild(guildId);
+
+            expect(adapter.nicks.get("u1")).toBe("Bob");
+            expect(adapter.nicks.get("u2")).toBe("Ann");
+            expect(await db.nicknameLedger.listByGuild(guildId)).toEqual([]);
+        });
+
         it("a member renamed by two games is restored only by the game that touched them last", async () => {
             await db.links.upsert(guildId, "u1", "Red");
             adapter.join("u1", "Bob");

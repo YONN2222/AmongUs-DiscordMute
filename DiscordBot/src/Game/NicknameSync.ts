@@ -90,11 +90,19 @@ export class NicknameSync {
     /** Runs once on cluster ready so nicknames left behind by a crash are put back. */
     async recover(guildIds: string[]): Promise<void> {
         const guilds = new Set((await this.deps.ledger.listByGuilds(guildIds)).map((entry) => entry.guildId));
-        await Promise.all([...guilds].map((guildId) => this.restoreGuild(guildId)));
+        await Promise.all([...guilds].map((guildId) => this.endGuild(guildId)));
     }
 
-    private restoreGuild(guildId: string): Promise<void> {
+    /**
+     * Forgets every game running in the guild and puts back every nickname on record there; runs on recover and
+     * before the bot leaves the guild, because its ledger is purged afterwards.
+     */
+    endGuild(guildId: string): Promise<void> {
         return this.queue.run(guildId, async () => {
+            for (const sessionId of this.activeSessions.of(guildId)) {
+                this.reportedGames.delete(sessionId);
+                this.activeSessions.delete(guildId, sessionId);
+            }
             for (const entry of await this.deps.ledger.listByGuild(guildId)) await this.restoreOne(entry);
         });
     }

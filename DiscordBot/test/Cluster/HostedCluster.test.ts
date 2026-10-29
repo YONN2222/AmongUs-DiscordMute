@@ -57,6 +57,8 @@ describe("bindGuildLifecycle", () => {
 describe("createHostedCluster", () => {
     let db: Database;
 
+    const endGames = async () => {};
+
     beforeEach(async () => {
         db = await createTestDatabase();
     });
@@ -68,7 +70,7 @@ describe("createHostedCluster", () => {
     it("disconnects a guild's plugins through the gateway", async () => {
         const gateway = new InMemoryGatewayLink();
         gateway.register(GUILD.id, async () => ({ ok: true }));
-        const hosted = createHostedCluster({ db, client: {} as Client, cluster: SHARDS, gateway });
+        const hosted = createHostedCluster({ db, client: {} as Client, cluster: SHARDS, gateway, endGames });
 
         expect(await hosted.commands.disconnectGuild(GUILD.id, CLOSE_BLOCKED, "Blocked")).toBe(true);
         expect(gateway.sent).toEqual([
@@ -82,6 +84,7 @@ describe("createHostedCluster", () => {
             client: {} as Client,
             cluster: SHARDS,
             gateway: new InMemoryGatewayLink(),
+            endGames,
         });
         expect(await hosted.commands.disconnectGuild(GUILD.id, CLOSE_BLOCKED, "Blocked")).toBe(false);
     });
