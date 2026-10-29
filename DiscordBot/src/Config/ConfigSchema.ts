@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export const SELF_HOST_FIELDS_REQUIRED = 'guildId and secret are required when mode is "self-host"';
+
 export const Config = z
     .object({
         token: z.string().min(1),
@@ -38,7 +40,7 @@ export const Config = z
             .default({ host: "127.0.0.1", port: 9465 }),
     })
     .refine((c) => c.mode !== "self-host" || (c.guildId !== undefined && c.secret !== undefined), {
-        message: 'guildId and secret are required when mode is "self-host"',
+        message: SELF_HOST_FIELDS_REQUIRED,
         path: ["guildId"],
     })
     .refine((c) => c.databaseDialect !== "postgres" || c.databaseUrl !== undefined, {
