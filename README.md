@@ -193,6 +193,23 @@ If EHR is not installed, DiscordMute still works normally; only EHR-specific Bla
 - **Crash-safe mutes**: the bot unmutes the players it muted after a crash or restart and only lifts mutes it applied itself.
 - **Log bridging**: optionally forward plugin/BepInEx logs to the bot console for easier debugging.
 
+## Server setup
+
+Server admins (Manage Server permission) configure the bot per server with `/setup`. It covers:
+
+- a **log channel** for plugin, game, link and settings events
+- a self-updating **link overview** message with Link/Unlink buttons
+- a live **status message** (phase, players, spoiler lobby code) and a **match summary** after each game
+- **voice rules** per phase for living and dead players (free, mute, deafen), delays of up to 5 seconds, and handling of members who are not playing
+- optional **ghost chat** (dead players talk while the living are deafened; it can leak information if a deafen fails)
+- **nickname sync** and **automatic relink** after an Among Us rename
+
+The bot needs the **Mute Members**, **Deafen Members** and **Manage Nicknames** permissions, plus View Channel, Send Messages and Manage Messages in the channels you pick, and its role must sit above the roles of your players.
+
+Update **both** the bot and the plugin: the player list, deaths and match results come from the new plugin version, and an older plugin keeps working with reduced features.
+
+Details for every setting are in [`docs/content/7.server-setup/`](docs/content/7.server-setup/).
+
 <details>
 <summary><h2 style="display:inline;">6. Technical details</h2></summary>
 
