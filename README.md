@@ -167,6 +167,7 @@ Link phrases expire after 5 minutes. The bot stores links in `DiscordBot/data/li
 | `/link force user display-name` | Lets a server admin manually link a Discord user to an Among Us display name. Useful if the normal flow cannot be completed. |
 | `/link reset [user]`            | Unlinks your own account, or another user's (requires Manage Server).                                                        |
 | `/testconnection`               | Checks whether the Discord bot can reach the Among Us plugin. Useful while setting up or debugging the integration.          |
+| `/setup`                        | Opens the private settings panel for this server (requires Manage Server). See [Server setup](#6-server-setup).             |
 
 ### About the link data
 

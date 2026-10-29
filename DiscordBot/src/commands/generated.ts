@@ -3,6 +3,7 @@
 
 import type { Command } from "./Command";
 import { LinkCommand } from "./Link/LinkCommand";
+import { SetupCommand } from "./Setup/SetupCommand";
 import { TestConnectionCommand } from "./TestConnection/TestConnectionCommand";
 
-export const commandConstructors: Array<new () => Command> = [LinkCommand, TestConnectionCommand];
+export const commandConstructors: Array<new () => Command> = [LinkCommand, SetupCommand, TestConnectionCommand];

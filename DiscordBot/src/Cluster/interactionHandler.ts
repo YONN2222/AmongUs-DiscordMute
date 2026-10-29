@@ -4,6 +4,7 @@ import { localeFrom, t } from "../i18n";
 import { LINK_SELF_UNLINK_BUTTON_ID, unlinkSelf } from "../Linking/selfUnlink";
 import { registerLinkOverviewComponents } from "../LinkOverview/linkOverviewComponents";
 import { logger, logModules } from "../Logging/logger";
+import { registerSetupComponents } from "../Setup/setupComponents";
 import { ContainerBuilder } from "../Utils/ContainerBuilder";
 import { isComponentInteraction, registerComponent, routeComponent } from "./componentRouter";
 
@@ -79,6 +80,7 @@ function registerComponents(): void {
         if (interaction.isButton()) await unlinkSelf(interaction, ctx);
     });
     registerLinkOverviewComponents();
+    registerSetupComponents();
 }
 
 export function registerInteractionHandlers(client: Client, ctx: CommandContext): void {
