@@ -131,7 +131,13 @@ export async function runCluster(): Promise<void> {
     const db = await openDatabase(databaseOptionsFrom(config), { migrate: false });
     const gateway = new GalacticGatewayLink(cluster);
     const hosted = isHosted(config)
-        ? createHostedCluster({ db, client, cluster, gateway, games: { end: endGames, reopen: reopenGames } })
+        ? createHostedCluster({
+              db,
+              client,
+              cluster,
+              gateway,
+              games: { end: endGames, reopen: reopenGames, forget: forgetGames, recover: recoverGames },
+          })
         : undefined;
     const registry = new Registry();
     const metrics = createClusterMetrics(registry, cluster.clusterID);
@@ -195,7 +201,7 @@ export async function runCluster(): Promise<void> {
         }),
     });
 
-    // The hosted lifecycle calls these around leaving a guild, which only happens once the cluster is ready.
+    // The hosted lifecycle calls these when the bot leaves, is removed from or is added to a guild.
     async function endGames(guildId: string): Promise<void> {
         await mute.endGuild(guildId);
         await nicknameSync.endGuild(guildId);
@@ -204,6 +210,16 @@ export async function runCluster(): Promise<void> {
     function reopenGames(guildId: string): void {
         mute.reopenGuild(guildId);
         nicknameSync.reopenGuild(guildId);
+    }
+
+    function forgetGames(guildId: string): void {
+        mute.forgetGuild(guildId);
+        nicknameSync.forgetGuild(guildId);
+    }
+
+    async function recoverGames(guildId: string): Promise<void> {
+        await mute.recover([guildId]);
+        await nicknameSync.recover([guildId]);
     }
 
     let ready = false;

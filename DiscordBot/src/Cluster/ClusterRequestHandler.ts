@@ -12,8 +12,15 @@ export type ConfirmedLinkReply = Omit<Extract<ClusterRequest, { kind: "link-conf
 
 type GameEventRequest = Extract<ClusterRequest, { kind: "game-event" }>;
 
+const GAME_REQUEST_KINDS = new Set<ClusterRequest["kind"]>([
+    "game-event",
+    "session-started",
+    "session-ended",
+    "game-ended",
+]);
+
 export interface ClusterRequestHandlerDeps {
-    mute: Pick<MuteService, "handleGameEvent" | "endSession" | "hasEnded">;
+    mute: Pick<MuteService, "handleGameEvent" | "endSession" | "hasEnded" | "isRemoved">;
     /** Resolves to false when the original /link reply could not be updated. */
     updateLinkReply: (link: ConfirmedLinkReply) => Promise<boolean>;
     /** False until startup recovery ran, so recovery can never undo a mute applied before it. */
@@ -92,6 +99,8 @@ export function createClusterRequestHandler(deps: ClusterRequestHandlerDeps): (d
             logger.warn(logModules.Bot, "Ignored an invalid request from the gateway");
             return { ok: false, error: "invalid request" };
         }
+        // A guild that removed the bot gets no Discord calls; its ledger is lifted once the bot is added back.
+        if (GAME_REQUEST_KINDS.has(req.kind) && deps.mute.isRemoved(req.guildId)) return { ok: true };
         switch (req.kind) {
             case "game-event":
                 return handleGameEvent(deps, req);

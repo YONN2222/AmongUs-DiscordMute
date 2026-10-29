@@ -3,10 +3,11 @@ import { createAdminHandlers } from "../Admin/AdminHandlers";
 import { createAdminServer } from "../Admin/AdminServer";
 import { collectClusterInfo } from "../Admin/ClusterInfo";
 import type { Database } from "../Data/Database";
-import { AUDIT_RETENTION_MS, type AuditLogRepository } from "../Data/Repositories/AuditLogRepository";
+import { AUDIT_RETENTION_MS } from "../Data/Repositories/AuditLogRepository";
 import { BlockChecker } from "../Hosted/BlockChecker";
 import { assertHostedDatabase, readAdminApiToken } from "../Hosted/HostedMode";
 import { HostedSecretResolver } from "../Hosted/HostedSecretResolver";
+import { purgeLeftGuilds } from "../Hosted/LeftGuildPurge";
 import type { Config } from "../Infrastructure/ConfigSchema";
 import { logger, logModules } from "../Logging/Logger";
 import type { GatewayMetrics } from "../Metrics/GatewayMetrics";
@@ -16,7 +17,7 @@ import { BOT_VERSION } from "../Version";
 import type { PluginGateway } from "./PluginGateway";
 import type { SecretResolver } from "./SecretResolver";
 
-const AUDIT_PRUNE_INTERVAL_MS = 60 * 60 * 1000;
+const CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
 
 /** Checks what hosted mode needs before anything starts; returns the admin API token or throws a message for the operator. */
 export function readHostedAdminTokenOrThrow(config: Config, env: Record<string, string | undefined>): string {
@@ -45,7 +46,7 @@ export function createHostedGateway<TCluster>(deps: HostedGatewayDeps<TCluster>)
     const blocks = new BlockChecker({ blocks: db.blocks, hostedGuilds: db.hostedGuilds });
     return {
         blocks,
-        resolver: new HostedSecretResolver({ secrets: db.guildSecrets, blocks }),
+        resolver: new HostedSecretResolver({ secrets: db.guildSecrets, blocks, hostedGuilds: db.hostedGuilds }),
         createAdminServer: (plugins) => {
             const handlers = createAdminHandlers({
                 db,
@@ -61,21 +62,30 @@ export function createHostedGateway<TCluster>(deps: HostedGatewayDeps<TCluster>)
     };
 }
 
-/** Deletes audit entries past the retention now and then every hour; returns the function that stops it. */
-export function startAuditPrune(
-    audit: Pick<AuditLogRepository, "pruneOlderThan">,
+/**
+ * Deletes audit entries past their retention and the data of servers the bot left long enough ago, now and then
+ * every hour; returns the function that stops it.
+ */
+export function startHourlyCleanup(
+    db: Pick<Database, "audit" | "hostedGuilds">,
     now: () => number = Date.now,
 ): () => void {
-    const prune = (): void => {
-        audit.pruneOlderThan(now() - AUDIT_RETENTION_MS).then(
+    const cleanUp = (): void => {
+        db.audit.pruneOlderThan(now() - AUDIT_RETENTION_MS).then(
             (removed) => {
                 if (removed > 0) logger.info(logModules.Database, `Removed ${removed} expired audit log entries`);
             },
             (error: unknown) => logger.error(logModules.Database, "Pruning the audit log failed", error),
         );
+        purgeLeftGuilds(db, now()).then(
+            (purged) => {
+                if (purged > 0) logger.info(logModules.Database, `Deleted the data of ${purged} left server(s)`);
+            },
+            (error: unknown) => logger.error(logModules.Database, "Deleting the data of left servers failed", error),
+        );
     };
-    prune();
-    const timer = setInterval(prune, AUDIT_PRUNE_INTERVAL_MS);
+    cleanUp();
+    const timer = setInterval(cleanUp, CLEANUP_INTERVAL_MS);
     timer.unref();
     return () => clearInterval(timer);
 }

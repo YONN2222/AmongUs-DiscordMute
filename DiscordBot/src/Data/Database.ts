@@ -16,6 +16,7 @@ import { hostedGuildsMigration } from "./Migrations/0012-hosted-guilds";
 import { blocksMigration } from "./Migrations/0013-blocks";
 import { auditLogMigration } from "./Migrations/0014-audit-log";
 import { ledgerSessionsMigration } from "./Migrations/0015-ledger-sessions";
+import { hostedGuildLeftAtMigration } from "./Migrations/0016-hosted-guild-left-at";
 import { initGuildSettingsModel } from "./Models/GuildSettingsModel";
 import { initLinkModel } from "./Models/LinkModel";
 import { initMuteLedgerModel } from "./Models/MuteLedgerModel";
@@ -91,6 +92,7 @@ async function runMigrations(sequelize: Sequelize): Promise<void> {
             blocksMigration,
             auditLogMigration,
             ledgerSessionsMigration,
+            hostedGuildLeftAtMigration,
         ],
         context: sequelize.getQueryInterface(),
         storage: new SequelizeStorage({ sequelize, tableName: "schema_migrations" }),

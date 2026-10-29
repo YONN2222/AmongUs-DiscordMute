@@ -68,14 +68,20 @@ describe.each(backends)("admin API block through the cluster (%s)", (backend) =>
                 hostedGuilds: db.hostedGuilds,
                 blocks,
                 audit: db.audit,
-                games: { end: async () => {}, reopen: () => {} },
+                games: { end: async () => {}, reopen: () => {}, forget: () => {}, recover: async () => {} },
                 disconnectBlocked: async () => {},
+                disconnectRemoved: async () => {},
             });
             const router = new InMemoryClusterRouter();
             router.register(
                 guildId,
                 createClusterRequestHandler({
-                    mute: { handleGameEvent: vi.fn(), endSession: vi.fn(), hasEnded: () => false },
+                    mute: {
+                        handleGameEvent: vi.fn(),
+                        endSession: vi.fn(),
+                        hasEnded: () => false,
+                        isRemoved: () => false,
+                    },
                     updateLinkReply: async () => true,
                     isReady: () => true,
                     events: { emit: () => {} },
@@ -129,7 +135,7 @@ describe.each(backends)("admin API block through the cluster (%s)", (backend) =>
 
             expect(response.status).toBe(201);
             expect(await response.json()).toMatchObject({ ok: true, data: { leftGuild: true, leftGuildCount: 1 } });
-            expect(await db.hostedGuilds.get(guildId)).toBeNull();
+            expect((await db.hostedGuilds.get(guildId))?.leftAt).toEqual(expect.any(Number));
             expect(await auditRowsAbout(guildId, ownerId)).toMatchObject([
                 { actorId: operatorId, action: "block.create", targetType: "guild", targetId: guildId },
             ]);

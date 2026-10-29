@@ -1,7 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Database } from "../../src/Data/Database";
 import { BlockChecker } from "../../src/Hosted/BlockChecker";
-import { type GuildInfo, GuildLifecycle, type GuildPort } from "../../src/Hosted/GuildLifecycle";
+import {
+    type GuildInfo,
+    GuildLifecycle,
+    type GuildLifecycleDeps,
+    type GuildPort,
+} from "../../src/Hosted/GuildLifecycle";
 import { logger } from "../../src/Logging/Logger";
 import { backendAvailable, backends, openBackend, purgeTestRows, uniqueId } from "../Helpers/TestDatabase";
 
@@ -47,6 +52,7 @@ describe.each(backends)("GuildLifecycle (%s)", (backend) => {
         let db: Database;
         let port: FakeGuildPort;
         let lifecycle: GuildLifecycle;
+        let deps: GuildLifecycleDeps;
         let guildId: string;
         let ownerId: string;
         /** The order in which games were ended and guilds left. */
@@ -76,7 +82,7 @@ describe.each(backends)("GuildLifecycle (%s)", (backend) => {
             port = new FakeGuildPort(steps);
             guildId = uniqueId("guild");
             ownerId = uniqueId("owner");
-            lifecycle = new GuildLifecycle({
+            deps = {
                 port,
                 hostedGuilds: db.hostedGuilds,
                 blocks: new BlockChecker({ blocks: db.blocks, hostedGuilds: db.hostedGuilds }),
@@ -89,12 +95,22 @@ describe.each(backends)("GuildLifecycle (%s)", (backend) => {
                     reopen: (id) => {
                         steps.push(`reopen ${id}`);
                     },
+                    forget: (id) => {
+                        steps.push(`forget games ${id}`);
+                    },
+                    recover: async (id) => {
+                        steps.push(`recover ${id}`);
+                    },
                 },
                 disconnectBlocked: async (id, reason) => {
                     steps.push(`disconnect ${id} ${reason}`);
                 },
+                disconnectRemoved: async (id) => {
+                    steps.push(`disconnect ${id} removed`);
+                },
                 now: () => NOW,
-            });
+            };
+            lifecycle = new GuildLifecycle(deps);
         });
 
         afterEach(async () => {
@@ -158,6 +174,7 @@ describe.each(backends)("GuildLifecycle (%s)", (backend) => {
         it("ends the games of the guild before an auto leave", async () => {
             await lifecycle.onGuildCreate(info());
             await blockUser(ownerId);
+            steps.length = 0;
 
             await lifecycle.onGuildUpdate(info());
 
@@ -191,16 +208,60 @@ describe.each(backends)("GuildLifecycle (%s)", (backend) => {
             expect(await auditRows()).toEqual([]);
         });
 
-        it("guild delete purges its data", async () => {
+        it("guild delete marks the guild as left and keeps its data", async () => {
             await lifecycle.onGuildCreate(info());
             await db.guildSecrets.rotate(guildId, ownerId);
             await db.links.upsert(guildId, "u1", "Crew");
 
             await lifecycle.onGuildDelete(guildId);
 
-            expect(await db.hostedGuilds.get(guildId)).toBeNull();
-            expect(await db.guildSecrets.get(guildId)).toBeNull();
-            expect(await db.links.findByAccountName(guildId, "Crew")).toEqual([]);
+            expect((await db.hostedGuilds.get(guildId))?.leftAt).toBe(NOW);
+            expect(await db.guildSecrets.get(guildId)).not.toBeNull();
+            expect(await db.links.findByAccountName(guildId, "Crew")).toHaveLength(1);
+        });
+
+        it("guild delete forgets the games and disconnects the plugins without leaving or ending games", async () => {
+            await lifecycle.onGuildCreate(info());
+            steps.length = 0;
+
+            await lifecycle.onGuildDelete(guildId);
+
+            expect(steps).toEqual([`forget games ${guildId}`, `disconnect ${guildId} removed`]);
+        });
+
+        it("a re-invite recovers the guild first, then clears the leave time and keeps the data", async () => {
+            await lifecycle.onGuildCreate(info());
+            await db.links.upsert(guildId, "u1", "Crew");
+            await lifecycle.onGuildDelete(guildId);
+            let leftAtRecovery: number | null | undefined;
+            const later = new GuildLifecycle({
+                ...deps,
+                games: {
+                    ...deps.games,
+                    recover: async (id) => {
+                        leftAtRecovery = (await db.hostedGuilds.get(id))?.leftAt;
+                    },
+                },
+            });
+
+            await later.onGuildCreate(info());
+
+            expect(leftAtRecovery).toBe(NOW);
+            expect((await db.hostedGuilds.get(guildId))?.leftAt).toBeNull();
+            expect(await db.links.findByAccountName(guildId, "Crew")).toHaveLength(1);
+        });
+
+        it("a blocked guild invited again leaves at once and keeps its first leave time", async () => {
+            await lifecycle.onGuildCreate(info());
+            await lifecycle.onGuildDelete(guildId);
+            await blockGuild(guildId);
+            const later = new GuildLifecycle({ ...deps, now: () => NOW + 60_000 });
+
+            await later.onGuildCreate(info());
+            await later.onGuildDelete(guildId);
+
+            expect(port.left).toEqual([guildId]);
+            expect((await db.hostedGuilds.get(guildId))?.leftAt).toBe(NOW);
         });
 
         describe("reconcile", () => {
@@ -215,7 +276,7 @@ describe.each(backends)("GuildLifecycle (%s)", (backend) => {
                 expect(port.left).toEqual([blockedId]);
             });
 
-            it("purges a guild that removed the bot while offline and keeps other clusters' rows", async () => {
+            it("marks a guild that removed the bot while offline as left and keeps other clusters' rows", async () => {
                 const goneId = uniqueId("gone");
                 const otherClusterId = uniqueId("other");
                 for (const id of [goneId, otherClusterId]) {
@@ -226,9 +287,9 @@ describe.each(backends)("GuildLifecycle (%s)", (backend) => {
 
                 await lifecycle.reconcile();
 
-                expect(await db.hostedGuilds.get(goneId)).toBeNull();
-                expect(await db.links.findByAccountName(goneId, "Crew")).toEqual([]);
-                expect(await db.hostedGuilds.get(otherClusterId)).not.toBeNull();
+                expect((await db.hostedGuilds.get(goneId))?.leftAt).toBe(NOW);
+                expect(await db.links.findByAccountName(goneId, "Crew")).toHaveLength(1);
+                expect((await db.hostedGuilds.get(otherClusterId))?.leftAt).toBeNull();
             });
 
             it("keeps a guild that is still in the member list", async () => {
@@ -262,7 +323,18 @@ describe.each(backends)("GuildLifecycle (%s)", (backend) => {
                 expect(await db.hostedGuilds.get(guildId)).not.toBeNull();
             });
 
-            it("a member list failure purges nothing", async () => {
+            it("clears the leave time of a guild that added the bot back while it was offline", async () => {
+                await db.hostedGuilds.upsert({ ...info(), joinedAt: 1 });
+                await db.hostedGuilds.markLeft(guildId, 1);
+                port.cached = [info()];
+                port.owned = new Set([guildId]);
+
+                await lifecycle.reconcile();
+
+                expect((await db.hostedGuilds.get(guildId))?.leftAt).toBeNull();
+            });
+
+            it("a member list failure marks nothing as left", async () => {
                 const goneId = uniqueId("gone");
                 await db.hostedGuilds.upsert({ ...info({ guildId: goneId }), joinedAt: 1 });
                 port.owned = new Set([goneId]);
@@ -270,7 +342,7 @@ describe.each(backends)("GuildLifecycle (%s)", (backend) => {
 
                 await lifecycle.reconcile();
 
-                expect(await db.hostedGuilds.get(goneId)).not.toBeNull();
+                expect((await db.hostedGuilds.get(goneId))?.leftAt).toBeNull();
             });
 
             it("goes on with the other guilds when tracking one fails", async () => {
@@ -285,7 +357,7 @@ describe.each(backends)("GuildLifecycle (%s)", (backend) => {
                 await lifecycle.reconcile();
 
                 expect(await db.hostedGuilds.get(guildId)).not.toBeNull();
-                expect(await db.hostedGuilds.get(goneId)).toBeNull();
+                expect((await db.hostedGuilds.get(goneId))?.leftAt).toBe(NOW);
             });
         });
 

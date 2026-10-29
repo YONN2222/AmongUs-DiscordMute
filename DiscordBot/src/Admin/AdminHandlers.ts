@@ -3,6 +3,7 @@ import type { BlockOutcome } from "../Data/Repositories/BlockRepository";
 import type { HostedGuildRow } from "../Data/Repositories/HostedGuildRepository";
 import type { PluginGateway } from "../Gateway/PluginGateway";
 import { LEAVE_DISCONNECTS } from "../Hosted/LeaveDisconnects";
+import { purgeAtOf } from "../Hosted/LeftGuildPurge";
 import type { ClusterRouter } from "../Routing/ClusterRouter";
 import type { GuildLeaveReason, RouterReply } from "../Routing/Messages";
 import type {
@@ -91,6 +92,8 @@ export function createAdminHandlers(deps: AdminHandlerDeps): AdminHandlers {
             hasSecret: withSecret.has(row.guildId),
             blocked: blockedGuilds.has(row.guildId),
             ownerBlocked: blockedOwners.has(row.ownerId),
+            leftAt: row.leftAt,
+            purgeAt: purgeAtOf(row.leftAt),
         }));
     }
 
@@ -102,7 +105,8 @@ export function createAdminHandlers(deps: AdminHandlerDeps): AdminHandlers {
     }
 
     async function leaveBlockedGuild(guildId: string): Promise<BlockOutcome> {
-        if (!(await db.hostedGuilds.get(guildId))) {
+        const guild = await db.hostedGuilds.get(guildId);
+        if (!guild || guild.leftAt !== null) {
             return { summary: "Bot was not in the server", leftGuild: false, leftGuildCount: 0 };
         }
         const reply = await leaveThroughCluster(guildId, "guild-blocked");

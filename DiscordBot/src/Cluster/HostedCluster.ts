@@ -4,10 +4,12 @@ import type { HostedCommandContext } from "../Commands/Command";
 import type { Database } from "../Data/Database";
 import { BlockChecker } from "../Hosted/BlockChecker";
 import { type BlockLeaveReason, type GuildGames, GuildLifecycle } from "../Hosted/GuildLifecycle";
-import { LEAVE_DISCONNECTS } from "../Hosted/LeaveDisconnects";
+import { LEAVE_DISCONNECTS, REMOVED_DISCONNECT } from "../Hosted/LeaveDisconnects";
 import { logger, logModules } from "../Logging/Logger";
 import type { GatewayLink } from "../Routing/ClusterRouter";
 import { DiscordGuildPort, toGuildInfo } from "./DiscordGuildPort";
+
+type PluginDisconnect = (typeof LEAVE_DISCONNECTS)[BlockLeaveReason] | typeof REMOVED_DISCONNECT;
 
 /** What a cluster adds in hosted mode; none of it exists in self-host. */
 export interface HostedCluster {
@@ -24,10 +26,9 @@ export function createHostedCluster(deps: {
     games: GuildGames;
 }): HostedCluster {
     const { db, gateway } = deps;
-    const disconnectBlocked = async (guildId: string, reason: BlockLeaveReason) => {
-        const { code, reason: closeReason } = LEAVE_DISCONNECTS[reason];
-        const reply = await gateway.send({ kind: "disconnect-guild", guildId, code, reason: closeReason });
-        if (!reply.ok) logger.warn(logModules.Bot, `Guild ${guildId}: could not disconnect its plugins before leaving`);
+    const disconnectPlugins = async (guildId: string, { code, reason }: PluginDisconnect) => {
+        const reply = await gateway.send({ kind: "disconnect-guild", guildId, code, reason });
+        if (!reply.ok) logger.warn(logModules.Bot, `Guild ${guildId}: could not disconnect its plugins`);
     };
     const blocks = new BlockChecker({ blocks: db.blocks, hostedGuilds: db.hostedGuilds });
     return {
@@ -45,7 +46,9 @@ export function createHostedCluster(deps: {
             blocks,
             audit: db.audit,
             games: deps.games,
-            disconnectBlocked,
+            disconnectBlocked: (guildId, reason: BlockLeaveReason) =>
+                disconnectPlugins(guildId, LEAVE_DISCONNECTS[reason]),
+            disconnectRemoved: (guildId) => disconnectPlugins(guildId, REMOVED_DISCONNECT),
         }),
     };
 }

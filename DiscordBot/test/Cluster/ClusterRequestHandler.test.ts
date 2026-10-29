@@ -15,6 +15,7 @@ describe("createClusterRequestHandler", () => {
         ),
         endSession: vi.fn(async () => {}),
         hasEnded: vi.fn((_sessionId: string) => false),
+        isRemoved: vi.fn((_guildId: string) => false),
     };
     let updateLinkReply: ReturnType<typeof vi.fn<ClusterRequestHandlerDeps["updateLinkReply"]>>;
     let events: { emit: ReturnType<typeof vi.fn<(e: GuildEvent) => void>> };

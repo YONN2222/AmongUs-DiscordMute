@@ -58,7 +58,54 @@ describe.each(backends)("HostedGuildRepository (%s)", (backend) => {
                 joinedAt: 1000,
                 botInstance: "second",
                 updatedAt: 3000,
+                leftAt: null,
             });
+        });
+
+        it("markLeft keeps the data and never moves an existing leave time", async () => {
+            await db.hostedGuilds.upsert(guild());
+            await db.links.upsert(guildId, "user-1", "Crew");
+
+            await db.hostedGuilds.markLeft(guildId, 5000);
+            await db.hostedGuilds.markLeft(guildId, 9000);
+
+            expect((await db.hostedGuilds.get(guildId))?.leftAt).toBe(5000);
+            expect(await countRows("links", guildId)).toBe(1);
+        });
+
+        it("an upsert keeps the leave time and clearLeft removes it", async () => {
+            await db.hostedGuilds.upsert(guild());
+            await db.hostedGuilds.markLeft(guildId, 5000);
+
+            await db.hostedGuilds.upsert(guild({ name: "Back" }));
+            expect((await db.hostedGuilds.get(guildId))?.leftAt).toBe(5000);
+
+            await db.hostedGuilds.clearLeft(guildId);
+            expect((await db.hostedGuilds.get(guildId))?.leftAt).toBeNull();
+        });
+
+        it("listLeftBefore returns only guilds that left at or before the cutoff", async () => {
+            const recent = uniqueId("guild");
+            const stayed = uniqueId("guild");
+            for (const id of [guildId, recent, stayed]) await db.hostedGuilds.upsert(guild({ guildId: id }));
+            await db.hostedGuilds.markLeft(guildId, 1000);
+            await db.hostedGuilds.markLeft(recent, 1001);
+
+            const ids = await db.hostedGuilds.listLeftBefore(1000);
+
+            expect(ids).toContain(guildId);
+            expect(ids).not.toContain(recent);
+            expect(ids).not.toContain(stayed);
+        });
+
+        it("count, listIds and listByOwner leave out guilds the bot left", async () => {
+            const before = await db.hostedGuilds.count();
+            await db.hostedGuilds.upsert(guild());
+            await db.hostedGuilds.markLeft(guildId, 5000);
+
+            expect(await db.hostedGuilds.count()).toBe(before);
+            expect(await db.hostedGuilds.listIds()).not.toContain(guildId);
+            expect(await db.hostedGuilds.listByOwner(ownerId)).toEqual([]);
         });
 
         it("a new guild gets the default bot instance", async () => {

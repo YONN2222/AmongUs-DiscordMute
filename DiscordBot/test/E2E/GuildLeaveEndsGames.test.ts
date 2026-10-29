@@ -2,10 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type AdminHandlers, createAdminHandlers } from "../../src/Admin/AdminHandlers";
 import { createClusterRequestHandler } from "../../src/Cluster/ClusterRequestHandler";
 import type { Database } from "../../src/Data/Database";
+import { LEFT_GUILD_RETENTION_MS } from "../../src/Data/Repositories/HostedGuildRepository";
 import { GuildEventBus } from "../../src/Events/GuildEvents";
 import { type NicknameAdapter, NicknameSync } from "../../src/Game/NicknameSync";
 import { BlockChecker } from "../../src/Hosted/BlockChecker";
 import { type GuildInfo, GuildLifecycle, type GuildPort } from "../../src/Hosted/GuildLifecycle";
+import { purgeLeftGuilds } from "../../src/Hosted/LeftGuildPurge";
 import { logger } from "../../src/Logging/Logger";
 import { MuteService, type VoiceAdapter, type VoiceMember } from "../../src/Mute/MuteService";
 import { InMemoryClusterRouter } from "../../src/Routing/ClusterRouter";
@@ -20,29 +22,37 @@ const ORIGINAL_NICKS: Record<string, string> = { "u-host": "Hosty", "u-crew": "C
 class FakeDiscord implements VoiceAdapter, NicknameAdapter {
     readonly muted = new Set<string>();
     readonly nicks = new Map<string, string | null>(Object.entries(ORIGINAL_NICKS));
+    /** Every call the bot made to Discord. */
+    calls = 0;
 
     async membersInChannel(): Promise<VoiceMember[]> {
+        this.calls += 1;
         return [...this.nicks.keys()].map((discordId) => this.member(discordId));
     }
 
     async findVoiceMember(_guildId: string, discordId: string): Promise<VoiceMember | null> {
+        this.calls += 1;
         return this.nicks.has(discordId) ? this.member(discordId) : null;
     }
 
     async setVoiceState(_guildId: string, discordId: string, patch: { mute?: boolean }): Promise<void> {
+        this.calls += 1;
         if (patch.mute === true) this.muted.add(discordId);
         if (patch.mute === false) this.muted.delete(discordId);
     }
 
     async nicknameOf(_guildId: string, discordId: string) {
+        this.calls += 1;
         return this.nicks.has(discordId) ? { nick: this.nicks.get(discordId) ?? null } : null;
     }
 
     async setNickname(_guildId: string, discordId: string, nick: string | null): Promise<void> {
+        this.calls += 1;
         this.nicks.set(discordId, nick);
     }
 
     async voiceChannelOf(): Promise<string> {
+        this.calls += 1;
         return CHANNEL;
     }
 
@@ -68,6 +78,7 @@ describe.each(backends)("leaving a guild during a game (%s)", (backend) => {
         let ownerId: string;
         let operatorId: string;
         let atLeave: LeaveSnapshot | null;
+        let clock: number;
         /** Runs between ending the games and the leave itself, where Discord takes its time. */
         let duringLeave: () => Promise<void>;
 
@@ -101,8 +112,8 @@ describe.each(backends)("leaving a guild during a game (%s)", (backend) => {
             };
         }
 
-        async function startGame(): Promise<void> {
-            expect(await router.send(guildId, gameEvent("game-start"))).toMatchObject({ ok: true });
+        async function startGame(sessionId = SESSION): Promise<void> {
+            expect(await router.send(guildId, gameEvent("game-start", sessionId))).toMatchObject({ ok: true });
             await vi.waitFor(() => expect(discord.nicks.get("u-crew")).toBe("Blue"));
             expect([...discord.muted].sort()).toEqual(["u-crew", "u-host"]);
         }
@@ -121,6 +132,7 @@ describe.each(backends)("leaving a guild during a game (%s)", (backend) => {
             ownerId = uniqueId("owner");
             operatorId = uniqueId("operator");
             atLeave = null;
+            clock = 10_000;
             duringLeave = async () => {};
             discord = new FakeDiscord();
             await db.links.upsert(guildId, "u-host", "Red");
@@ -159,8 +171,18 @@ describe.each(backends)("leaving a guild during a game (%s)", (backend) => {
                         mute.reopenGuild(id);
                         nicknames.reopenGuild(id);
                     },
+                    forget: (id) => {
+                        mute.forgetGuild(id);
+                        nicknames.forgetGuild(id);
+                    },
+                    recover: async (id) => {
+                        await mute.recover([id]);
+                        await nicknames.recover([id]);
+                    },
                 },
                 disconnectBlocked: async () => {},
+                disconnectRemoved: async () => {},
+                now: () => clock,
             });
             router = new InMemoryClusterRouter();
             router.register(
@@ -231,6 +253,47 @@ describe.each(backends)("leaving a guild during a game (%s)", (backend) => {
             await lifecycle.onGuildUpdate(info());
 
             expectNobodyMutedOrRenamed();
+        });
+
+        describe("when the guild removes the bot during a game", () => {
+            async function kickDuringGame(): Promise<void> {
+                await startGame();
+                discord.calls = 0;
+                await lifecycle.onGuildDelete(guildId);
+                await router.send(guildId, gameEvent("meeting-end"));
+                await router.send(guildId, { kind: "session-ended", guildId, sessionId: SESSION });
+            }
+
+            it("makes no Discord calls and keeps the ledger rows", async () => {
+                await kickDuringGame();
+
+                expect(discord.calls).toBe(0);
+                expect(await db.muteLedger.listByGuild(guildId)).toHaveLength(2);
+                expect(await db.nicknameLedger.listByGuild(guildId)).toHaveLength(2);
+                expect((await db.hostedGuilds.get(guildId))?.leftAt).toBe(clock);
+            });
+
+            it("adding the bot back lifts every leftover mute and nickname, then games work again", async () => {
+                await kickDuringGame();
+
+                await lifecycle.onGuildCreate(info());
+
+                expect(discord.muted.size).toBe(0);
+                expect(Object.fromEntries(discord.nicks)).toEqual(ORIGINAL_NICKS);
+                expect(await db.muteLedger.listByGuild(guildId)).toEqual([]);
+                expect(await db.nicknameLedger.listByGuild(guildId)).toEqual([]);
+                await startGame("session-2");
+            });
+
+            it("the purge seven days later removes the ledger rows", async () => {
+                await kickDuringGame();
+
+                await purgeLeftGuilds(db, clock + LEFT_GUILD_RETENTION_MS);
+
+                expect(await db.muteLedger.listByGuild(guildId)).toEqual([]);
+                expect(await db.nicknameLedger.listByGuild(guildId)).toEqual([]);
+                expect(await db.hostedGuilds.get(guildId)).toBeNull();
+            });
         });
 
         it("nobody is muted again when the game's last events and the plugin disconnect arrive after the leave", async () => {

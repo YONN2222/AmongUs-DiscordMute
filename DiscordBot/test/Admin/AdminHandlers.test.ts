@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createAdminHandlers } from "../../src/Admin/AdminHandlers";
 import type { ClusterInfo } from "../../src/Admin/Contract";
 import type { Database } from "../../src/Data/Database";
+import { LEFT_GUILD_RETENTION_MS } from "../../src/Data/Repositories/HostedGuildRepository";
 import { InMemoryClusterRouter } from "../../src/Routing/ClusterRouter";
 import { backendAvailable, backends, openBackend, purgeTestRows, uniqueId } from "../Helpers/TestDatabase";
 
@@ -86,6 +87,8 @@ describe.each(backends)("admin handlers, read endpoints (%s)", (backend) => {
                 hasSecret: true,
                 blocked: false,
                 ownerBlocked: false,
+                leftAt: null,
+                purgeAt: null,
             });
             expect(mine[1]).toMatchObject({ iconUrl: null, linkedUsers: 1, hasSecret: false, connectedPlugins: 0 });
             expect(mine[2]).toMatchObject({ blocked: true, ownerBlocked: false, linkedUsers: 0 });
@@ -121,6 +124,17 @@ describe.each(backends)("admin handlers, read endpoints (%s)", (backend) => {
             await addGuild(guildId, "Solo", uniqueId("o"), 1000);
 
             expect(await handlers().getGuild(guildId)).toMatchObject({ guildId, name: "Solo" });
+        });
+
+        it("a left guild shows when it left and when its data is deleted", async () => {
+            const guildId = uniqueId("left");
+            await addGuild(guildId, "Gone", uniqueId("o"), 1000);
+            await db.hostedGuilds.markLeft(guildId, NOW);
+
+            expect(await handlers().getGuild(guildId)).toMatchObject({
+                leftAt: NOW,
+                purgeAt: NOW + LEFT_GUILD_RETENTION_MS,
+            });
         });
 
         it("getGuild unknown is null", async () => {

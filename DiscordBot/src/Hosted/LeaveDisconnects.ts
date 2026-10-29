@@ -7,3 +7,6 @@ export const LEAVE_DISCONNECTS = {
     "owner-blocked": { code: CLOSE_BLOCKED, reason: "Server owner blocked" },
     admin: { code: CLOSE_BOT_LEFT, reason: "The bot left this server" },
 } as const satisfies Record<GuildLeaveReason, { code: number; reason: string }>;
+
+/** What the plugins of a guild receive when the guild removed the bot. */
+export const REMOVED_DISCONNECT = { code: CLOSE_BOT_LEFT, reason: "The bot was removed from this server" } as const;

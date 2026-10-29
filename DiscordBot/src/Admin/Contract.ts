@@ -29,6 +29,7 @@ export const AUDIT_ACTIONS = [
     "block.remove",
     "guild.leave",
     "guild.auto-leave",
+    "guild.purge",
     "secret.create",
     "secret.regenerate",
     "dashboard.login",
@@ -94,6 +95,8 @@ export const GuildSummarySchema = z.object({
     hasSecret: z.boolean(),
     blocked: z.boolean(),
     ownerBlocked: z.boolean(),
+    leftAt: z.number().nullable(),
+    purgeAt: z.number().nullable(),
 });
 export type GuildSummary = z.infer<typeof GuildSummarySchema>;
 

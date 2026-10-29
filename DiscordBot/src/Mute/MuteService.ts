@@ -96,6 +96,8 @@ export class MuteService {
     private readonly endedSessions = new EndedSessions();
     /** Guilds the bot is leaving; their games are over, so every event of them is dropped until the leave returned. */
     private readonly leavingGuilds = new Set<string>();
+    /** Guilds that removed the bot; nothing of them is applied until recover runs for them. */
+    private readonly removedGuilds = new Set<string>();
     /** Counts the events of a session in arrival order; a delayed event that was overtaken is dropped. */
     private readonly sequence = new Map<string, number>();
     private readonly pendingDelays = new Map<string, Set<PendingDelay>>();
@@ -181,7 +183,12 @@ export class MuteService {
     }
 
     private isDropped(guildId: string, sessionId: string): boolean {
-        return this.hasEnded(sessionId) || this.leavingGuilds.has(guildId);
+        return this.hasEnded(sessionId) || this.leavingGuilds.has(guildId) || this.isRemoved(guildId);
+    }
+
+    /** True from forgetGuild until recover ran for the guild. */
+    isRemoved(guildId: string): boolean {
+        return this.removedGuilds.has(guildId);
     }
 
     /** True once endSession was called for the session, before its release even ran. */
@@ -204,7 +211,7 @@ export class MuteService {
 
     /**
      * Ends every game in the guild and lifts every mute on record there; runs before the bot leaves the guild,
-     * because its ledger is purged afterwards. Every later event of the guild, including one still waiting out its
+     * because it cannot lift them afterwards. Every later event of the guild, including one still waiting out its
      * delay, is dropped until reopenGuild. Rejects when the ledger cannot be read, so the bot stays.
      */
     endGuild(guildId: string): Promise<void> {
@@ -225,11 +232,29 @@ export class MuteService {
         this.leavingGuilds.delete(guildId);
     }
 
-    /** Runs once on cluster ready so mutes left behind by a crash are lifted. */
+    /**
+     * The guild removed the bot, which therefore cannot lift anything there: ends its games in memory only and keeps
+     * every ledger row, so recover can lift them once the bot is added back.
+     */
+    forgetGuild(guildId: string): void {
+        this.removedGuilds.add(guildId);
+        for (const sessionId of this.activeSessions.of(guildId)) {
+            this.endedSessions.add(sessionId);
+            this.forgetSession(sessionId);
+            this.activeSessions.delete(guildId, sessionId);
+        }
+        this.cancelDelaysOf(guildId);
+    }
+
+    /**
+     * Lifts every mute on record in the guilds: once on cluster ready after a crash, and when a guild adds the bot
+     * back. Events of a removed guild are applied again only after its mutes were lifted.
+     */
     async recover(guildIds: string[]): Promise<void> {
         await Promise.all(
             guildIds.map((guildId) =>
                 this.enqueue(guildId, async () => {
+                    this.removedGuilds.delete(guildId);
                     try {
                         await this.releaseGuild(guildId);
                     } catch (err) {

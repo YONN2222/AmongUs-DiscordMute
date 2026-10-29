@@ -305,6 +305,19 @@ describe.each(backends)("admin handlers, actions (%s)", (backend) => {
             expect(await auditOf(guildId)).toEqual([]);
         });
 
+        it('guild block of a server the bot already left stores "Bot was not in the server"', async () => {
+            const guildId = uniqueId("guild");
+            await addGuild(guildId, uniqueId("owner"));
+            await db.hostedGuilds.markLeft(guildId, START);
+
+            const block = blocked(
+                await handlers().createBlock({ type: "guild", targetId: guildId, reason: "spam", actorId: admin }),
+            );
+
+            expect(block).toMatchObject({ summary: "Bot was not in the server", leftGuildCount: 0 });
+            expect(router.sent).toEqual([]);
+        });
+
         it("dashboard audit stores the login", async () => {
             const entry = await handlers().recordDashboardAudit({
                 actorId: admin,

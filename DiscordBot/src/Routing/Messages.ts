@@ -63,7 +63,7 @@ export type GatewayRequest =
           discordId: string;
       }
     | { kind: "is-plugin-connected"; guildId: string }
-    | { kind: "disconnect-guild"; guildId: string; code: 4001 | 4005; reason: string };
+    | { kind: "disconnect-guild"; guildId: string; code: 4001 | 4005 | 4007; reason: string };
 
 export type RouterReply = { ok: true; notice?: GatewayNotice } | { ok: false; error: string };
 
@@ -148,7 +148,7 @@ const gatewayRequestSchema: z.ZodType<GatewayRequest> = z.discriminatedUnion("ki
     z.object({
         kind: z.literal("disconnect-guild"),
         guildId: z.string(),
-        code: z.union([z.literal(4001), z.literal(4005)]),
+        code: z.union([z.literal(4001), z.literal(4005), z.literal(4007)]),
         reason: z.string().max(MAX_CLOSE_REASON_LENGTH),
     }),
 ]);

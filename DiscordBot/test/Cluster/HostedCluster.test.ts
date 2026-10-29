@@ -57,7 +57,7 @@ describe("bindGuildLifecycle", () => {
 describe("createHostedCluster", () => {
     let db: Database;
 
-    const games = { end: async () => {}, reopen: () => {} };
+    const games = { end: async () => {}, reopen: () => {}, forget: () => {}, recover: async () => {} };
 
     beforeEach(async () => {
         db = await createTestDatabase();

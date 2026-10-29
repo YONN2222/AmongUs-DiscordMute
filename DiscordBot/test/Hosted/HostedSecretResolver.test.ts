@@ -21,7 +21,7 @@ describe.each(backends)("HostedSecretResolver (%s)", (backend) => {
         beforeEach(async () => {
             db = await openBackend(backend);
             const blocks = new BlockChecker({ blocks: db.blocks, hostedGuilds: db.hostedGuilds });
-            resolver = new HostedSecretResolver({ secrets: db.guildSecrets, blocks });
+            resolver = new HostedSecretResolver({ secrets: db.guildSecrets, blocks, hostedGuilds: db.hostedGuilds });
             guildId = uniqueId("guild");
             ownerId = uniqueId("owner");
         });
@@ -42,6 +42,7 @@ describe.each(backends)("HostedSecretResolver (%s)", (backend) => {
             const guarded = new HostedSecretResolver({
                 secrets: { findGuildByHash: lookup },
                 blocks: new BlockChecker({ blocks: db.blocks, hostedGuilds: db.hostedGuilds }),
+                hostedGuilds: db.hostedGuilds,
             });
 
             expect(await guarded.resolve(secret.slice("dmh_".length))).toBeNull();
@@ -50,6 +51,14 @@ describe.each(backends)("HostedSecretResolver (%s)", (backend) => {
 
             expect(await guarded.resolve("dmh_unknown")).toBeNull();
             expect(lookup).toHaveBeenCalledExactlyOnceWith(hashSecret("dmh_unknown"));
+        });
+
+        it("a secret of a guild the bot left resolves to null", async () => {
+            await storeGuild();
+            const secret = await createSecret();
+            await db.hostedGuilds.markLeft(guildId, 5000);
+
+            expect(await resolver.resolve(secret)).toBeNull();
         });
 
         it("blocked guild resolves as blocked", async () => {

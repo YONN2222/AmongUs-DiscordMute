@@ -18,7 +18,7 @@ import { startUpdateChecks } from "../Updates/UpdateChecker";
 import { LinkingService } from "../Utils/LinkingService";
 import { BOT_VERSION } from "../Version";
 import { createGatewayRequestHandler } from "./GatewayRequestHandler";
-import { createHostedGateway, readHostedAdminTokenOrThrow, startAuditPrune } from "./HostedGateway";
+import { createHostedGateway, readHostedAdminTokenOrThrow, startHourlyCleanup } from "./HostedGateway";
 import { createGatewayHttpServer } from "./HttpServer";
 import { PluginGateway } from "./PluginGateway";
 import { SelfHostSecretResolver } from "./SecretResolver";
@@ -205,14 +205,14 @@ export async function runGateway(
     const handleRequest = createGatewayRequestHandler(pluginGateway);
     instance.on("request", (_cluster, data, resolve) => resolve(handleRequest(data)));
 
-    let stopAuditPrune: (() => void) | undefined;
+    let stopHourlyCleanup: (() => void) | undefined;
     let stopping = false;
     const shutdown = async (exitCode: number): Promise<void> => {
         if (stopping) return;
         stopping = true;
         telemetry?.stop();
         updateChecks?.stop();
-        stopAuditPrune?.();
+        stopHourlyCleanup?.();
         const forcedExit = setTimeout(() => deps.exit(exitCode), SHUTDOWN_TIMEOUT_MS);
         forcedExit.unref();
         await shutdownGateway({
@@ -254,7 +254,7 @@ export async function runGateway(
     if (adminServer) {
         await listen(adminServer, config.adminApi.port, config.adminApi.host);
         logger.success(logModules.WebServer, `Admin API listening on ${config.adminApi.host}:${config.adminApi.port}`);
-        stopAuditPrune = startAuditPrune(db.audit);
+        stopHourlyCleanup = startHourlyCleanup(db);
     }
     instance.start();
     telemetry?.start();
