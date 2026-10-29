@@ -1,9 +1,13 @@
 import type { Server } from "node:http";
 import { type ClusterProcess, StandaloneInstance } from "galactic.ts";
+import { Registry } from "prom-client";
 import { DISCORD_INTENTS } from "../Cluster/createDiscordClient";
 import { config, DISCORD_TOKEN } from "../config";
 import { databaseOptionsFrom, openDatabase } from "../Data/database";
 import { configureLogger, logger, logModules } from "../Logging/logger";
+import { createGatewayMetrics, createGatewayMetricsObserver } from "../Metrics/gatewayMetrics";
+import { GalacticSnapshotSource, MetricsCollector } from "../Metrics/MetricsCollector";
+import { createMetricsServer } from "../Metrics/metricsServer";
 import { clusterSpawnOptions } from "../Process/processRole";
 import { GalacticClusterRouter } from "../Routing/ClusterRouter";
 import { LinkingService } from "../Utils/LinkingService";
@@ -71,11 +75,21 @@ export async function runGateway(): Promise<void> {
     logger.success(logModules.Database, "Database is ready!");
 
     const instance = createInstance();
+    const gatewayRegistry = new Registry();
+    const gatewayMetrics = createGatewayMetrics(gatewayRegistry);
+    const collector = new MetricsCollector({
+        gatewayRegistry,
+        clusters: new GalacticSnapshotSource(instance, () => gatewayMetrics.clusterSnapshotFailures.inc()),
+    });
     const pluginGateway = new PluginGateway({
         resolver: new SelfHostSecretResolver(config),
         router: new GalacticClusterRouter(instance),
         linking: new LinkingService(db),
+        observer: createGatewayMetricsObserver(gatewayMetrics),
     });
+    const metricsServer = config.metrics.enabled
+        ? createMetricsServer({ collector, token: config.metrics.token })
+        : undefined;
     const server = createGatewayHttpServer();
     pluginGateway.attach(server);
 
@@ -91,7 +105,9 @@ export async function runGateway(): Promise<void> {
             stopRespawning: () => instance.stopRespawning(),
             closePluginSessions: () => pluginGateway.close(),
             stopClusters: () => instance.shutdown(),
-            closeHttpServer: () => closeServer(server),
+            closeHttpServer: async () => {
+                await Promise.all([closeServer(server), metricsServer ? closeServer(metricsServer) : undefined]);
+            },
             closeDatabase: () => db.close(),
         });
         process.exit(exitCode);
@@ -112,5 +128,12 @@ export async function runGateway(): Promise<void> {
 
     await listen(server, config.botPort, config.botIp);
     logger.success(logModules.WebServer, `Gateway listening on ${config.botIp}:${config.botPort}`);
+    if (metricsServer) {
+        await listen(metricsServer, config.metrics.port, config.metrics.host);
+        logger.success(
+            logModules.Metrics,
+            `Metrics endpoint listening on ${config.metrics.host}:${config.metrics.port}`,
+        );
+    }
     instance.start();
 }

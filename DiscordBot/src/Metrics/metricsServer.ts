@@ -1,0 +1,40 @@
+import { createHash, timingSafeEqual } from "node:crypto";
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { logger, logModules } from "../Logging/logger";
+import type { MetricsCollector } from "./MetricsCollector";
+
+const BEARER_PREFIX = "Bearer ";
+
+function sha256(value: string): Buffer {
+    return createHash("sha256").update(value).digest();
+}
+
+function isAuthorized(request: IncomingMessage, token: string | undefined): boolean {
+    if (token === undefined) return true;
+    const header = request.headers.authorization ?? "";
+    if (!header.startsWith(BEARER_PREFIX)) return false;
+    return timingSafeEqual(sha256(header.slice(BEARER_PREFIX.length)), sha256(token));
+}
+
+function end(response: ServerResponse, status: number): void {
+    response.writeHead(status).end();
+}
+
+export function createMetricsServer(deps: { collector: MetricsCollector; token?: string }): Server {
+    return createServer((request, response) => {
+        const path = (request.url ?? "").split("?")[0];
+        if (request.method !== "GET" || path !== "/metrics") return end(response, 404);
+        if (!isAuthorized(request, deps.token)) return end(response, 401);
+
+        deps.collector
+            .aggregated()
+            .then(async (registry) => {
+                const body = await registry.metrics();
+                response.writeHead(200, { "Content-Type": registry.contentType }).end(body);
+            })
+            .catch((error: unknown) => {
+                logger.error(logModules.Metrics, "Could not collect metrics", error);
+                if (!response.headersSent) end(response, 500);
+            });
+    });
+}
