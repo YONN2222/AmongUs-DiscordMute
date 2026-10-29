@@ -8,9 +8,12 @@ import { configureLogger, logger, logModules } from "../Logging/logger";
 import { createGatewayMetrics, createGatewayMetricsObserver } from "../Metrics/gatewayMetrics";
 import { GalacticSnapshotSource, MetricsCollector } from "../Metrics/MetricsCollector";
 import { createMetricsServer } from "../Metrics/metricsServer";
-import { clusterSpawnOptions } from "../Process/processRole";
+import { clusterSpawnOptions, isCompiledExecutable } from "../Process/processRole";
 import { GalacticClusterRouter } from "../Routing/ClusterRouter";
+import { TelemetryBuilder } from "../Telemetry/TelemetryBuilder";
+import { TelemetryService, telemetryTarget } from "../Telemetry/TelemetryService";
 import { LinkingService } from "../Utils/LinkingService";
+import { BOT_VERSION } from "../version";
 import { createGatewayRequestHandler } from "./gatewayRequestHandler";
 import { createGatewayHttpServer } from "./httpServer";
 import { PluginGateway } from "./PluginGateway";
@@ -68,6 +71,31 @@ function logClusterEvents(
     instance.on("ERROR", (error) => logger.debug(logModules.Bot, error));
 }
 
+async function createTelemetryService(
+    db: Awaited<ReturnType<typeof openDatabase>>,
+    collector: MetricsCollector,
+): Promise<TelemetryService | undefined> {
+    const target = telemetryTarget({
+        disabled: config.disableTelemetry,
+        compiled: isCompiledExecutable(Bun.main, process.execPath),
+        mode: "self-host",
+        env: process.env,
+    });
+    if (!target) {
+        if (config.disableTelemetry)
+            logger.debug(logModules.Telemetry, "Anonymous telemetry is disabled in the config");
+        return undefined;
+    }
+    const builder = new TelemetryBuilder({
+        instanceId: await db.telemetry.getOrCreateInstanceId(),
+        mode: "self-host",
+        botVersion: BOT_VERSION,
+        countLinkedUsers: () => db.telemetry.countLinkedUsers(),
+    });
+    logger.info(logModules.Telemetry, "Anonymous telemetry is on (see README to turn it off)");
+    return new TelemetryService({ target, fetch, collect: () => collector.snapshots(), builder });
+}
+
 /** The gateway owns the plugin connections and the database migrations; Discord itself runs in the clusters. */
 export async function runGateway(): Promise<void> {
     configureLogger({ format: config.logFormat, processName: "gateway" });
@@ -90,6 +118,7 @@ export async function runGateway(): Promise<void> {
     const metricsServer = config.metrics.enabled
         ? createMetricsServer({ collector, token: config.metrics.token })
         : undefined;
+    const telemetry = await createTelemetryService(db, collector);
     const server = createGatewayHttpServer();
     pluginGateway.attach(server);
 
@@ -100,6 +129,7 @@ export async function runGateway(): Promise<void> {
     const shutdown = async (exitCode: number): Promise<void> => {
         if (stopping) return;
         stopping = true;
+        telemetry?.stop();
         setTimeout(() => process.exit(exitCode), SHUTDOWN_TIMEOUT_MS).unref();
         await shutdownGateway({
             stopRespawning: () => instance.stopRespawning(),
@@ -136,4 +166,5 @@ export async function runGateway(): Promise<void> {
         );
     }
     instance.start();
+    telemetry?.start();
 }
