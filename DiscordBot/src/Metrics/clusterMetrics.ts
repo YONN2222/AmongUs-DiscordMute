@@ -1,5 +1,6 @@
 import { type Client, RESTEvents } from "discord.js";
 import { Counter, Gauge, Histogram, type Registry } from "prom-client";
+import { logger, logModules } from "../Logging/logger";
 import type { VoiceAdapter } from "../Mute/MuteService";
 import type { GuildSettings } from "../Settings/GuildSettings";
 import { TELEMETRY_FEATURES } from "../Telemetry/contract/schema";
@@ -103,8 +104,17 @@ export function createClusterMetrics(registry: Registry, clusterId: number): Clu
             async collect() {
                 if (!featureSource) return;
                 const guildIds = featureSource.guildIds();
-                const settings = await Promise.all(guildIds.map((guildId) => featureSource?.settings(guildId)));
-                const counts = countFeatureGuilds(settings.filter((s): s is GuildSettings => s !== undefined));
+                const results = await Promise.allSettled(guildIds.map((guildId) => featureSource?.settings(guildId)));
+                const settings: GuildSettings[] = [];
+                let failed = 0;
+                for (const result of results) {
+                    if (result.status === "rejected") failed++;
+                    else if (result.value !== undefined) settings.push(result.value);
+                }
+                if (failed > 0) {
+                    logger.debug(logModules.Metrics, `Skipped ${failed} guild(s) whose settings could not be read`);
+                }
+                const counts = countFeatureGuilds(settings);
                 this.reset();
                 for (const feature of TELEMETRY_FEATURES) this.set({ feature }, counts[feature]);
             },

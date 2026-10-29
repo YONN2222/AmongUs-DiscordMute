@@ -136,6 +136,22 @@ describe("feature_guilds gauge", () => {
         expect(counts).toMatchObject({ ghostChat: 0, autoRelink: 1 });
     });
 
+    it("feature gauge skips a guild whose settings read fails", async () => {
+        const registry = new Registry();
+        createClusterMetrics(registry, 0).attachFeatureSource({
+            guildIds: () => [GUILD_A, GUILD_B, "333333333333333333"],
+            settings: async (guildId) => {
+                if (guildId === GUILD_B) throw new Error("database down");
+                return saved[guildId] ?? DEFAULT_SETTINGS;
+            },
+        });
+
+        const values = await metricValues(registry, "discordmute_feature_guilds");
+        const counts = Object.fromEntries(values.map((v) => [v.labels.feature, v.value]));
+
+        expect(counts).toMatchObject({ ghostChat: 1, autoRelink: 1 });
+    });
+
     it("reports zero for every feature without guilds", async () => {
         const counts = await featureValues([]);
 
