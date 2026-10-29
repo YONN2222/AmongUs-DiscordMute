@@ -3,9 +3,7 @@ import { type ClusterProcess, StandaloneInstance } from "galactic.ts";
 import { Registry } from "prom-client";
 import { DISCORD_INTENTS } from "../Cluster/CreateDiscordClient";
 import { type Database, databaseOptionsFrom, openDatabase } from "../Data/Database";
-import { BlockChecker } from "../Hosted/BlockChecker";
-import { assertHostedDatabase, isHosted, readAdminApiToken } from "../Hosted/HostedMode";
-import { HostedSecretResolver } from "../Hosted/HostedSecretResolver";
+import { isHosted } from "../Hosted/HostedMode";
 import type { Config } from "../Infrastructure/ConfigSchema";
 import { configureLogger, logger, logModules } from "../Logging/Logger";
 import { createGatewayMetrics, createGatewayMetricsObserver } from "../Metrics/GatewayMetrics";
@@ -20,10 +18,10 @@ import { startUpdateChecks } from "../Updates/UpdateChecker";
 import { LinkingService } from "../Utils/LinkingService";
 import { BOT_VERSION } from "../Version";
 import { createGatewayRequestHandler } from "./GatewayRequestHandler";
-import { createAdminApi, startAuditPrune } from "./HostedGateway";
+import { createHostedGateway, readHostedAdminTokenOrThrow, startAuditPrune } from "./HostedGateway";
 import { createGatewayHttpServer } from "./HttpServer";
 import { PluginGateway } from "./PluginGateway";
-import { type SecretResolver, SelfHostSecretResolver } from "./SecretResolver";
+import { SelfHostSecretResolver } from "./SecretResolver";
 import { createClusterExitHandler, onShutdownSignal, shutdownGateway } from "./Shutdown";
 
 /**
@@ -147,14 +145,6 @@ function selfHostResolver(cfg: Pick<Config, "guildId" | "secret">): SelfHostSecr
     return new SelfHostSecretResolver({ guildId: cfg.guildId, secret: cfg.secret });
 }
 
-/** The admin API token in hosted mode, undefined in self-host; throws a message for the operator when hosted cannot start. */
-function readHostedStartup(config: Config, env: GatewayDeps["env"]): string | undefined {
-    if (!isHosted(config)) return undefined;
-    const token = readAdminApiToken(env);
-    assertHostedDatabase(config);
-    return token;
-}
-
 /**
  * The gateway owns the plugin connections and the database migrations; Discord itself runs in the clusters.
  * Resolves to undefined when the configuration cannot start, after `deps.exit` was called.
@@ -166,7 +156,7 @@ export async function runGateway(
     configureLogger({ format: config.logFormat, processName: "gateway" });
     let adminToken: string | undefined;
     try {
-        adminToken = readHostedStartup(config, deps.env);
+        adminToken = isHosted(config) ? readHostedAdminTokenOrThrow(config, deps.env) : undefined;
     } catch (error) {
         logger.error(logModules.Bot, error instanceof Error ? error.message : String(error));
         deps.exit(EXIT_CONFIG_INVALID);
@@ -183,24 +173,20 @@ export async function runGateway(
         gatewayRegistry,
         clusters: new GalacticSnapshotSource(instance, () => gatewayMetrics.clusterSnapshotFailures.inc()),
     });
-    const blocks = isHosted(config)
-        ? new BlockChecker({ blocks: db.blocks, hostedGuilds: db.hostedGuilds })
-        : undefined;
-    const resolver: SecretResolver = blocks
-        ? new HostedSecretResolver({ secrets: db.guildSecrets, blocks })
-        : selfHostResolver(config);
+    const hosted =
+        adminToken === undefined
+            ? undefined
+            : createHostedGateway({ token: adminToken, db, metrics: gatewayMetrics, instance });
     const pluginGateway = new PluginGateway({
-        resolver,
+        resolver: hosted?.resolver ?? selfHostResolver(config),
         router: new GalacticClusterRouter(instance),
-        linking: new LinkingService(db, undefined, blocks),
+        linking: new LinkingService(db, undefined, hosted?.blocks),
         observer: createGatewayMetricsObserver(gatewayMetrics),
     });
     const metricsServer = config.metrics.enabled
         ? createMetricsServer({ collector, token: config.metrics.token })
         : undefined;
-    const adminServer = adminToken
-        ? createAdminApi({ token: adminToken, db, plugins: pluginGateway, metrics: gatewayMetrics, instance })
-        : undefined;
+    const adminServer = hosted?.createAdminServer(pluginGateway);
     const telemetry = await createTelemetryService(config, deps.env, db, collector);
     const updateChecks = config.disableUpdateCheck
         ? undefined
