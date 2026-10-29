@@ -46,6 +46,16 @@ describe('legal content', () => {
     expect(section(PRIVACY_SECTIONS, 'hosted-bot')).toMatch(/reason the operator gave/i)
   })
 
+  it('privacy covers the hosted operational log, the mute record and open link requests', () => {
+    const hosted = section(PRIVACY_SECTIONS, 'hosted-bot')
+    expect(hosted).toMatch(/operational log/i)
+    expect(hosted).toMatch(/in-game names/i)
+    expect(hosted).toMatch(/muted, deafened or renamed/i)
+    expect(hosted).toMatch(/link phrase is open/i)
+    expect(section(PRIVACY_SECTIONS, 'retention')).toMatch(/operational logs.*30 days/i)
+    expect(section(PRIVACY_SECTIONS, 'retention')).toMatch(/5 minutes/)
+  })
+
   it('privacy names Cloudflare as processor for plugin connections to the hosted bot', () => {
     const hosted = section(PRIVACY_SECTIONS, 'hosted-bot')
     expect(hosted).toContain('Cloudflare, Inc.')
