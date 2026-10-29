@@ -100,11 +100,23 @@ internal static class GameStartPatch
 internal static class GameEndPatch
 {
     [HarmonyPostfix]
-    static void Postfix()
+    static void Postfix(EndGameResult endGameResult)
     {
         HostGate.Refresh();
         if (!HostGate.IsActive) return;
+        _ = BotClient.SendGameEndAsync(endGameResult.GameOverReason.ToString());
         _ = BotClient.SendEventAsync("lobby");
+    }
+}
+
+[HarmonyPatch(typeof(PlayerControl), nameof(PlayerControl.MurderPlayer))]
+internal static class MurderPlayerPatch
+{
+    [HarmonyPostfix]
+    static void Postfix()
+    {
+        if (!HostGate.IsActive || ShipStatus.Instance == null) return;
+        _ = BotClient.SendEventAsync("player-died");
     }
 }
 

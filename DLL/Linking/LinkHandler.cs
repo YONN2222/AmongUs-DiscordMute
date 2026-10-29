@@ -26,7 +26,7 @@ public static class LinkHandler
         if (string.IsNullOrWhiteSpace(playerName)) return false;
 
         DiscordMutePlugin.PluginLog.LogInfo($"Linking player '{playerName}' with phrase '{matchedPhrase}'");
-        SendLinkPhrase(matchedPhrase, playerName);
+        SendLinkPhrase(matchedPhrase, playerName, (sender ?? PlayerControl.LocalPlayer)?.Data?.FriendCode);
         return true;
     }
 
@@ -65,7 +65,7 @@ public static class LinkHandler
         if (string.IsNullOrWhiteSpace(playerName)) return false;
 
         DiscordMutePlugin.PluginLog.LogInfo($"Linking player '{playerName}' with Quick Chat code '{matchedCode}'");
-        SendLinkPhrase(matchedCode, playerName);
+        SendLinkPhrase(matchedCode, playerName, sender?.Data?.FriendCode);
         return true;
     }
 
@@ -86,9 +86,21 @@ public static class LinkHandler
 
     public static string GetPlayerName(PlayerControl player)
     {
-        if (player == null) return null;
-        string rawName = player.Data?.PlayerName;
+        return player == null ? null : ResolvePlayerName(player.PlayerId, player.Data?.PlayerName);
+    }
 
+    public static string GetPlayerName(NetworkedPlayerInfo info)
+    {
+        return info == null ? null : ResolvePlayerName(info.PlayerId, info.PlayerName);
+    }
+
+    internal static string CleanName(string rawName)
+    {
+        return Regex.Replace(rawName ?? string.Empty, "<[^>]*>", string.Empty).Trim();
+    }
+
+    private static string ResolvePlayerName(byte playerId, string rawName)
+    {
         try
         {
             var modMain = AccessTools.TypeByName("TOHE.Main") ?? AccessTools.TypeByName("EHR.Main");
@@ -98,7 +110,7 @@ public static class LinkHandler
                 if (allNamesField != null)
                 {
                     var allNames = allNamesField.GetValue(null) as IDictionary<byte, string>;
-                    if (allNames != null && allNames.TryGetValue(player.PlayerId, out var name))
+                    if (allNames != null && allNames.TryGetValue(playerId, out var name))
                         rawName = name;
                 }
             }
@@ -108,7 +120,7 @@ public static class LinkHandler
             DiscordMutePlugin.PluginLog.LogWarning($"Failed to resolve external player name: {ex.Message}");
         }
 
-        return Regex.Replace(rawName ?? string.Empty, "<[^>]*>", string.Empty).Trim();
+        return CleanName(rawName);
     }
 
     private static readonly ConcurrentDictionary<string, string> SentLinkCodes = new();
@@ -142,14 +154,17 @@ public static class LinkHandler
         LocalChatQueue.Pending.Enqueue("[DiscordMute] Account linked successfully!");
     }
 
-    internal static void SendLinkPhrase(string phrase, string accountName)
+    internal static void SendLinkPhrase(string phrase, string accountName, string friendCode = null)
     {
         try
         {
             var code = PluginProtocol.Truncate(phrase, PluginProtocol.MaxNameLength);
             var name = PluginProtocol.Truncate(accountName, PluginProtocol.MaxNameLength);
             SentLinkCodes[name] = code;
-            var sentNow = PluginSocket.Send(new LinkChatMessage { Code = code, AccountName = name });
+            var message = new LinkChatMessage { Code = code, AccountName = name };
+            if (PluginSocket.BotSupportsV3 && !string.IsNullOrEmpty(friendCode))
+                message.FriendCode = PluginProtocol.Truncate(friendCode, PluginProtocol.MaxFriendCodeLength);
+            var sentNow = PluginSocket.Send(message);
             if (!sentNow)
                 LocalChatQueue.Pending.Enqueue("[DiscordMute] Bot not connected yet, link request will be sent once it is.");
         }

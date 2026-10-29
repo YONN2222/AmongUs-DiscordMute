@@ -7,7 +7,7 @@ namespace DiscordMute.Core;
 
 internal static class PluginProtocol
 {
-    internal const int ProtocolVersion = 2;
+    internal const int ProtocolVersion = 3;
 
     internal const int CloseHelloTimeout = 4000;
     internal const int CloseUnauthorized = 4001;
@@ -19,6 +19,7 @@ internal static class PluginProtocol
     internal const int MaxVersionLength = 32;
     internal const int MaxLogMessageLength = 2000;
     internal const int MaxPlayers = 128;
+    internal const int MaxFriendCodeLength = 32;
 
     internal static readonly JsonSerializerOptions JsonOptions = new();
 
@@ -52,6 +53,34 @@ internal sealed class GameEventMessage
     [JsonPropertyName("hostAccountName")] public string HostAccountName { get; set; }
     [JsonPropertyName("players")] public List<string> Players { get; set; }
     [JsonPropertyName("deadPlayers")] public List<string> DeadPlayers { get; set; }
+
+    [JsonPropertyName("roster")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<RosterEntry> Roster { get; set; }
+
+    [JsonPropertyName("lobbyCode")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string LobbyCode { get; set; }
+}
+
+internal sealed class RosterEntry
+{
+    [JsonPropertyName("name")] public string Name { get; set; }
+
+    [JsonPropertyName("friendCode")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string FriendCode { get; set; }
+
+    [JsonPropertyName("dead")] public bool Dead { get; set; }
+    [JsonPropertyName("disconnected")] public bool Disconnected { get; set; }
+}
+
+internal sealed class GameEndMessage
+{
+    [JsonPropertyName("type")] public string Type => "game-end";
+    [JsonPropertyName("reason")] public string Reason { get; set; }
+    [JsonPropertyName("winners")] public List<string> Winners { get; set; }
+    [JsonPropertyName("roster")] public List<RosterEntry> Roster { get; set; }
 }
 
 internal sealed class LinkChatMessage
@@ -59,6 +88,10 @@ internal sealed class LinkChatMessage
     [JsonPropertyName("type")] public string Type => "link-chat";
     [JsonPropertyName("code")] public string Code { get; set; }
     [JsonPropertyName("accountName")] public string AccountName { get; set; }
+
+    [JsonPropertyName("friendCode")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string FriendCode { get; set; }
 }
 
 internal sealed class PluginLogMessage

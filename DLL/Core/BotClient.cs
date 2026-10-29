@@ -2,9 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using DiscordMute.Linking;
 using DiscordMute.Modules;
+using InnerNet;
 
 namespace DiscordMute.Core;
 
@@ -62,8 +64,35 @@ internal static class BotClient
         DiscordMutePlugin.PluginLog.LogInfo($"Started Discord bot from '{botPath}'.");
     }
 
+    private static readonly TimeSpan ReadyWait = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// The bot's protocol version is only known after its welcome, so v3 content is built once the
+    /// connection is ready. Gives up after a few seconds and falls back to the v2 message shape.
+    /// </summary>
+    private static async Task WaitForBotVersionAsync()
+    {
+        var deadline = DateTime.UtcNow + ReadyWait;
+        while (!PluginSocket.IsReady && !PluginSocket.IsTerminal && HostGate.IsActive && DateTime.UtcNow < deadline)
+            await Task.Delay(100);
+    }
+
+    private static readonly SemaphoreSlim EventGate = new(1, 1);
+
+    /// <summary>Events are waited for, built and queued one at a time so they reach the bot in the order they were raised.</summary>
     internal static async Task SendEventAsync(string eventName)
     {
+        await EventGate.WaitAsync();
+        try { await SendEventCoreAsync(eventName); }
+        finally { EventGate.Release(); }
+    }
+
+    private static async Task SendEventCoreAsync(string eventName)
+    {
+        await WaitForBotVersionAsync();
+
+        if (eventName == "player-died" && !PluginSocket.BotSupportsV3) return;
+
         for (int i = 0; i < 5; i++)
         {
             if (!HostGate.IsActive) return;
@@ -87,14 +116,21 @@ internal static class BotClient
                 if (eventName == "meeting-start")
                     ApplyBlackmailMutes(aliveNames, deadNames);
 
-                var sentNow = PluginSocket.Send(new GameEventMessage
+                var message = new GameEventMessage
                 {
                     Event = eventName,
                     HostAccountName = PluginProtocol.Truncate(
                         LinkHandler.GetPlayerName(PlayerControl.LocalPlayer), PluginProtocol.MaxNameLength),
                     Players = PluginProtocol.TruncateNames(aliveNames),
                     DeadPlayers = PluginProtocol.TruncateNames(deadNames)
-                });
+                };
+                if (PluginSocket.BotSupportsV3)
+                {
+                    message.Roster = CollectRoster();
+                    message.LobbyCode = GetLobbyCode();
+                }
+
+                var sentNow = PluginSocket.Send(message);
                 DiscordMutePlugin.PluginLog.LogInfo(
                     $"[DiscordMute] Event '{eventName}' {(sentNow ? "sent" : "queued until the bot connection is ready")}.");
                 return;
@@ -103,6 +139,87 @@ internal static class BotClient
 
             await Task.Delay(2000);
         }
+    }
+
+    /// <summary>
+    /// The roster and winners are snapshotted synchronously when this is called; the send then goes through the
+    /// same gate as every other event, so it keeps its place in the order of events.
+    /// </summary>
+    internal static async Task SendGameEndAsync(string reason)
+    {
+        GameEndMessage message;
+        try { message = SnapshotGameEnd(reason); }
+        catch (Exception ex)
+        {
+            DiscordMutePlugin.PluginLog.LogError($"[DiscordMute] Error reading the game result: {ex.Message}");
+            return;
+        }
+
+        await EventGate.WaitAsync();
+        try
+        {
+            await WaitForBotVersionAsync();
+            if (!HostGate.IsActive || !PluginSocket.BotSupportsV3) return;
+            PluginSocket.Send(message);
+            DiscordMutePlugin.PluginLog.LogInfo($"[DiscordMute] Game end '{reason}' reported.");
+        }
+        catch (Exception ex) { DiscordMutePlugin.PluginLog.LogError($"[DiscordMute] Error sending game end: {ex.Message}"); }
+        finally { EventGate.Release(); }
+    }
+
+    private static GameEndMessage SnapshotGameEnd(string reason)
+    {
+        var winners = new List<string>();
+        var cached = EndGameResult.CachedWinners;
+        if (cached != null)
+        {
+            foreach (var winner in cached)
+            {
+                var name = LinkHandler.CleanName(winner?.PlayerName);
+                if (!string.IsNullOrWhiteSpace(name)) winners.Add(name);
+            }
+        }
+
+        return new GameEndMessage
+        {
+            Reason = PluginProtocol.Truncate(reason, PluginProtocol.MaxNameLength),
+            Winners = PluginProtocol.TruncateNames(winners),
+            Roster = CollectRoster()
+        };
+    }
+
+    internal static List<RosterEntry> CollectRoster()
+    {
+        var roster = new List<RosterEntry>();
+        var players = GameData.Instance?.AllPlayers;
+        if (players == null) return roster;
+
+        foreach (var info in players)
+        {
+            if (info == null) continue;
+            var name = LinkHandler.GetPlayerName(info);
+            if (string.IsNullOrWhiteSpace(name)) continue;
+            if (roster.Count >= PluginProtocol.MaxPlayers) break;
+
+            var friendCode = PluginProtocol.Truncate(info.FriendCode, PluginProtocol.MaxFriendCodeLength);
+            roster.Add(new RosterEntry
+            {
+                Name = PluginProtocol.Truncate(name, PluginProtocol.MaxNameLength),
+                FriendCode = friendCode.Length == 0 ? null : friendCode,
+                Dead = info.IsDead,
+                Disconnected = info.Disconnected
+            });
+        }
+
+        return roster;
+    }
+
+    private static string GetLobbyCode()
+    {
+        var client = AmongUsClient.Instance;
+        if (client == null || client.NetworkMode == NetworkModes.LocalGame) return null;
+        var code = GameCode.IntToGameName(client.GameId);
+        return string.IsNullOrEmpty(code) ? null : code;
     }
 
     private static (List<string> alive, List<string> dead) CollectPlayerNames()

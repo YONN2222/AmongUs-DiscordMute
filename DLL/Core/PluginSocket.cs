@@ -33,6 +33,12 @@ internal static class PluginSocket
     internal static bool IsReady => _ready;
     internal static bool IsTerminal => _terminal;
 
+    private static volatile int _botProtocolVersion = 2;
+
+    /// <summary>Protocol version announced by the bot's welcome; 2 until one arrives on the current connection.</summary>
+    internal static int BotProtocolVersion => _botProtocolVersion;
+    internal static bool BotSupportsV3 => _botProtocolVersion >= 3;
+
     internal static void LogOutdatedOnce()
     {
         if (Interlocked.Exchange(ref _outdatedLogged, 1) == 0)
@@ -172,6 +178,7 @@ internal static class PluginSocket
         var uri = new Uri($"ws://{DiscordMutePlugin.Cfg.Ip}:{DiscordMutePlugin.Cfg.BotPort}/ws");
 
         await socket.ConnectAsync(uri, token).ConfigureAwait(false);
+        _botProtocolVersion = 2;
         Task senderTask = null;
         try
         {
@@ -281,10 +288,14 @@ internal static class PluginSocket
                 case "welcome":
                     if (root.TryGetProperty("protocolVersion", out var version) &&
                         version.ValueKind == JsonValueKind.Number &&
-                        version.GetInt32() != PluginProtocol.ProtocolVersion)
+                        version.TryGetInt32(out var botVersion))
                     {
-                        DiscordMutePlugin.PluginLog.LogWarning(
-                            $"Bot speaks protocol {version.GetInt32()}, this plugin speaks {PluginProtocol.ProtocolVersion}.");
+                        _botProtocolVersion = botVersion;
+                        if (botVersion < PluginProtocol.ProtocolVersion)
+                        {
+                            DiscordMutePlugin.PluginLog.LogWarning(
+                                $"Bot speaks protocol {botVersion}, this plugin speaks {PluginProtocol.ProtocolVersion}. Newer features are disabled until the bot is updated.");
+                        }
                     }
                     return true;
                 case "link-result":
