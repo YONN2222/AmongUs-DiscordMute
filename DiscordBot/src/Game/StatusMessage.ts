@@ -9,6 +9,7 @@ import type { GameEventName, RosterEntry } from "../Protocol/PluginProtocol";
 import type { SettingsService } from "../Settings/SettingsService";
 import { createNameResolver } from "./playerNames";
 import { renderStatus, type StatusPlayer } from "./renderStatus";
+import { isFinalDeleteError } from "./trackedMessageSweeper";
 
 const KIND = "status";
 const DEFAULT_MIN_INTERVAL_MS = 3000;
@@ -171,11 +172,17 @@ export class StatusMessage {
         try {
             const tracked = await this.deps.tracked.get(guildId, KIND, sessionId);
             if (!tracked) return;
-            await this.deps.port.delete(tracked.channelId, tracked.messageId).catch((error: unknown) => {
-                if (classifyDiscordError(error) !== "unknown-message") {
-                    logger.warn(logModules.Bot, `Guild ${guildId}: could not delete the status message`);
+            try {
+                await this.deps.port.delete(tracked.channelId, tracked.messageId);
+            } catch (error) {
+                if (!isFinalDeleteError(error)) {
+                    logger.warn(
+                        logModules.Bot,
+                        `Guild ${guildId}: could not delete the status message, keeping its row for a retry`,
+                    );
+                    return;
                 }
-            });
+            }
             await this.deps.tracked.remove(guildId, KIND, sessionId);
         } catch (error) {
             logger.error(logModules.Bot, `Guild ${guildId}: could not remove the status message`, error);

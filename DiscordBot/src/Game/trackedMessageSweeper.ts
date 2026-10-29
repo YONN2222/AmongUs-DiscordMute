@@ -4,6 +4,7 @@ import type { TrackedMessageRepository } from "../Data/repositories/TrackedMessa
 import { logger, logModules } from "../Logging/logger";
 
 const SERVER_ERROR_STATUS = 500;
+const RATE_LIMITED_STATUS = 429;
 
 export interface SweeperDeps {
     port: Pick<MessagePort, "delete">;
@@ -11,8 +12,10 @@ export interface SweeperDeps {
 }
 
 /** A rejected delete that a retry cannot fix (message or channel gone, no access) must not keep the row alive. */
-function isFinal(error: unknown): boolean {
-    return error instanceof DiscordAPIError && error.status < SERVER_ERROR_STATUS;
+export function isFinalDeleteError(error: unknown): boolean {
+    return (
+        error instanceof DiscordAPIError && error.status < SERVER_ERROR_STATUS && error.status !== RATE_LIMITED_STATUS
+    );
 }
 
 /** Deletes the tracked messages that are due. Best effort: a transient failure leaves the row for the next run. */
@@ -22,7 +25,7 @@ export async function sweepTrackedMessages(deps: SweeperDeps, guildIds: string[]
         try {
             await deps.port.delete(row.channelId, row.messageId);
         } catch (error) {
-            if (!isFinal(error)) {
+            if (!isFinalDeleteError(error)) {
                 logger.warn(logModules.Bot, `Guild ${row.guildId}: could not delete a ${row.kind} message, will retry`);
                 continue;
             }

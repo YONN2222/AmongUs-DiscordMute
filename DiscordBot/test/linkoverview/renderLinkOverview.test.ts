@@ -46,6 +46,14 @@ describe("renderLinkOverview", () => {
         expect(text).not.toMatch(/<@&|@here/);
     });
 
+    it("keeps a typed mention in a name literal", () => {
+        const text = texts(
+            renderLinkOverview({ ...base, entries: entries(1, () => "<@123456789012345678>"), total: 1, page: 0 }),
+        );
+
+        expect(text).toContain("\\<@123456789012345678>");
+    });
+
     it("offers show more only when more than one page exists", () => {
         const withMore = renderLinkOverview({ ...base, entries: entries(20), total: 21, page: 0 });
         const without = renderLinkOverview({ ...base, entries: entries(20), total: 20, page: 0 });

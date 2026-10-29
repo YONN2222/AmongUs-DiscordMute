@@ -1,5 +1,5 @@
-import { escapeMarkdown } from "discord.js";
 import type { GuildEvent } from "../Events/GuildEvents";
+import { escapeName } from "../Game/playerNames";
 import { type Locale, t } from "../i18n";
 import type { GuildSettings } from "../Settings/GuildSettings";
 
@@ -8,7 +8,7 @@ type EventOf<T extends GuildEvent["type"]> = Extract<GuildEvent, { type: T }>;
 const mention = (discordId: string) => `<@${discordId}>`;
 
 function nameList(names: string[], locale: Locale): string {
-    return names.length === 0 ? t(locale, "log.none") : names.map((name) => escapeMarkdown(name)).join(", ");
+    return names.length === 0 ? t(locale, "log.none") : names.map((name) => escapeName(name)).join(", ");
 }
 
 function settingAt(settings: GuildSettings, path: string): unknown {
@@ -28,7 +28,7 @@ function settingValue(path: string, value: unknown, locale: Locale): string {
 
 function linkChanged(event: EventOf<"link-changed">, locale: Locale, names: (discordId: string) => string): string {
     const user = mention(event.discordId);
-    const name = escapeMarkdown(event.accountName ?? names(event.discordId));
+    const name = escapeName(event.accountName ?? names(event.discordId));
     switch (event.change) {
         case "linked":
             return t(locale, "log.linked", { user, name });
@@ -40,7 +40,7 @@ function linkChanged(event: EventOf<"link-changed">, locale: Locale, names: (dis
             return t(locale, "log.relinked", { user, name });
         case "unlinked":
             return event.previousName
-                ? t(locale, "log.unlinkedFrom", { user, name: escapeMarkdown(event.previousName) })
+                ? t(locale, "log.unlinkedFrom", { user, name: escapeName(event.previousName) })
                 : t(locale, "log.unlinked", { user });
     }
 }
@@ -58,7 +58,7 @@ function settingsChanged(event: EventOf<"settings-changed">, locale: Locale): st
 
 function voiceError(event: EventOf<"voice-error">, locale: Locale, names: (discordId: string) => string): string {
     const label = event.discordId
-        ? [mention(event.discordId), escapeMarkdown(names(event.discordId))].filter(Boolean).join(" ")
+        ? [mention(event.discordId), escapeName(names(event.discordId))].filter(Boolean).join(" ")
         : "";
     const member = label ? t(locale, "log.forMember", { user: label }) : "";
     return t(locale, event.code === "missing-permission" ? "log.voiceMissingPermission" : "log.voiceNotEditable", {
@@ -74,8 +74,8 @@ export function formatLogLine(event: GuildEvent, locale: Locale, names: (discord
     switch (event.type) {
         case "session-started":
             return t(locale, "log.sessionStarted", {
-                pluginVersion: escapeMarkdown(event.pluginVersion),
-                gameVersion: escapeMarkdown(event.gameVersion),
+                pluginVersion: escapeName(event.pluginVersion),
+                gameVersion: escapeName(event.gameVersion),
             });
         case "session-ended":
             return t(locale, "log.sessionEnded");
@@ -89,7 +89,7 @@ export function formatLogLine(event: GuildEvent, locale: Locale, names: (discord
         }
         case "game-ended":
             return t(locale, "log.gameEnded", {
-                reason: escapeMarkdown(event.reason),
+                reason: escapeName(event.reason),
                 winners: nameList(event.winners, locale),
                 dead: nameList(
                     event.roster.filter((entry) => entry.dead).map((entry) => entry.name),

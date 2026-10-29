@@ -99,6 +99,21 @@ export const en = {
     "status.noPlayers": "Nobody has joined yet.",
     "status.notLinked": "not linked",
     "status.dead": "dead",
+
+    "summary.title": "Match summary",
+    "summary.result": "Result: {reason}",
+    "summary.winners": "Winners: {winners}",
+    "summary.duration": "Duration: {duration}",
+    "summary.players": "Players ({count})",
+    "gameOver.HumansByVote": "Crewmates won: every impostor was voted out",
+    "gameOver.HumansByTask": "Crewmates won: all tasks were completed",
+    "gameOver.ImpostorByVote": "Impostors won: a vote left too few crewmates",
+    "gameOver.ImpostorByKill": "Impostors won: they eliminated the crew",
+    "gameOver.ImpostorBySabotage": "Impostors won: a sabotage was not fixed in time",
+    "gameOver.ImpostorDisconnect": "Crewmates won: the impostors disconnected",
+    "gameOver.HumansDisconnect": "Impostors won: the crewmates disconnected",
+    "gameOver.HideAndSeek_ImpostorsByKills": "Hide and Seek: the impostors caught every crewmate",
+    "gameOver.HideAndSeek_CrewmatesByTimer": "Hide and Seek: the crewmates survived until the timer ran out",
 };
 
 export type MessageKey = keyof typeof en;

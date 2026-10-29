@@ -29,6 +29,19 @@ describe("formatLogLine", () => {
         expect(text).toContain("\\*\\*x\\*\\*");
     });
 
+    it("keeps a typed mention in an Among Us name literal", () => {
+        const text = line({
+            type: "link-changed",
+            guildId: GUILD,
+            discordId: USER,
+            change: "linked",
+            accountName: "<@123456789012345678>",
+        });
+
+        expect(text).toContain("\\<@123456789012345678>");
+        expect(text).not.toContain(" <@123456789012345678>");
+    });
+
     it("does not log events that are not part of the log", () => {
         expect(line({ type: "pending-changed", guildId: GUILD, discordId: USER })).toBeNull();
         const gameEvent = (event: Extract<GuildEvent, { type: "game-event" }>["event"]): GuildEvent => ({

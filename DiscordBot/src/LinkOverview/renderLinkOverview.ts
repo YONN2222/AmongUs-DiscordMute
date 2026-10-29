@@ -7,6 +7,7 @@ import {
     StringSelectMenuOptionBuilder,
 } from "discord.js";
 import type { LinkEntry } from "../Data/repositories/LinkRepository";
+import { escapeName } from "../Game/playerNames";
 import { type Locale, t } from "../i18n";
 import { ContainerBuilder } from "../Utils/ContainerBuilder";
 
@@ -35,7 +36,7 @@ export function pageCount(total: number): number {
 }
 
 function entryLine(entry: LinkEntry): string {
-    return `<@${entry.discordId}> - ${escapeMarkdown(entry.accountName)}`;
+    return `<@${entry.discordId}> - ${escapeName(entry.accountName)}`;
 }
 
 function button(customId: string, label: string, style: ButtonStyle, disabled = false): ButtonBuilder {

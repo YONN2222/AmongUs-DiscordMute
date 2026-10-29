@@ -5,6 +5,7 @@ import { config, DISCORD_GUILD_ID } from "../config";
 import { databaseOptionsFrom, openDatabase } from "../Data/database";
 import { deployCommands } from "../deploy-commands";
 import { GuildEventBus } from "../Events/GuildEvents";
+import { MatchSummary } from "../Game/MatchSummary";
 import { NicknameSync } from "../Game/NicknameSync";
 import { StatusMessage } from "../Game/StatusMessage";
 import { sweepTrackedMessages } from "../Game/trackedMessageSweeper";
@@ -122,6 +123,13 @@ export async function runCluster(): Promise<void> {
         settings,
     });
     events.on((event) => status.handle(event));
+    const summary = new MatchSummary({
+        port: messagePort,
+        tracked: db.trackedMessages,
+        links: db.links,
+        settings,
+    });
+    events.on((event) => summary.handle(event));
     const voice = new DiscordVoiceAdapter(client);
     const nicknameSync = new NicknameSync({
         adapter: voice,

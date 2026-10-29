@@ -1,13 +1,9 @@
 import { type Locale, t } from "../i18n";
 import type { Phase } from "../Mute/voiceRules";
 import { ContainerBuilder } from "../Utils/ContainerBuilder";
-import { escapeName } from "./playerNames";
+import { type ListedPlayer, playerListText } from "./playerNames";
 
-export interface StatusPlayer {
-    name: string;
-    discordId: string | null;
-    dead: boolean;
-}
+export type StatusPlayer = ListedPlayer;
 
 export interface StatusView {
     phase: Phase;
@@ -26,25 +22,9 @@ function lobbyCodeText(view: StatusView): string | null {
     return t(view.locale, "status.lobbyCode", { code });
 }
 
-function playerLine(player: StatusPlayer, locale: Locale): string {
-    const who = player.discordId ? `<@${player.discordId}>` : t(locale, "status.notLinked");
-    const dead = player.dead ? ` (${t(locale, "status.dead")})` : "";
-    return `- ${escapeName(player.name)} - ${who}${dead}`;
-}
-
 function playerText(view: StatusView): string {
     if (view.players.length === 0) return t(view.locale, "status.noPlayers");
-    const lines: string[] = [];
-    let length = 0;
-    for (const player of view.players) {
-        const line = playerLine(player, view.locale);
-        if (length + line.length + 1 > MAX_PLAYER_TEXT) break;
-        lines.push(line);
-        length += line.length + 1;
-    }
-    const hidden = view.players.length - lines.length;
-    if (hidden > 0) lines.push(t(view.locale, "log.more", { count: hidden }));
-    return lines.join("\n");
+    return playerListText(view.players, view.locale, MAX_PLAYER_TEXT);
 }
 
 /** The components of the live game status message. */

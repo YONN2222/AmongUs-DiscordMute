@@ -155,6 +155,23 @@ describe("StatusMessage", () => {
         expect(rows.size).toBe(0);
     });
 
+    it("keeps the row when the delete fails transiently and drops it for a gone message", async () => {
+        const { DiscordAPIError } = await import("discord.js");
+        const { port, status, rows } = setup();
+        await status.handle(gameEvent("lobby", roster(["Red", false])));
+        await vi.advanceTimersByTimeAsync(10);
+
+        port.delete.mockRejectedValueOnce(new Error("offline"));
+        await status.handle({ type: "session-ended", guildId: GUILD, sessionId: SESSION });
+        expect(rows.size).toBe(1);
+
+        port.delete.mockRejectedValueOnce(
+            new DiscordAPIError({ code: 10008, message: "Unknown Message" }, 10008, 404, "DELETE", "/x", {} as never),
+        );
+        await status.recover([GUILD]);
+        expect(rows.size).toBe(0);
+    });
+
     it("never posts after the session ended", async () => {
         const { port, status } = setup();
         await status.handle(gameEvent("lobby", roster(["Red", false])));
