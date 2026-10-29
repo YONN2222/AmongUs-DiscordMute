@@ -29,6 +29,8 @@ I built it because my friend group kept talking during live rounds and didn't wa
 
 The full walkthrough is in [docs/content/1.getting-started/2.self-host-setup.md](docs/content/1.getting-started/2.self-host-setup.md).
 
+Prefer not to run a bot? With the hosted bot you add it to your server, create a secret with `/setup` and set `"mode": "hosted"` and your `secret` in the plugin config. See [hosted setup](docs/content/1.getting-started/3.hosted-setup.md).
+
 ## Documentation
 
 The website is [mute.yonn2222.com](https://mute.yonn2222.com) (source in `Website/`, see [Website/README.md](Website/README.md)). The docs are a Docus site in `docs/`; run it with `cd docs && bun install && bun run dev`.
