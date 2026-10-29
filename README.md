@@ -90,7 +90,7 @@ Admins with Manage Server configure the bot per server with `/setup`:
 
 The bot needs **Mute Members**, **Deafen Members** and **Manage Nicknames**, plus View Channel, Send Messages and Manage Messages in the channels you pick. Its role must sit above your players' roles.
 
-Update the bot and the plugin together. An older plugin still works, with fewer features.
+Update the plugin and the bot together. A 2.x plugin still works with a 3.0 bot, without the player list, deaths and match results. A 3.0 plugin still connects to a 2.x bot, but only sends the version 2 messages. Anything older is refused as outdated.
 
 Details: [setup panel](https://docs.mute.yonn2222.com/server-setup/setup-panel), [game features](https://docs.mute.yonn2222.com/server-setup/game-features).
 
