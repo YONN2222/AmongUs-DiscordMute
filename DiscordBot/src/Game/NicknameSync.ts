@@ -29,8 +29,9 @@ function isMissingPermission(err: unknown): boolean {
     return typeof err === "object" && err !== null && "code" in err && err.code === DISCORD_MISSING_PERMISSIONS;
 }
 
-function isDefinitiveFailure(err: unknown): boolean {
-    return isMissingPermission(err) || (typeof err === "object" && err !== null && "code" in err && err.code === 10007);
+/** Only an unknown member is final; missing permissions come back once an admin fixes the roles. */
+function isMemberGone(err: unknown): boolean {
+    return typeof err === "object" && err !== null && "code" in err && err.code === 10007;
 }
 
 function truncate(name: string): string {
@@ -160,8 +161,8 @@ export class NicknameSync {
                 `Guild ${guildId}, member ${discordId}: could not restore the nickname`,
                 err,
             );
-            // A transient failure keeps the row so the next recover tries again; a rejection will never succeed.
-            if (!isDefinitiveFailure(err)) return;
+            // Any other failure keeps the row so the next lobby, session end or recover tries again.
+            if (!isMemberGone(err)) return;
         }
         await this.deps.ledger.remove(guildId, discordId);
     }

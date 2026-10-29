@@ -125,6 +125,24 @@ describe.each(backends)("NicknameSync (%s)", (backend) => {
             expect(await db.nicknameLedger.listByGuild(guildId)).toEqual([]);
         });
 
+        it("keeps the ledger row when the restore lacks permission and retries later", async () => {
+            await db.links.upsert(guildId, "u1", "Red");
+            adapter.join("u1", "Bob");
+            await sync.handle(gameEvent("game-start", ["Red"]));
+            adapter.failing.add("u1");
+
+            await sync.handle(gameEvent("lobby", []));
+
+            expect(adapter.nicks.get("u1")).toBe("Red");
+            expect(await db.nicknameLedger.listByGuild(guildId)).toHaveLength(1);
+
+            adapter.failing.delete("u1");
+            await sync.restoreGuild(guildId);
+
+            expect(adapter.nicks.get("u1")).toBe("Bob");
+            expect(await db.nicknameLedger.listByGuild(guildId)).toEqual([]);
+        });
+
         it("a 50013 member is skipped and the rest are renamed", async () => {
             for (const [id, name] of [
                 ["u1", "Red"],
@@ -254,14 +272,14 @@ describe.each(backends)("NicknameSync (%s)", (backend) => {
             expect(await db.nicknameLedger.listByGuild(guildId)).toEqual([]);
         });
 
-        it("drops the row even when restoring fails", async () => {
+        it("keeps the row and logs when restoring fails for missing permissions", async () => {
             await db.nicknameLedger.set(guildId, "u1", "Bob", "Red");
             adapter.join("u1", "Red");
             adapter.failing.add("u1");
 
             await sync.restoreGuild(guildId);
 
-            expect(await db.nicknameLedger.listByGuild(guildId)).toEqual([]);
+            expect(await db.nicknameLedger.listByGuild(guildId)).toHaveLength(1);
             expect(logger.error).toHaveBeenCalled();
         });
     });

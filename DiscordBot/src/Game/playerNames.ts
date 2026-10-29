@@ -43,7 +43,7 @@ export function createNameResolver(links: LinkEntry[]): (name: string) => string
     }
     return (name) => {
         const ids = byKey.get(normalizeAccountName(name));
-        if (!ids || ids.size !== 1) return null;
+        if (ids?.size !== 1) return null;
         return [...ids][0];
     };
 }
