@@ -5,6 +5,7 @@ import { config, DISCORD_GUILD_ID } from "../config";
 import { databaseOptionsFrom, openDatabase } from "../Data/database";
 import { deployCommands } from "../deploy-commands";
 import { GuildEventBus } from "../Events/GuildEvents";
+import { NicknameSync } from "../Game/NicknameSync";
 import { SHUTDOWN_SIGNALS } from "../Gateway/shutdown";
 import { LinkOverviewPublisher } from "../LinkOverview/LinkOverviewPublisher";
 import { LogChannelWriter } from "../LogChannel/LogChannelWriter";
@@ -52,6 +53,7 @@ async function onReady(
     client: Client<true>,
     cluster: Cluster<Client>,
     mute: MuteService,
+    nicknameSync: NicknameSync,
     overview: LinkOverviewPublisher,
     markReady: () => void,
 ): Promise<void> {
@@ -67,6 +69,9 @@ async function onReady(
     // A respawned cluster has no active sessions in memory: recovery lifts every ledger mute and the next
     // game event of a running game mutes again.
     await mute.recover([...client.guilds.cache.keys()]);
+    await nicknameSync.recover([...client.guilds.cache.keys()]).catch((error: unknown) => {
+        logger.error(logModules.Bot, `Cluster ${cluster.clusterID} could not restore nicknames`, error);
+    });
     overview.resume([...client.guilds.cache.keys()]).catch((error: unknown) => {
         logger.error(logModules.Bot, `Cluster ${cluster.clusterID} could not refresh the link overviews`, error);
     });
@@ -105,6 +110,14 @@ export async function runCluster(): Promise<void> {
     });
     events.on((event) => overview.handle(event));
     const voice = new DiscordVoiceAdapter(client);
+    const nicknameSync = new NicknameSync({
+        adapter: voice,
+        ledger: db.nicknameLedger,
+        links: db.links,
+        settings,
+        events,
+    });
+    events.on((event) => nicknameSync.handle(event));
     const mute = new MuteService({
         events,
         voice,
@@ -135,6 +148,7 @@ export async function runCluster(): Promise<void> {
         events,
         links: db.links,
         settings,
+        nicknames: nicknameSync,
     });
     cluster.on("request", (data, resolve) => {
         handleRequest(data).then(resolve, (error: unknown) => resolve(failure(error)));
@@ -146,7 +160,7 @@ export async function runCluster(): Promise<void> {
     );
     registerVoiceRejoin(client, mute);
     client.once(Events.ClientReady, (readyClient) => {
-        onReady(readyClient, cluster, mute, overview, () => {
+        onReady(readyClient, cluster, mute, nicknameSync, overview, () => {
             ready = true;
         }).catch((error: unknown) =>
             logger.error(logModules.Bot, `Cluster ${cluster.clusterID} failed to finish starting`, error),

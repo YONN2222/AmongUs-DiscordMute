@@ -19,9 +19,10 @@ const CREW = "1300000000000000002";
 const OUTSIDE = "1300000000000000003";
 const MEMBER_ROUTE = /\/guilds\/(\d+)\/members\/(\d+)$/;
 
-function member(id: string) {
+function member(id: string, nick: string | null = null) {
     return {
         user: buildUser({ id, username: `user-${id.slice(-1)}` }),
+        nick,
         roles: [],
         joined_at: "2024-01-01T00:00:00.000Z",
         deaf: false,
@@ -52,7 +53,7 @@ function voiceChannel(id: string) {
 
 /** The GUILD_CREATE builder knows no voice data, so voice channels and states are added to its payload. */
 function guildWithVoice() {
-    const dispatch = buildGuildCreateDispatch({ members: [member(HOST), member(CREW), member(OUTSIDE)] });
+    const dispatch = buildGuildCreateDispatch({ members: [member(HOST), member(CREW, "Crewmate"), member(OUTSIDE)] });
     return {
         ...dispatch,
         d: {
@@ -163,6 +164,33 @@ describe("DiscordVoiceAdapter", () => {
         await vi.waitFor(async () =>
             expect(await adapter.findVoiceMember(GUILD, HOST)).toMatchObject({ serverDeafened: true, isBot: true }),
         );
+    });
+
+    it("reads nicknames from the member cache", async () => {
+        expect(await adapter.nicknameOf(GUILD, CREW)).toEqual({ nick: "Crewmate" });
+        expect(await adapter.nicknameOf(GUILD, HOST)).toEqual({ nick: null });
+    });
+
+    it("fetches a member missing from the cache and treats only Unknown Member as gone", async () => {
+        const MISSING = "1300000000000000098";
+        probe.respond("GET", /\/guilds\/\d+\/members\/(\d+)$/, ({ match }) => {
+            if (match[1] === MISSING) return member(MISSING, "Fetched");
+            if (match[1] === "1300000000000000097")
+                return restError(403, { code: 50013, message: "Missing Permissions" });
+            return restError(404, { code: 10007, message: "Unknown Member" });
+        });
+
+        expect(await adapter.nicknameOf(GUILD, MISSING)).toEqual({ nick: "Fetched" });
+        expect(await adapter.nicknameOf(GUILD, "1300000000000000099")).toBeNull();
+        await expect(adapter.nicknameOf(GUILD, "1300000000000000097")).rejects.toMatchObject({ code: 50013 });
+    });
+
+    it("sets and clears a nickname through PATCH /guilds/{id}/members/{id}", async () => {
+        await adapter.setNickname(GUILD, HOST, "Red");
+        await adapter.setNickname(GUILD, HOST, null);
+
+        expect(memberPatches().map((r) => r.body)).toEqual([{ nick: "Red" }, { nick: null }]);
+        expect(memberPatches()[1].url).toContain(`/guilds/${GUILD}/members/${HOST}`);
     });
 
     it("logs a 403 from Discord instead of throwing", async () => {

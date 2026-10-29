@@ -83,12 +83,14 @@ describe.each(backends)("LinkRepository (%s)", (backend) => {
             expect(first.map((e) => e.accountName)).toEqual(["alice", "Bob", "Name00"]);
         });
 
-        it("stores a friend code that survives an upsert", async () => {
+        it("keeps the friend code on an upsert with the same name and clears it for another name", async () => {
             await db.links.upsert(g1, "u1", "Crew");
             expect((await db.links.get(g1, "u1"))?.friendCode).toBeNull();
             await db.links.setFriendCode(g1, "u1", "crew#1");
+            await db.links.upsert(g1, "u1", "Crew");
+            expect((await db.links.get(g1, "u1"))?.friendCode).toBe("crew#1");
             await db.links.upsert(g1, "u1", "Renamed");
-            expect(await db.links.get(g1, "u1")).toMatchObject({ accountName: "Renamed", friendCode: "crew#1" });
+            expect(await db.links.get(g1, "u1")).toMatchObject({ accountName: "Renamed", friendCode: null });
         });
 
         it("finds links by friend code within one guild", async () => {

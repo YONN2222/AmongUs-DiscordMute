@@ -9,14 +9,17 @@ import { pendingLinkLocaleMigration } from "./migrations/0003-pending-link-local
 import { trackedMessagesMigration } from "./migrations/0004-tracked-messages";
 import { voiceLedgerMigration } from "./migrations/0005-voice-ledger";
 import { linkFriendCodeMigration } from "./migrations/0006-link-friend-code";
+import { nicknameLedgerMigration } from "./migrations/0007-nickname-ledger";
 import { initGuildSettingsModel } from "./models/GuildSettingsModel";
 import { initLinkModel } from "./models/LinkModel";
 import { initMuteLedgerModel } from "./models/MuteLedgerModel";
+import { initNicknameLedgerModel } from "./models/NicknameLedgerModel";
 import { initPendingLinkModel } from "./models/PendingLinkModel";
 import { initTrackedMessageModel } from "./models/TrackedMessageModel";
 import { createGuildSettingsRepository, type GuildSettingsRepository } from "./repositories/GuildSettingsRepository";
 import { createLinkRepository, type LinkRepository } from "./repositories/LinkRepository";
 import { createMuteLedgerRepository, type MuteLedgerRepository } from "./repositories/MuteLedgerRepository";
+import { createNicknameLedgerRepository, type NicknameLedgerRepository } from "./repositories/NicknameLedgerRepository";
 import { createPendingLinkRepository, type PendingLinkRepository } from "./repositories/PendingLinkRepository";
 import { createTrackedMessageRepository, type TrackedMessageRepository } from "./repositories/TrackedMessageRepository";
 
@@ -25,6 +28,7 @@ export interface Database {
     links: LinkRepository;
     pendingLinks: PendingLinkRepository;
     muteLedger: MuteLedgerRepository;
+    nicknameLedger: NicknameLedgerRepository;
     settings: GuildSettingsRepository;
     trackedMessages: TrackedMessageRepository;
     close(): Promise<void>;
@@ -64,6 +68,7 @@ async function runMigrations(sequelize: Sequelize): Promise<void> {
             trackedMessagesMigration,
             voiceLedgerMigration,
             linkFriendCodeMigration,
+            nicknameLedgerMigration,
         ],
         context: sequelize.getQueryInterface(),
         storage: new SequelizeStorage({ sequelize, tableName: "schema_migrations" }),
@@ -92,6 +97,7 @@ export async function openDatabase(
     const linkModel = initLinkModel(sequelize);
     const pendingLinkModel = initPendingLinkModel(sequelize);
     const muteLedgerModel = initMuteLedgerModel(sequelize);
+    const nicknameLedgerModel = initNicknameLedgerModel(sequelize);
     const guildSettingsModel = initGuildSettingsModel(sequelize);
     const trackedMessageModel = initTrackedMessageModel(sequelize);
 
@@ -100,6 +106,7 @@ export async function openDatabase(
         links: createLinkRepository(linkModel),
         pendingLinks: createPendingLinkRepository(pendingLinkModel),
         muteLedger: createMuteLedgerRepository(muteLedgerModel),
+        nicknameLedger: createNicknameLedgerRepository(nicknameLedgerModel),
         settings: createGuildSettingsRepository(guildSettingsModel),
         trackedMessages: createTrackedMessageRepository(trackedMessageModel),
         close: () => sequelize.close(),

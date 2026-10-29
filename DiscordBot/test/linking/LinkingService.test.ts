@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Database } from "../../src/Data/database";
+import { relinkFromRoster } from "../../src/Game/autoRelink";
 import { LinkingService } from "../../src/Utils/LinkingService";
 import { backendAvailable, backends, openBackend, purgeTestRows, uniqueId } from "../helpers/testDatabase";
 
@@ -57,6 +58,18 @@ describe.each(backends)("LinkingService (%s)", (backend) => {
             const second = await service.createPendingLink(guildId, "u2");
             await service.confirmLink(second.phrase, "Blue", "");
             expect(await db.links.get(guildId, "u2")).toMatchObject({ friendCode: null });
+        });
+
+        it("a force-link to another account drops the old friend code so a later roster does not relink it", async () => {
+            await db.links.upsert(guildId, "u1", "Red");
+            await db.links.setFriendCode(guildId, "u1", "red#1");
+
+            await service.forceLink(guildId, "u1", "Blue", "admin");
+
+            expect(await db.links.get(guildId, "u1")).toMatchObject({ accountName: "Blue", friendCode: null });
+            const roster = [{ name: "Red", friendCode: "red#1", dead: false, disconnected: false }];
+            expect(await relinkFromRoster({ links: db.links, events: { emit: () => {} } }, guildId, roster)).toBe(0);
+            expect((await db.links.get(guildId, "u1"))?.accountName).toBe("Blue");
         });
 
         it("confirmLink accepts the quick chat code", async () => {
