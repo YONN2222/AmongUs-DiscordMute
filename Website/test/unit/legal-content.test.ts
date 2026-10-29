@@ -34,6 +34,12 @@ describe('legal content', () => {
     expect(hosted).toMatch(/member count/i)
   })
 
+  it('privacy names Cloudflare as processor for plugin connections to the hosted bot', () => {
+    const hosted = section(PRIVACY_SECTIONS, 'hosted-bot')
+    expect(hosted).toContain('Cloudflare, Inc.')
+    expect(hosted).toContain('Cloudflare Tunnel')
+  })
+
   it('privacy states IPs are not stored', () => {
     expect(section(PRIVACY_SECTIONS, 'website')).toMatch(/never (stored|written)/i)
   })
