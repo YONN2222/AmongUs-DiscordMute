@@ -1,7 +1,6 @@
+import { SYSTEM_ACTOR } from "../Admin/Contract";
 import type { Database } from "../Data/Database";
 import { LEFT_GUILD_RETENTION_MS } from "../Data/Repositories/HostedGuildRepository";
-
-const SYSTEM_ACTOR = "system";
 
 type PurgeDeps = Pick<Database, "hostedGuilds" | "audit">;
 

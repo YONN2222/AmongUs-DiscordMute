@@ -10,7 +10,7 @@ const MAX_REASON_LENGTH = 500;
 const MAX_SEARCH_LENGTH = 100;
 const MAX_AUDIT_DETAIL_KEYS = 10;
 const MAX_AUDIT_DETAIL_STRING_LENGTH = 200;
-const SYSTEM_ACTOR = "system";
+export const SYSTEM_ACTOR = "system";
 
 export const SnowflakeSchema = z.string().regex(SNOWFLAKE_PATTERN);
 export type Snowflake = z.infer<typeof SnowflakeSchema>;

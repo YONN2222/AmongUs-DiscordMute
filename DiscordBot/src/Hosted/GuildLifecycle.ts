@@ -1,10 +1,9 @@
+import { SYSTEM_ACTOR } from "../Admin/Contract";
 import type { AuditLogRepository } from "../Data/Repositories/AuditLogRepository";
 import type { HostedGuildRepository } from "../Data/Repositories/HostedGuildRepository";
 import { logger, logModules } from "../Logging/Logger";
 import type { GuildLeaveReason } from "../Routing/Messages";
 import type { BlockChecker } from "./BlockChecker";
-
-const SYSTEM_ACTOR = "system";
 
 export interface GuildInfo {
     guildId: string;
