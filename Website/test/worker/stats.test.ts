@@ -1,6 +1,6 @@
 import { env, exports } from 'cloudflare:workers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { ACTIVE_WINDOW_MS, STATS_CACHE_CONTROL, handleStats, readStats } from '../../server/stats/stats'
+import { ACTIVE_WINDOW_MS, ESTABLISHED_INSTANCE_MS, STATS_CACHE_CONTROL, handleStats, readStats } from '../../server/stats/stats'
 
 const NOW = Date.UTC(2026, 9, 29, 12, 0, 0)
 
@@ -14,14 +14,19 @@ function addCounter(day: string, mode: string, metric: string, value: number) {
     .run()
 }
 
-function addInstance(mode: string, lastSeenAt: number, gauges: { users?: number; games?: number; guilds?: number } = {}) {
+function addInstance(
+  mode: string,
+  lastSeenAt: number,
+  gauges: { users?: number; games?: number; guilds?: number } = {},
+  firstSeenAt: number = lastSeenAt - ESTABLISHED_INSTANCE_MS,
+) {
   const id = crypto.randomUUID()
   return env.DB.prepare(
     `INSERT INTO instances (instance_id, mode, first_seen_at, last_seen_at, last_packet_id, bot_version,
        plugin_versions, among_us_versions, features, unique_users, active_games, guilds, connected_plugins, latency_avg_ms)
-     VALUES (?1, ?2, ?3, ?3, ?4, '1.0.0', '{}', '{}', '{}', ?5, ?6, ?7, 0, 0)`,
+     VALUES (?1, ?2, ?3, ?4, ?5, '1.0.0', '{}', '{}', '{}', ?6, ?7, ?8, 0, 0)`,
   )
-    .bind(id, mode, lastSeenAt, crypto.randomUUID(), gauges.users ?? 0, gauges.games ?? 0, gauges.guilds ?? 0)
+    .bind(id, mode, firstSeenAt, lastSeenAt, crypto.randomUUID(), gauges.users ?? 0, gauges.games ?? 0, gauges.guilds ?? 0)
     .run()
 }
 
@@ -52,6 +57,18 @@ describe('readStats', () => {
     await addInstance('self-host', NOW, { users: 3 })
     await addInstance('hosted', NOW - 90 * ACTIVE_WINDOW_MS, { users: 20 })
     expect((await readStats(env.DB, NOW)).uniqueUsers).toEqual({ total: 30, selfHost: 10, hosted: 20 })
+  })
+
+  it('counts an instance in unique users only after it reported over at least one hour', async () => {
+    await addInstance('self-host', NOW, { users: 5 }, NOW - ESTABLISHED_INSTANCE_MS + 1)
+    await addInstance('self-host', NOW, { users: 1_000 }, NOW)
+    await addInstance('self-host', NOW, { users: 2 }, NOW - ESTABLISHED_INSTANCE_MS)
+    expect((await readStats(env.DB, NOW)).uniqueUsers).toEqual({ total: 2, selfHost: 2, hosted: 0 })
+  })
+
+  it('does not count throwaway instances created in a burst', async () => {
+    for (let i = 0; i < 30; i += 1) await addInstance('self-host', NOW - i * 1000, { users: 5_000 }, NOW - i * 1000)
+    expect((await readStats(env.DB, NOW)).uniqueUsers.total).toBe(0)
   })
 
   it('activeGames and guilds count only instances seen in last 15 min', async () => {

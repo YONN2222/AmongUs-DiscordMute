@@ -170,15 +170,23 @@ describe('POST /api/v1/telemetry', () => {
     expect((await instanceRow(selfHost.instanceId))?.last_packet_id).toBe(selfHost.packetId)
   })
 
-  it('200 duplicate for a retry whose deltas exceed the 60 s allowance', async () => {
+  it('200 duplicate for a retry of an accepted packet', async () => {
     const ip = uniqueIp()
-    const packet = validPacket({
-      deltas: { gamesMuted: 80, mutes: 40, unmutes: 38, rateLimitHits: 0, events: {} },
-    })
+    const packet = validPacket()
     expect((await send(packet, { ip })).status).toBe(202)
     const retry = await send(packet, { ip })
     expect(retry.status).toBe(200)
     expect(await retry.json()).toEqual({ ok: true, status: 'duplicate' })
+  })
+
+  it('422 for a first packet claiming more games than 60 s allow', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const packet = validPacket({
+      deltas: { gamesMuted: 80, mutes: 40, unmutes: 38, rateLimitHits: 0, events: {} },
+    })
+    expect((await send(packet, { ip: uniqueIp() })).status).toBe(422)
+    expect(await instanceRow(packet.instanceId)).toBeNull()
+    expect(warn).toHaveBeenCalledWith('telemetry rejected', { reason: 'deltas.gamesMuted', mode: 'self-host' })
   })
 
   it('shares the new-instance throttle across one IPv6 /64', async () => {

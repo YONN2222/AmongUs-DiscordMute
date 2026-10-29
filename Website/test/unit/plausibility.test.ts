@@ -31,7 +31,7 @@ const withDeltas = (d: Partial<TelemetryPacket['deltas']>, mode: TelemetryPacket
 describe('windowSeconds', () => {
   const now = 1_800_000_000_000
   it('uses the first-packet window without history', () => {
-    expect(windowSeconds(null, now)).toBe(600)
+    expect(windowSeconds(null, now)).toBe(60)
   })
   it('clamps to the minimum', () => {
     expect(windowSeconds(now - 5_000, now)).toBe(60)
@@ -52,21 +52,30 @@ describe('checkPlausibility', () => {
     expect(checkPlausibility(packet(), 300)).toEqual({ ok: true })
   })
 
-  it('rejects self-host guilds 1001 but accepts hosted guilds 1001', () => {
-    expect(checkPlausibility(withGauges({ guilds: 1001 }), 300)).toEqual({ ok: false, reason: 'gauges.guilds' })
-    expect(checkPlausibility(withGauges({ guilds: 1001 }, 'hosted'), 300)).toEqual({ ok: true })
+  it('rejects self-host guilds 11 but accepts hosted guilds 11', () => {
+    expect(checkPlausibility(withGauges({ guilds: 11 }), 300)).toEqual({ ok: false, reason: 'gauges.guilds' })
+    expect(checkPlausibility(withGauges({ guilds: 11 }, 'hosted'), 300)).toEqual({ ok: true })
+    expect(checkPlausibility(withGauges({ guilds: 10 }), 300)).toEqual({ ok: true })
   })
 
   it('rejects gauges above their caps', () => {
-    expect(checkPlausibility(withGauges({ uniqueUsers: 100_001 }), 300)).toEqual({
+    expect(checkPlausibility(withGauges({ uniqueUsers: 5_001 }), 300)).toEqual({
       ok: false,
       reason: 'gauges.uniqueUsers',
     })
-    expect(checkPlausibility(withGauges({ activeGames: 1001, connectedPlugins: 1001 }), 300)).toEqual({
+    expect(checkPlausibility(withGauges({ uniqueUsers: 5_000 }), 300)).toEqual({ ok: true })
+    expect(checkPlausibility(withGauges({ activeGames: 101, connectedPlugins: 101 }), 300)).toEqual({
       ok: false,
       reason: 'gauges.activeGames',
     })
-    expect(checkPlausibility(withGauges({ connectedPlugins: 1001 }), 300)).toMatchObject({ ok: false })
+    expect(checkPlausibility(withGauges({ connectedPlugins: 101 }), 300)).toMatchObject({ ok: false })
+  })
+
+  it('bounds what a throwaway self-host instance can add in its first packet', () => {
+    const first = windowSeconds(null, 1_800_000_000_000)
+    const burst = withDeltas({ gamesMuted: 11 })
+    expect(checkPlausibility(burst, first)).toEqual({ ok: false, reason: 'deltas.gamesMuted' })
+    expect(checkPlausibility(withGauges({ uniqueUsers: 100_000 }), first)).toMatchObject({ ok: false })
   })
 
   it('rejects a backlog of games muted', () => {

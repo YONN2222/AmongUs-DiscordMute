@@ -1,8 +1,8 @@
 import type { TelemetryMode, TelemetryPacket } from '../../shared/telemetry/schema'
 
-export const FIRST_PACKET_WINDOW_SECONDS = 600
 export const MAX_WINDOW_SECONDS = 3600
-const MIN_WINDOW_SECONDS = 60
+export const MIN_WINDOW_SECONDS = 60
+export const FIRST_PACKET_WINDOW_SECONDS = MIN_WINDOW_SECONDS
 
 type Gauges = TelemetryPacket['gauges']
 
@@ -19,7 +19,7 @@ type ModeLimits = {
 
 const LIMITS: Record<TelemetryMode, ModeLimits> = {
   'self-host': {
-    gauges: { uniqueUsers: 100_000, guilds: 1_000, activeGames: 1_000, connectedPlugins: 1_000 },
+    gauges: { uniqueUsers: 5_000, guilds: 10, activeGames: 100, connectedPlugins: 100 },
     perMinute: { gamesMuted: 10, mutes: 3_000, unmutes: 3_000, rateLimitHits: 3_000, event: 600 },
   },
   hosted: {

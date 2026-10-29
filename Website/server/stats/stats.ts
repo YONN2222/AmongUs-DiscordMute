@@ -1,6 +1,7 @@
 import { visibleCounters, type AllStats, type ModeCount } from '../../shared/counters'
 
 export const ACTIVE_WINDOW_MS = 15 * 60 * 1000
+export const ESTABLISHED_INSTANCE_MS = 60 * 60 * 1000
 export const STATS_CACHE_CONTROL = 'public, max-age=60, s-maxage=60, stale-while-revalidate=300'
 const STATS_CACHE_KEY = 'https://mute.yonn2222.com/api/v1/stats'
 
@@ -31,7 +32,12 @@ export async function readStats(db: D1Database, now: number): Promise<AllStats> 
     db.prepare(
       "SELECT mode, COALESCE(SUM(value), 0) AS games FROM daily_counters WHERE metric = 'games_muted' GROUP BY mode",
     ),
-    db.prepare('SELECT mode, COALESCE(SUM(unique_users), 0) AS users FROM instances GROUP BY mode'),
+    db
+      .prepare(
+        `SELECT mode, COALESCE(SUM(unique_users), 0) AS users FROM instances
+         WHERE last_seen_at - first_seen_at >= ?1 GROUP BY mode`,
+      )
+      .bind(ESTABLISHED_INSTANCE_MS),
     db
       .prepare(
         `SELECT mode, COALESCE(SUM(active_games), 0) AS activeGames, COALESCE(SUM(guilds), 0) AS guilds
