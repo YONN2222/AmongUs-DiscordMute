@@ -13,12 +13,16 @@ import { nicknameLedgerMigration } from "./Migrations/0007-nickname-ledger";
 import { botMetaMigration } from "./Migrations/0010-bot-meta";
 import { guildSecretsMigration } from "./Migrations/0011-guild-secrets";
 import { hostedGuildsMigration } from "./Migrations/0012-hosted-guilds";
+import { blocksMigration } from "./Migrations/0013-blocks";
+import { auditLogMigration } from "./Migrations/0014-audit-log";
 import { initGuildSettingsModel } from "./Models/GuildSettingsModel";
 import { initLinkModel } from "./Models/LinkModel";
 import { initMuteLedgerModel } from "./Models/MuteLedgerModel";
 import { initNicknameLedgerModel } from "./Models/NicknameLedgerModel";
 import { initPendingLinkModel } from "./Models/PendingLinkModel";
 import { initTrackedMessageModel } from "./Models/TrackedMessageModel";
+import { type AuditLogRepository, createAuditLogRepository } from "./Repositories/AuditLogRepository";
+import { type BlockRepository, createBlockRepository } from "./Repositories/BlockRepository";
 import { createGuildSecretRepository, type GuildSecretRepository } from "./Repositories/GuildSecretRepository";
 import { createGuildSettingsRepository, type GuildSettingsRepository } from "./Repositories/GuildSettingsRepository";
 import { createHostedGuildRepository, type HostedGuildRepository } from "./Repositories/HostedGuildRepository";
@@ -40,6 +44,8 @@ export interface Database {
     telemetry: TelemetryRepository;
     guildSecrets: GuildSecretRepository;
     hostedGuilds: HostedGuildRepository;
+    blocks: BlockRepository;
+    audit: AuditLogRepository;
     close(): Promise<void>;
 }
 
@@ -81,6 +87,8 @@ async function runMigrations(sequelize: Sequelize): Promise<void> {
             botMetaMigration,
             guildSecretsMigration,
             hostedGuildsMigration,
+            blocksMigration,
+            auditLogMigration,
         ],
         context: sequelize.getQueryInterface(),
         storage: new SequelizeStorage({ sequelize, tableName: "schema_migrations" }),
@@ -124,6 +132,8 @@ export async function openDatabase(
         telemetry: createTelemetryRepository(sequelize),
         guildSecrets: createGuildSecretRepository(sequelize),
         hostedGuilds: createHostedGuildRepository(sequelize),
+        blocks: createBlockRepository(sequelize),
+        audit: createAuditLogRepository(sequelize),
         close: () => sequelize.close(),
     };
 }
