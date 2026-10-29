@@ -10,6 +10,8 @@ export const CLOSE_INVALID_MESSAGE = 4003;
 export const CLOSE_REPLACED = 4004;
 export const CLOSE_BLOCKED = 4005;
 export const CLOSE_TOO_MANY_SESSIONS = 4006;
+/** An operator removed the bot from the server without blocking it. */
+export const CLOSE_BOT_LEFT = 4007;
 
 export const GAME_EVENT_NAMES = ["lobby", "game-start", "meeting-start", "meeting-end", "player-died"] as const;
 export type GameEventName = (typeof GAME_EVENT_NAMES)[number];

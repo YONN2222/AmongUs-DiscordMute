@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createAdminHandlers } from "../../src/Admin/AdminHandlers";
 import type { Block } from "../../src/Admin/Contract";
 import type { Database } from "../../src/Data/Database";
-import { CLOSE_BLOCKED } from "../../src/Protocol/PluginProtocol";
+import { CLOSE_BLOCKED, CLOSE_BOT_LEFT } from "../../src/Protocol/PluginProtocol";
 import { InMemoryClusterRouter } from "../../src/Routing/ClusterRouter";
 import type { RouterReply } from "../../src/Routing/Messages";
 import { backendAvailable, backends, openBackend, purgeTestRows, uniqueId } from "../Helpers/TestDatabase";
@@ -16,7 +16,7 @@ describe.each(backends)("admin handlers, actions (%s)", (backend) => {
         let router: InMemoryClusterRouter;
         let clock: number;
         let events: string[];
-        let disconnects: { guildId: string; code: number }[];
+        let disconnects: { guildId: string; code: number; reason: string }[];
         let admin: string;
 
         const handlers = () =>
@@ -25,9 +25,9 @@ describe.each(backends)("admin handlers, actions (%s)", (backend) => {
                 plugins: {
                     sessionCount: () => 0,
                     sessionsOfGuild: () => 0,
-                    disconnectGuild: (guildId, code) => {
+                    disconnectGuild: (guildId, code, reason) => {
                         events.push(`disconnect:${guildId}`);
-                        disconnects.push({ guildId, code });
+                        disconnects.push({ guildId, code, reason });
                         return 1;
                     },
                 },
@@ -110,7 +110,7 @@ describe.each(backends)("admin handlers, actions (%s)", (backend) => {
             await handlers().createBlock({ type: "guild", targetId: guildId, reason: "spam", actorId: admin });
 
             expect(events).toEqual([`disconnect:${guildId}`, `leave:${guildId}`]);
-            expect(disconnects).toEqual([{ guildId, code: CLOSE_BLOCKED }]);
+            expect(disconnects).toEqual([{ guildId, code: CLOSE_BLOCKED, reason: "Server blocked" }]);
         });
 
         it('guild block on an unknown guild stores "Bot was not in the server"', async () => {
@@ -275,6 +275,7 @@ describe.each(backends)("admin handlers, actions (%s)", (backend) => {
             expect(result).toEqual({ left: true });
             expect(router.sent).toEqual([{ guildId, req: { kind: "leave-guild", guildId, reason: "admin" } }]);
             expect(events).toEqual([`disconnect:${guildId}`, `leave:${guildId}`]);
+            expect(disconnects).toEqual([{ guildId, code: CLOSE_BOT_LEFT, reason: "The bot left this server" }]);
             expect(await auditOf(guildId)).toMatchObject([
                 {
                     actorId: admin,

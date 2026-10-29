@@ -16,6 +16,7 @@ internal static class PluginProtocol
     internal const int CloseReplaced = 4004;
     internal const int CloseBlocked = 4005;
     internal const int CloseTooManySessions = 4006;
+    internal const int CloseBotLeft = 4007;
 
     internal const string HostedGatewayUrl = "wss://gateway-mute.yonn2222.com/ws";
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
     CLOSE_BLOCKED,
+    CLOSE_BOT_LEFT,
     CLOSE_HELLO_TIMEOUT,
     CLOSE_INVALID_MESSAGE,
     CLOSE_PROTOCOL_TOO_OLD,
@@ -185,7 +186,7 @@ describe("serialize and constants", () => {
             CLOSE_INVALID_MESSAGE,
             CLOSE_REPLACED,
         ]).toEqual([4000, 4001, 4002, 4003, 4004]);
-        expect([CLOSE_BLOCKED, CLOSE_TOO_MANY_SESSIONS]).toEqual([4005, 4006]);
+        expect([CLOSE_BLOCKED, CLOSE_TOO_MANY_SESSIONS, CLOSE_BOT_LEFT]).toEqual([4005, 4006, 4007]);
         expect(NOTICE_CODES).toContain("host-blocked");
     });
 });

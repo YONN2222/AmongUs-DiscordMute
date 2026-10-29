@@ -25,6 +25,8 @@ internal static class PluginSocket
     private static readonly TimeSpan KeepAliveInterval = TimeSpan.FromSeconds(20);
 
     private const string BlockedMessage = "This server or its host is blocked from the hosted DiscordMute bot.";
+    private const string BotLeftMessage =
+        "The hosted DiscordMute bot left this Discord server. Add it again, run /setup for a new secret and restart the game.";
 
     /// <summary>Tells this game apart from other games of the same Discord server; one key per plugin load.</summary>
     internal static readonly string ConnectionKey = Guid.NewGuid().ToString("N");
@@ -38,14 +40,16 @@ internal static class PluginSocket
     private sealed record QueuedMessage(string Json, bool Droppable);
 
     private static volatile bool _terminal;
-    /// <summary>Set when the hosted bot refuses this server as blocked; stays set until the game restarts.</summary>
-    private static volatile bool _blocked;
+    /// <summary>
+    /// Set when the hosted bot blocked this server or left it; no connection is tried until the game restarts.
+    /// </summary>
+    private static volatile string _stoppedMessage;
     private static int _outdatedLogged;
     private static string _gameVersion = string.Empty;
 
     internal static bool IsReady => _ready;
     internal static bool IsTerminal => _terminal;
-    internal static bool IsBlocked => _blocked;
+    internal static bool IsStopped => _stoppedMessage != null;
 
     private static volatile int _botProtocolVersion = 2;
 
@@ -67,9 +71,9 @@ internal static class PluginSocket
         lock (RunLock)
         {
             if (_runCts != null) return;
-            if (_blocked)
+            if (IsStopped)
             {
-                DiscordMutePlugin.PluginLog.LogError(BlockedMessage);
+                DiscordMutePlugin.PluginLog.LogError(_stoppedMessage);
                 return;
             }
             _gameVersion = gameVersion ?? string.Empty;
@@ -107,7 +111,7 @@ internal static class PluginSocket
     /// </summary>
     internal static bool Send(object message)
     {
-        if (!HostGate.IsActive || _blocked) return false;
+        if (!HostGate.IsActive || IsStopped) return false;
 
         var json = JsonSerializer.Serialize(message, message.GetType(), PluginProtocol.JsonOptions);
         lock (QueueLock)
@@ -158,8 +162,10 @@ internal static class PluginSocket
                         delay = UnauthorizedDelay;
                         break;
                     case PluginProtocol.CloseBlocked:
-                        DiscordMutePlugin.PluginLog.LogError(BlockedMessage);
-                        _blocked = true;
+                        Stop(BlockedMessage, closeReason);
+                        return;
+                    case PluginProtocol.CloseBotLeft:
+                        Stop(BotLeftMessage, closeReason);
                         return;
                     case PluginProtocol.CloseTooManySessions:
                         DiscordMutePlugin.PluginLog.LogWarning(
@@ -187,6 +193,12 @@ internal static class PluginSocket
             try { await Task.Delay(delay, token).ConfigureAwait(false); }
             catch (OperationCanceledException) { return; }
         }
+    }
+
+    private static void Stop(string message, string closeReason)
+    {
+        _stoppedMessage = message;
+        DiscordMutePlugin.PluginLog.LogError(string.IsNullOrEmpty(closeReason) ? message : $"{message} (Bot: {closeReason})");
     }
 
     private static async Task CloseNormallyAsync(ClientWebSocket socket)

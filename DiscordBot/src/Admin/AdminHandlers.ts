@@ -2,7 +2,7 @@ import type { Database } from "../Data/Database";
 import type { BlockOutcome } from "../Data/Repositories/BlockRepository";
 import type { HostedGuildRow } from "../Data/Repositories/HostedGuildRepository";
 import type { PluginGateway } from "../Gateway/PluginGateway";
-import { CLOSE_BLOCKED } from "../Protocol/PluginProtocol";
+import { CLOSE_BLOCKED, CLOSE_BOT_LEFT } from "../Protocol/PluginProtocol";
 import type { ClusterRouter } from "../Routing/ClusterRouter";
 import type { GuildLeaveReason, RouterReply } from "../Routing/Messages";
 import type {
@@ -27,11 +27,11 @@ const DAY_MS = 24 * 3600 * 1000;
 const GUILD_ICON_SIZE = 128;
 const USER_BLOCK_LEAVE_BUDGET_MS = 30_000;
 
-/** Close reasons the plugin receives; the close frame allows 123 bytes. */
-const DISCONNECT_REASONS: Record<GuildLeaveReason, string> = {
-    "guild-blocked": "Server blocked",
-    "owner-blocked": "Server owner blocked",
-    admin: "Removed by an operator",
+/** Close code and reason the plugin receives; the close frame allows 123 bytes for the reason. */
+const DISCONNECTS: Record<GuildLeaveReason, { code: number; reason: string }> = {
+    "guild-blocked": { code: CLOSE_BLOCKED, reason: "Server blocked" },
+    "owner-blocked": { code: CLOSE_BLOCKED, reason: "Server owner blocked" },
+    admin: { code: CLOSE_BOT_LEFT, reason: "The bot left this server" },
 };
 
 export interface Page<T> {
@@ -101,9 +101,10 @@ export function createAdminHandlers(deps: AdminHandlerDeps): AdminHandlers {
         }));
     }
 
-    /** Disconnects the plugin first so it learns it was blocked, then lets the owning cluster leave. */
+    /** Tells the plugin why it is disconnected, then lets the owning cluster end the games and leave. */
     async function leaveThroughCluster(guildId: string, reason: GuildLeaveReason): Promise<RouterReply> {
-        plugins.disconnectGuild(guildId, CLOSE_BLOCKED, DISCONNECT_REASONS[reason]);
+        const disconnect = DISCONNECTS[reason];
+        plugins.disconnectGuild(guildId, disconnect.code, disconnect.reason);
         return deps.router.send(guildId, { kind: "leave-guild", guildId, reason });
     }
 

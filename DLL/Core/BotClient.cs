@@ -74,7 +74,7 @@ internal static class BotClient
     private static async Task WaitForBotVersionAsync()
     {
         var deadline = DateTime.UtcNow + ReadyWait;
-        while (!PluginSocket.IsReady && !PluginSocket.IsTerminal && !PluginSocket.IsBlocked && HostGate.IsActive &&
+        while (!PluginSocket.IsReady && !PluginSocket.IsTerminal && !PluginSocket.IsStopped && HostGate.IsActive &&
                DateTime.UtcNow < deadline)
             await Task.Delay(100);
     }
@@ -97,7 +97,7 @@ internal static class BotClient
 
         for (int i = 0; i < 5; i++)
         {
-            if (!HostGate.IsActive || PluginSocket.IsBlocked) return;
+            if (!HostGate.IsActive || PluginSocket.IsStopped) return;
 
             if (PluginSocket.IsTerminal)
             {
