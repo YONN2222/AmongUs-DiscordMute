@@ -1,4 +1,5 @@
-import { classifyDiscordError, type MessagePayload, type MessagePort } from "../Cluster/MessagePort";
+import type { MessagePayload, MessagePort } from "../Cluster/MessagePort";
+import { editOrPost, ThrottledRefresh, unusableChannelFailure } from "../Cluster/TrackedMessagePublishing";
 import type { LinkRepository } from "../Data/Repositories/LinkRepository";
 import type { PendingLinkRepository } from "../Data/Repositories/PendingLinkRepository";
 import type { TrackedMessage, TrackedMessageRepository } from "../Data/Repositories/TrackedMessageRepository";
@@ -24,12 +25,8 @@ export interface LinkOverviewPublisherDeps {
 }
 
 interface GuildState {
-    chain: Promise<void>;
-    timer?: ReturnType<typeof setTimeout>;
+    refresher: ThrottledRefresh;
     expiryTimer?: ReturnType<typeof setTimeout>;
-    inFlight: number;
-    dirty: boolean;
-    lastRefreshAt: number;
     /** Counts triggers (events, explicit refreshes); a failure that needs a trigger to retry is pinned to it. */
     triggerSeq: number;
     blockedSeq?: number;
@@ -53,14 +50,14 @@ export class LinkOverviewPublisher {
     schedule(guildId: string): void {
         const state = this.stateOf(guildId);
         state.triggerSeq += 1;
-        this.pump(guildId, state);
+        state.refresher.request();
     }
 
     /** Updates right away, ignoring the interval, and resolves once the update is done. */
     async refreshNow(guildId: string): Promise<void> {
         const state = this.stateOf(guildId);
         state.triggerSeq += 1;
-        await this.run(guildId, state);
+        await state.refresher.run();
     }
 
     handle(event: GuildEvent): void {
@@ -100,44 +97,18 @@ export class LinkOverviewPublisher {
     private stateOf(guildId: string): GuildState {
         let state = this.guilds.get(guildId);
         if (!state) {
-            state = {
-                chain: Promise.resolve(),
-                inFlight: 0,
-                dirty: false,
-                lastRefreshAt: Number.NEGATIVE_INFINITY,
+            const created: GuildState = {
+                refresher: new ThrottledRefresh({
+                    minIntervalMs: this.minIntervalMs,
+                    now: this.now,
+                    refresh: () => this.refresh(guildId, created),
+                }),
                 triggerSeq: 0,
             };
+            state = created;
             this.guilds.set(guildId, state);
         }
         return state;
-    }
-
-    private pump(guildId: string, state: GuildState): void {
-        if (state.timer) return;
-        if (state.inFlight > 0) {
-            state.dirty = true;
-            return;
-        }
-        const delay = Math.max(0, state.lastRefreshAt + this.minIntervalMs - this.now());
-        state.timer = setTimeout(() => {
-            state.timer = undefined;
-            void this.run(guildId, state);
-        }, delay);
-        state.timer.unref?.();
-    }
-
-    private async run(guildId: string, state: GuildState): Promise<void> {
-        state.inFlight += 1;
-        state.dirty = false;
-        const task = state.chain.then(() => this.refresh(guildId, state));
-        state.chain = task;
-        try {
-            await task;
-        } finally {
-            state.inFlight -= 1;
-            state.lastRefreshAt = this.now();
-            if (state.dirty && state.inFlight === 0) this.pump(guildId, state);
-        }
     }
 
     /** Never rejects: a failing refresh is logged and the next trigger tries again. */
@@ -208,15 +179,8 @@ export class LinkOverviewPublisher {
         payload: MessagePayload,
     ): Promise<boolean> {
         try {
-            if (tracked) {
-                try {
-                    await this.deps.port.edit(tracked.channelId, tracked.messageId, payload);
-                    return false;
-                } catch (error) {
-                    if (classifyDiscordError(error) !== "unknown-message") throw error;
-                }
-            }
-            const messageId = await this.deps.port.post(channelId, payload);
+            const messageId = await editOrPost(this.deps.port, tracked, channelId, payload);
+            if (messageId === null) return false;
             await this.deps.tracked.upsert({ guildId, kind: KIND, key: "", channelId, messageId, deleteAt: null });
             return false;
         } catch (error) {
@@ -225,8 +189,8 @@ export class LinkOverviewPublisher {
     }
 
     private onFailure(guildId: string, state: GuildState, channelId: string, error: unknown): boolean {
-        const failure = classifyDiscordError(error);
-        if (failure !== "missing-access" && failure !== "unknown-channel") {
+        const failure = unusableChannelFailure(error);
+        if (!failure) {
             logger.error(logModules.Bot, `Guild ${guildId}: could not update the link overview`, error);
             return false;
         }

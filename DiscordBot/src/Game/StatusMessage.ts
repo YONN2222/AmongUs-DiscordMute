@@ -1,4 +1,5 @@
-import { classifyDiscordError, type MessagePayload, type MessagePort } from "../Cluster/MessagePort";
+import type { MessagePayload, MessagePort } from "../Cluster/MessagePort";
+import { editOrPost, ThrottledRefresh, unusableChannelFailure } from "../Cluster/TrackedMessagePublishing";
 import { normalizeAccountName } from "../Data/AccountNameMatch";
 import type { LinkRepository } from "../Data/Repositories/LinkRepository";
 import type { TrackedMessage, TrackedMessageRepository } from "../Data/Repositories/TrackedMessageRepository";
@@ -36,11 +37,7 @@ interface Session {
     lobbyCode: string | null;
     hostAccountName: string;
     players: Array<{ name: string; dead: boolean }>;
-    chain: Promise<void>;
-    timer?: ReturnType<typeof setTimeout>;
-    inFlight: number;
-    dirty: boolean;
-    lastRefreshAt: number;
+    refresher: ThrottledRefresh;
     lastWarnAt?: number;
     ended: boolean;
 }
@@ -118,23 +115,25 @@ export class StatusMessage {
             this.sessions.set(sessionKey(guildId, sessionId), session);
         }
         apply(session, new Set(session.players.filter((p) => p.dead).map((p) => nameKey(p.name))));
-        this.pump(session);
+        session.refresher.request();
     }
 
     private createSession(guildId: string, sessionId: string): Session {
-        return {
+        const session: Session = {
             guildId,
             sessionId,
             phase: "lobby",
             lobbyCode: null,
             hostAccountName: "",
             players: [],
-            chain: Promise.resolve(),
-            inFlight: 0,
-            dirty: false,
-            lastRefreshAt: Number.NEGATIVE_INFINITY,
+            refresher: new ThrottledRefresh({
+                minIntervalMs: this.minIntervalMs,
+                now: this.now,
+                refresh: () => this.refresh(session),
+            }),
             ended: false,
         };
+        return session;
     }
 
     private applyGameEvent(session: Session, event: GameEvent, previousDead: Set<string>): void {
@@ -161,11 +160,8 @@ export class StatusMessage {
             return;
         }
         session.ended = true;
-        if (session.timer) clearTimeout(session.timer);
-        session.timer = undefined;
         this.sessions.delete(key);
-        session.chain = session.chain.then(() => this.discard(guildId, sessionId));
-        await session.chain;
+        await session.refresher.stop(() => this.discard(guildId, sessionId));
     }
 
     /** Never rejects: deleting is best effort and a stale row would only be retried by the next recovery. */
@@ -187,34 +183,6 @@ export class StatusMessage {
             await this.deps.tracked.remove(guildId, KIND, sessionId);
         } catch (error) {
             logger.error(logModules.Bot, `Guild ${guildId}: could not remove the status message`, error);
-        }
-    }
-
-    private pump(session: Session): void {
-        if (session.timer || session.ended) return;
-        if (session.inFlight > 0) {
-            session.dirty = true;
-            return;
-        }
-        const delay = Math.max(0, session.lastRefreshAt + this.minIntervalMs - this.now());
-        session.timer = setTimeout(() => {
-            session.timer = undefined;
-            void this.run(session);
-        }, delay);
-        session.timer.unref?.();
-    }
-
-    private async run(session: Session): Promise<void> {
-        session.inFlight += 1;
-        session.dirty = false;
-        const task = session.chain.then(() => this.refresh(session));
-        session.chain = task;
-        try {
-            await task;
-        } finally {
-            session.inFlight -= 1;
-            session.lastRefreshAt = this.now();
-            if (session.dirty && session.inFlight === 0) this.pump(session);
         }
     }
 
@@ -261,15 +229,8 @@ export class StatusMessage {
     ): Promise<void> {
         const { guildId, sessionId } = session;
         try {
-            if (tracked) {
-                try {
-                    await this.deps.port.edit(tracked.channelId, tracked.messageId, payload);
-                    return;
-                } catch (error) {
-                    if (classifyDiscordError(error) !== "unknown-message") throw error;
-                }
-            }
-            const messageId = await this.deps.port.post(channelId, payload);
+            const messageId = await editOrPost(this.deps.port, tracked, channelId, payload);
+            if (messageId === null) return;
             await this.deps.tracked.upsert({
                 guildId,
                 kind: KIND,
@@ -284,8 +245,8 @@ export class StatusMessage {
     }
 
     private onFailure(session: Session, channelId: string, error: unknown): void {
-        const failure = classifyDiscordError(error);
-        if (failure !== "missing-access" && failure !== "unknown-channel") {
+        const failure = unusableChannelFailure(error);
+        if (!failure) {
             logger.error(logModules.Bot, `Guild ${session.guildId}: could not update the status message`, error);
             return;
         }
