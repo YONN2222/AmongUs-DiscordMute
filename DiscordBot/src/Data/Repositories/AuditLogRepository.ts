@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { QueryTypes, type Sequelize } from "sequelize";
-import type { ActorId, AuditAction, AuditDetails, AuditEntry, BlockType } from "../../Admin/contract";
+import type { ActorId, AuditAction, AuditDetails, AuditEntry, BlockType } from "../../Admin/Contract";
 
 export const AUDIT_RETENTION_MS = 180 * 24 * 3600 * 1000;
 

@@ -10,6 +10,7 @@
     "typecheck": "bun run generate:commands && tsc --noEmit",
     "deploy": "bun run generate:commands && bun run src/DeployCommands.ts",
     "test": "bun --bun vitest run",
+    "test:postgres": "bun --bun vitest run --no-file-parallelism",
     "lint": "biome check src/ test/ vitest.config.mts",
     "lint:fix": "biome check --write src/ test/ vitest.config.mts"
   },

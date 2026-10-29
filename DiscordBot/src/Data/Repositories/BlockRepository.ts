@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { QueryTypes, type Sequelize } from "sequelize";
-import type { ActorId, Block, BlockType } from "../../Admin/contract";
+import type { ActorId, Block, BlockType } from "../../Admin/Contract";
 
 export interface NewBlock {
     type: BlockType;

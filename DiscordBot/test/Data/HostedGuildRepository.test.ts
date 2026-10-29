@@ -157,6 +157,8 @@ describe.each(backends)("HostedGuildRepository (%s)", (backend) => {
             };
             await seed(guildId);
             await seed(other);
+            await db.blocks.create({ type: "guild", targetId: guildId, reason: "spam", blockedBy: "system" });
+            await db.audit.record({ actorId: "system", action: "guild.leave", targetType: "guild", targetId: guildId });
 
             await db.hostedGuilds.purgeGuild(guildId);
 
@@ -174,6 +176,8 @@ describe.each(backends)("HostedGuildRepository (%s)", (backend) => {
                 expect(await countRows(table, guildId), `${table} of the purged guild`).toBe(0);
                 expect(await countRows(table, other), `${table} of the other guild`).toBe(1);
             }
+            expect(await db.blocks.isBlocked("guild", guildId)).toBe(true);
+            expect((await db.audit.list({ targetId: guildId, offset: 0, limit: 10 })).total).toBe(1);
         });
     });
 });

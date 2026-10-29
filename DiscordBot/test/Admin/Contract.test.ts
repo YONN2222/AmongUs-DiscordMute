@@ -7,7 +7,7 @@ import {
     GuildListQuerySchema,
     MAX_PAGE_LIMIT,
     SnowflakeSchema,
-} from "../../src/Admin/contract";
+} from "../../src/Admin/Contract";
 
 const SNOWFLAKE = "123456789012345678";
 
