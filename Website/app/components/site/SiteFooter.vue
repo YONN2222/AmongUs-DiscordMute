@@ -48,7 +48,7 @@ const columns: FooterColumn[] = [
       </UContainer>
     </template>
     <template #left>
-      <span>&copy; {{ year }} DiscordMute</span>
+      <span>Copyright {{ year }} DiscordMute</span>
     </template>
     <template #right>
       <span>GPLv3</span>

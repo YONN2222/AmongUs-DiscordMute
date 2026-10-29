@@ -1,3 +1,6 @@
+export const SITE_NAME = 'DiscordMute'
+export const SITE_DESCRIPTION =
+  'Free Among Us mod and Discord bot: auto mute your voice channel during rounds, let the living talk in meetings and keep the dead quiet.'
 export const CANONICAL_ORIGIN = 'https://mute.yonn2222.com'
 export const REDIRECT_HOSTS: readonly string[] = ['amongus-mute.yonn2222.com']
 export const GITHUB_URL = 'https://github.com/YONN2222/AmongUs-DiscordMute'

@@ -1,9 +1,22 @@
 <script setup lang="ts">
-useSeoMeta({
-  title: 'DiscordMute: automatic Discord muting for Among Us',
-  description:
-    'A BepInEx mod and a Discord bot that mute your voice channel during tasks, let the living talk in meetings and keep the dead quiet.',
-})
+import { DOWNLOAD_URL, GITHUB_URL, SITE_DESCRIPTION } from '#shared/site'
+import { FAQ } from '~/content/faq'
+
+useHead({ titleTemplate: '%s' })
+useSeoMeta({ title: 'DiscordMute: automatic Discord muting for Among Us', description: SITE_DESCRIPTION })
+useSchemaOrg([
+  defineSoftwareApp({
+    name: 'DiscordMute',
+    applicationCategory: 'GameApplication',
+    operatingSystem: 'Windows',
+    offers: { price: 0, priceCurrency: 'USD' },
+    downloadUrl: DOWNLOAD_URL,
+    codeRepository: GITHUB_URL,
+    license: 'https://www.gnu.org/licenses/gpl-3.0.html',
+  }),
+  defineWebPage({ '@type': ['WebPage', 'FAQPage'] }),
+  ...FAQ.map((entry) => defineQuestion({ name: entry.question, acceptedAnswer: entry.answer })),
+])
 </script>
 
 <template>

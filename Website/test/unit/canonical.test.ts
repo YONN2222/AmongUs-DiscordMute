@@ -14,9 +14,9 @@ describe('canonicalRedirect', () => {
   })
 
   it('uses 308 for POST', () => {
-    expect(canonicalRedirect(new URL('https://amongus-mute.yonn2222.com/api/v1/telemetry'), 'POST')).toEqual({
+    expect(canonicalRedirect(new URL('https://amongus-mute.yonn2222.com/privacy'), 'POST')).toEqual({
       status: 308,
-      location: 'https://mute.yonn2222.com/api/v1/telemetry',
+      location: 'https://mute.yonn2222.com/privacy',
     })
   })
 

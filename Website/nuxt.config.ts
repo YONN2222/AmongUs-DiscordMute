@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url'
 import type { Nitro } from 'nitropack'
 import { SECURITY_HEADERS } from './server/security/csp'
+import { CANONICAL_ORIGIN, SITE_DESCRIPTION, SITE_NAME } from './shared/site'
 
 const workerEntry = fileURLToPath(new URL('./server/cloudflare-entry.ts', import.meta.url))
 
@@ -17,6 +18,8 @@ export default defineNuxtConfig({
   css: ['~/assets/css/main.css'],
   ui: { fonts: false, colorMode: false },
   ogImage: false,
+  site: { url: CANONICAL_ORIGIN, name: SITE_NAME, description: SITE_DESCRIPTION, defaultLocale: 'en', env: 'production' },
+  sitemap: { exclude: ['/api/**'] },
   app: {
     head: {
       htmlAttrs: { lang: 'en', class: 'dark' },
@@ -28,6 +31,7 @@ export default defineNuxtConfig({
     },
   },
   routeRules: {
+    '/': { swr: 60 },
     '/**': {
       headers: { ...SECURITY_HEADERS },
     },
@@ -39,6 +43,7 @@ export default defineNuxtConfig({
     typescript: { tsConfig: { include: ['../worker-configuration.d.ts'] } },
   },
   icon: {
+    fallbackToApi: false,
     serverBundle: { collections: ['lucide'] },
     customCollections: [{ prefix: 'brand', dir: './app/assets/icons/brand' }],
   },
