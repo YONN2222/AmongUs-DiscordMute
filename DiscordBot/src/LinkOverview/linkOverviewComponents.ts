@@ -11,6 +11,7 @@ import {
 } from "discord.js";
 import { type ComponentInteraction, registerComponent } from "../Cluster/componentRouter";
 import type { CommandContext } from "../commands/Command";
+import { escapeName } from "../Game/playerNames";
 import { type Locale, localeFrom, t } from "../i18n";
 import { unlinkSelf } from "../Linking/selfUnlink";
 import { startSelfLink } from "../Linking/startSelfLink";
@@ -130,7 +131,7 @@ async function submitForce(interaction: ModalSubmitInteraction, ctx: CommandCont
         new ContainerBuilder()
             .title(t(locale, "link.force.title"), null)
             .divider()
-            .text(t(locale, "link.force.body", { user: member.toString(), name }))
+            .text(t(locale, "link.force.body", { user: member.toString(), name: escapeName(name) }))
             .success(),
     );
 }

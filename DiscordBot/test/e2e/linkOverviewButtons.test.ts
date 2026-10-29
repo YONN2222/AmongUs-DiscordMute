@@ -106,6 +106,14 @@ describe("link overview buttons", () => {
         );
     });
 
+    it("escapes the name in the force link reply", async () => {
+        bot.probe.respond("GET", MEMBER_ROUTE, () => guildMember(TARGET));
+
+        await bot.probe.modal("lo:force").withFields({ user: TARGET, name: "**Red**" }).withContext(admin).submit();
+
+        expect(extractText(reply())).toContain("\\*\\*Red\\*\\*");
+    });
+
     it("rejects an unknown user and an empty name without linking", async () => {
         bot.probe.respond("GET", MEMBER_ROUTE, () => {
             throw new Error("not found");

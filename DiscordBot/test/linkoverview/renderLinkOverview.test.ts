@@ -54,12 +54,10 @@ describe("renderLinkOverview", () => {
         expect(text).toContain("\\<@123456789012345678>");
     });
 
-    it("offers show more only when more than one page exists", () => {
-        const withMore = renderLinkOverview({ ...base, entries: entries(20), total: 21, page: 0 });
-        const without = renderLinkOverview({ ...base, entries: entries(20), total: 20, page: 0 });
+    it.each([0, 3, 20, 21])("always offers show more in the public view (%i links)", (total) => {
+        const components = renderLinkOverview({ ...base, entries: entries(Math.min(total, 20)), total, page: 0 });
 
-        expect(ids(withMore)).toEqual(expect.arrayContaining(["lo:link", "lo:unlink", "lo:more"]));
-        expect(ids(without)).toEqual(["lo:link", "lo:unlink"]);
+        expect(ids(components)).toEqual(["lo:link", "lo:unlink", "lo:more"]);
     });
 
     it("shows only the first page in the public view", () => {

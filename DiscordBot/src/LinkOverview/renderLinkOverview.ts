@@ -105,14 +105,13 @@ export function renderLinkOverview(view: LinkOverviewView): unknown[] {
 
     const components: { toJSON(): unknown }[] = [container];
     if (mode === "public") {
-        const buttons = [
-            button("lo:link", t(locale, "overview.button.link"), ButtonStyle.Primary),
-            button("lo:unlink", t(locale, "overview.button.unlink"), ButtonStyle.Secondary),
-        ];
-        if (view.total > PAGE_SIZE) {
-            buttons.push(button("lo:more", t(locale, "overview.button.more"), ButtonStyle.Secondary));
-        }
-        components.push(row(...buttons));
+        components.push(
+            row(
+                button("lo:link", t(locale, "overview.button.link"), ButtonStyle.Primary),
+                button("lo:unlink", t(locale, "overview.button.unlink"), ButtonStyle.Secondary),
+                button("lo:more", t(locale, "overview.button.more"), ButtonStyle.Secondary),
+            ),
+        );
     } else {
         components.push(navigationRow(view, pages));
         if (view.isAdmin) components.push(...adminRows(view));
