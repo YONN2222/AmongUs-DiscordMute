@@ -1,4 +1,4 @@
-import { Registry } from "prom-client";
+import { Counter, Registry } from "prom-client";
 import { describe, expect, it } from "vitest";
 import { createClusterMetrics } from "../../src/Metrics/clusterMetrics";
 import { createGatewayMetrics } from "../../src/Metrics/gatewayMetrics";
@@ -215,8 +215,26 @@ describe("TelemetryBuilder", () => {
     });
 
     it("packet contains no ids or names", async () => {
-        const snapshots = await fixtureSnapshots();
-        const json = JSON.stringify(await builder().build(snapshots));
+        const registry = new Registry();
+        const strayCounter = new Counter({
+            name: "stray_total",
+            help: "stray",
+            labelNames: ["guild", "user"],
+            registers: [registry],
+        });
+        strayCounter.inc({ guild: GUILD_ID, user: USER_ID }, 3);
+        const stray: ProcessSnapshot = {
+            source: `guild-${GUILD_ID}`,
+            metrics: (await registry.getMetricsAsJSON()) as ProcessSnapshot["metrics"],
+        };
+        const leaky = await gatewaySnapshot({
+            plugins: 2,
+            sessions: [
+                { plugin: GUILD_ID, game: USER_ID, count: 1 },
+                { plugin: "Red Crewmate", game: "Red Crewmate", count: 1 },
+            ],
+        });
+        const json = JSON.stringify(await builder().build([...(await fixtureSnapshots()), leaky, stray]));
         for (const forbidden of [GUILD_ID, USER_ID, "Red Crewmate", "Red", "Crewmate"]) {
             expect(json).not.toContain(forbidden);
         }

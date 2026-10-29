@@ -37,9 +37,12 @@ export interface TelemetryBuilderDeps {
 type Labels = Record<string, string | number | undefined>;
 type Sample = { key: string; name: string; labels: Labels; value: number };
 
-/** Anything that does not fit the website pattern keeps only its numeric prefix, or becomes "0". */
+const ID_LIKE_NUMBER = /\d{7,}/;
+
+/** Anything that does not fit the website pattern keeps only its numeric prefix, or becomes "0". Long digit runs (ids) always become "0". */
 export function normalizeVersion(raw: string): string {
     const trimmed = raw.trim().replace(/^v/i, "");
+    if (ID_LIKE_NUMBER.test(trimmed)) return FALLBACK_VERSION;
     if (trimmed.length <= MAX_VERSION_LENGTH && VERSION_PATTERN.test(trimmed)) return trimmed;
     return trimmed.match(LEADING_NUMBERS)?.[0] ?? FALLBACK_VERSION;
 }

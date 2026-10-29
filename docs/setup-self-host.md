@@ -1,6 +1,6 @@
 # Self-host setup
 
-This guide installs DiscordMute on your own PC: BepInEx, the plugin and your own Discord bot. Everything runs locally. The only outbound requests are the optional [telemetry and update check](../README.md#telemetry).
+This guide installs DiscordMute on your own PC: BepInEx, the plugin and your own Discord bot. Everything runs locally. Apart from Discord itself, the only outbound requests are the [telemetry (on by default, can be turned off) and the update check](../README.md#telemetry).
 
 ## Install BepInEx
 

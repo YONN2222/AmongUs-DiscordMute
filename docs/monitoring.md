@@ -56,6 +56,6 @@ Set `"logFormat": "json"` to write one JSON object per line to stdout, which log
 | `time` | ISO 8601 timestamp (UTC). |
 | `level` | `info`, `warn`, `error`, `success` or `debug`. |
 | `module` | Source module, for example `bot`, `mute`, `metrics`, `telemetry`, `updates`. |
-| `process` | Process name, for example `main` or a cluster. |
+| `process` | Process name, `gateway`, or `cluster-0`, `cluster-1` and so on. |
 | `msg` | The message. Tokens and secrets are redacted. |
 | `error` | Only present when extra context or an error was logged: stack trace or serialized context, redacted. |

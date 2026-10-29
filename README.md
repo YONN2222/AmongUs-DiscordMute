@@ -119,7 +119,7 @@ What is sent, every 5 minutes, to `mute.yonn2222.com`:
 - Mute latency: the average in milliseconds and how many samples it is based on.
 - For each optional feature, how many servers have it enabled (a number only, never which servers).
 
-Never sent: Discord IDs, server or channel names, player names, IP addresses, secrets, or hashes of any of these. The packet format is strict, so the server refuses anything beyond the fields above.
+Never sent: Discord IDs, server or channel names, player names, IP addresses, secrets, or hashes of any of these. The packet format is strict, so the server refuses anything beyond the fields above. Like any web request, the connection reaches the server from your IP address. It is used only for rate limiting at the edge and is not stored with the packet data.
 
 Telemetry is only active in the compiled `bot.exe` from a release. It is off when you run from source (`bun run dev`) unless you set the environment variable `DISCORDMUTE_TELEMETRY=1`.
 
@@ -133,7 +133,7 @@ The key is not in `config.example.json` on purpose. See [docs/configuration.md](
 
 ## 8. Update check
 
-The bot and the plugin look up the latest release with one request to the GitHub API (`api.github.com/repos/YONN2222/AmongUs-DiscordMute/releases/latest`). No data about you is sent, only the usual request headers including a `User-Agent` with the DiscordMute version. The bot logs a notice when a newer release exists (at start and then daily). The plugin checks once per game launch, when you become lobby host, and shows a one-time notice in lobby chat.
+The bot and the plugin look up the latest release with one request to the GitHub API (`api.github.com/repos/YONN2222/AmongUs-DiscordMute/releases/latest`). No data about you is sent, only the usual request headers (GitHub sees the request like any other web request) including a `User-Agent` with the DiscordMute version. The bot logs a notice when a newer release exists (at start and then daily). The plugin checks once per game launch, when you become lobby host, and shows a one-time notice in lobby chat.
 
 Turn it off with `"disableUpdateCheck": true` in the bot `config.json` and, separately, in the plugin `config.json`.
 

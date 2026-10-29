@@ -10,6 +10,7 @@ import { GalacticSnapshotSource, MetricsCollector } from "../Metrics/MetricsColl
 import { createMetricsServer } from "../Metrics/metricsServer";
 import { clusterSpawnOptions, isCompiledExecutable } from "../Process/processRole";
 import { GalacticClusterRouter } from "../Routing/ClusterRouter";
+import { readInstanceId } from "../Telemetry/readInstanceId";
 import { TelemetryBuilder } from "../Telemetry/TelemetryBuilder";
 import { TelemetryService, telemetryTarget } from "../Telemetry/TelemetryService";
 import { startUpdateChecks } from "../Updates/UpdateChecker";
@@ -87,8 +88,17 @@ async function createTelemetryService(
             logger.debug(logModules.Telemetry, "Anonymous telemetry is disabled in the config");
         return undefined;
     }
+    const instanceId = await readInstanceId(
+        () => db.telemetry.getOrCreateInstanceId(),
+        (error) =>
+            logger.warn(
+                logModules.Telemetry,
+                `Telemetry is off because the instance id could not be read: ${error instanceof Error ? error.message : String(error)}`,
+            ),
+    );
+    if (!instanceId) return undefined;
     const builder = new TelemetryBuilder({
-        instanceId: await db.telemetry.getOrCreateInstanceId(),
+        instanceId,
         mode: "self-host",
         botVersion: BOT_VERSION,
         countLinkedUsers: () => db.telemetry.countLinkedUsers(),
