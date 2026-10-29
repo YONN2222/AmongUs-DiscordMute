@@ -1,4 +1,4 @@
-import type { GuildSettingsRepository } from "../Data/repositories/GuildSettingsRepository";
+import type { GuildSettingsRepository } from "../Data/Repositories/GuildSettingsRepository";
 import type { GuildEventSink } from "../Events/GuildEvents";
 import { GuildQueue } from "../Utils/GuildQueue";
 import { diffSettings, type GuildSettings, mergeSettings, type SettingsPatch } from "./GuildSettings";

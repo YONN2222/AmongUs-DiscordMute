@@ -1,6 +1,6 @@
-import type { LinkRepository } from "../Data/repositories/LinkRepository";
-import { type Locale, type MessageKey, t } from "../i18n";
-import { logger, logModules } from "../Logging/logger";
+import type { LinkRepository } from "../Data/Repositories/LinkRepository";
+import { type Locale, type MessageKey, t } from "../I18n/Index";
+import { logger, logModules } from "../Logging/Logger";
 import type { VoiceTarget } from "./VoiceTarget";
 
 export interface VoiceTargetResolverDeps {

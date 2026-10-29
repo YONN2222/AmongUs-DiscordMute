@@ -1,15 +1,15 @@
-import { classifyDiscordError, type MessagePayload, type MessagePort } from "../Cluster/messagePort";
-import { normalizeAccountName } from "../Data/accountNameMatch";
-import type { LinkRepository } from "../Data/repositories/LinkRepository";
-import type { TrackedMessage, TrackedMessageRepository } from "../Data/repositories/TrackedMessageRepository";
+import { classifyDiscordError, type MessagePayload, type MessagePort } from "../Cluster/MessagePort";
+import { normalizeAccountName } from "../Data/AccountNameMatch";
+import type { LinkRepository } from "../Data/Repositories/LinkRepository";
+import type { TrackedMessage, TrackedMessageRepository } from "../Data/Repositories/TrackedMessageRepository";
 import type { GuildEvent } from "../Events/GuildEvents";
-import { logger, logModules } from "../Logging/logger";
-import { type Phase, phaseOf } from "../Mute/voiceRules";
+import { logger, logModules } from "../Logging/Logger";
+import { type Phase, phaseOf } from "../Mute/VoiceRules";
 import type { GameEventName, RosterEntry } from "../Protocol/PluginProtocol";
 import type { SettingsService } from "../Settings/SettingsService";
-import { createNameResolver } from "./playerNames";
-import { renderStatus, type StatusPlayer } from "./renderStatus";
-import { isFinalDeleteError } from "./trackedMessageSweeper";
+import { createNameResolver } from "./PlayerNames";
+import { renderStatus, type StatusPlayer } from "./RenderStatus";
+import { isFinalDeleteError } from "./TrackedMessageSweeper";
 
 const KIND = "status";
 const DEFAULT_MIN_INTERVAL_MS = 3000;

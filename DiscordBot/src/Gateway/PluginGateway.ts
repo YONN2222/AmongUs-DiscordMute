@@ -1,8 +1,8 @@
 import type { IncomingMessage, Server } from "node:http";
 import type { Duplex } from "node:stream";
 import { type RawData, WebSocket, WebSocketServer } from "ws";
-import { logger, logModules } from "../Logging/logger";
-import type { PluginEventType } from "../Metrics/metricNames";
+import { logger, logModules } from "../Logging/Logger";
+import type { PluginEventType } from "../Metrics/MetricNames";
 import {
     CLOSE_HELLO_TIMEOUT,
     CLOSE_INVALID_MESSAGE,
@@ -18,7 +18,7 @@ import {
     serialize,
 } from "../Protocol/PluginProtocol";
 import type { ClusterRouter } from "../Routing/ClusterRouter";
-import type { ClusterRequest, RouterReply } from "../Routing/messages";
+import type { ClusterRequest, RouterReply } from "../Routing/Messages";
 import type { LinkingService } from "../Utils/LinkingService";
 import { unauthorizedMessage } from "../Utils/UnauthorizedHint";
 import { createGameSession, type GameSession } from "./GameSession";

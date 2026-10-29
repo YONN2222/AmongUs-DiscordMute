@@ -1,8 +1,8 @@
-import { accountNameKeys, normalizeAccountName } from "../Data/accountNameMatch";
-import type { LinkRepository } from "../Data/repositories/LinkRepository";
-import type { NicknameLedgerEntry, NicknameLedgerRepository } from "../Data/repositories/NicknameLedgerRepository";
+import { accountNameKeys, normalizeAccountName } from "../Data/AccountNameMatch";
+import type { LinkRepository } from "../Data/Repositories/LinkRepository";
+import type { NicknameLedgerEntry, NicknameLedgerRepository } from "../Data/Repositories/NicknameLedgerRepository";
 import type { GuildEvent, GuildEventBus } from "../Events/GuildEvents";
-import { logger, logModules } from "../Logging/logger";
+import { logger, logModules } from "../Logging/Logger";
 import type { SettingsService } from "../Settings/SettingsService";
 import { GuildQueue } from "../Utils/GuildQueue";
 

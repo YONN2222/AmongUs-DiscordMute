@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { logger, logModules } from "../Logging/logger";
-import { isNewer } from "./versionCompare";
+import { logger, logModules } from "../Logging/Logger";
+import { isNewer } from "./VersionCompare";
 
 export const RELEASES_LATEST_URL = "https://api.github.com/repos/YONN2222/AmongUs-DiscordMute/releases/latest";
 export const UPDATE_INTERVAL_MS = 24 * 60 * 60 * 1000;

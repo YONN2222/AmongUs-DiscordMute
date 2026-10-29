@@ -1,5 +1,5 @@
 import { ContainerBuilder as DiscordContainerBuilder, SeparatorSpacingSize, TextDisplayBuilder } from "discord.js";
-import { logTheme } from "../Logging/logger";
+import { logTheme } from "../Logging/Logger";
 
 type HeadingDepth = 1 | 2 | 3;
 

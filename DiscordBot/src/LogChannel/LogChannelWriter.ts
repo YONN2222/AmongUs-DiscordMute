@@ -1,10 +1,10 @@
-import { classifyDiscordError, type MessagePort } from "../Cluster/messagePort";
+import { classifyDiscordError, type MessagePort } from "../Cluster/MessagePort";
 import type { GuildEvent } from "../Events/GuildEvents";
-import { type Locale, t } from "../i18n";
-import { logger, logModules } from "../Logging/logger";
+import { type Locale, t } from "../I18n/Index";
+import { logger, logModules } from "../Logging/Logger";
 import type { SettingsService } from "../Settings/SettingsService";
 import { ContainerBuilder } from "../Utils/ContainerBuilder";
-import { formatLogLine } from "./formatLogLine";
+import { formatLogLine } from "./FormatLogLine";
 
 const QUEUE_CAP = 50;
 const MAX_TEXT_LENGTH = 3800;

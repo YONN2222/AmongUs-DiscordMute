@@ -1,5 +1,5 @@
 import { AggregatorRegistry, type MetricObjectWithValues, type MetricValue, type Registry } from "prom-client";
-import { METRICS_SNAPSHOT_KIND, parseMetricsSnapshotReply } from "./snapshotMessages";
+import { METRICS_SNAPSHOT_KIND, parseMetricsSnapshotReply } from "./SnapshotMessages";
 
 const DEFAULT_TIMEOUT_MS = 3000;
 

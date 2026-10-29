@@ -1,8 +1,8 @@
-import { logger, logModules } from "../Logging/logger";
+import { logger, logModules } from "../Logging/Logger";
 import type { ProcessSnapshot } from "../Metrics/MetricsCollector";
-import { BOT_VERSION } from "../version";
-import { HOSTED_AUTH_HEADER, RETRYABLE, TELEMETRY_PATH } from "./contract/contract";
-import type { TelemetryMode, TelemetryPacket } from "./contract/schema";
+import { BOT_VERSION } from "../Version";
+import { HOSTED_AUTH_HEADER, RETRYABLE, TELEMETRY_PATH } from "./Contract/contract";
+import type { TelemetryMode, TelemetryPacket } from "./Contract/schema";
 import type { TelemetryBuilder } from "./TelemetryBuilder";
 
 export const TELEMETRY_URL = `https://mute.yonn2222.com${TELEMETRY_PATH}`;

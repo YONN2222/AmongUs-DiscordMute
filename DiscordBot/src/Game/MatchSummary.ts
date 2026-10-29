@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
-import type { MessagePort } from "../Cluster/messagePort";
-import type { LinkRepository } from "../Data/repositories/LinkRepository";
-import type { TrackedMessageRepository } from "../Data/repositories/TrackedMessageRepository";
+import type { MessagePort } from "../Cluster/MessagePort";
+import type { LinkRepository } from "../Data/Repositories/LinkRepository";
+import type { TrackedMessageRepository } from "../Data/Repositories/TrackedMessageRepository";
 import type { GuildEvent } from "../Events/GuildEvents";
-import { logger, logModules } from "../Logging/logger";
+import { logger, logModules } from "../Logging/Logger";
 import type { SettingsService } from "../Settings/SettingsService";
-import { createNameResolver } from "./playerNames";
-import { renderSummary } from "./renderSummary";
+import { createNameResolver } from "./PlayerNames";
+import { renderSummary } from "./RenderSummary";
 
 const MS_PER_MINUTE = 60_000;
 

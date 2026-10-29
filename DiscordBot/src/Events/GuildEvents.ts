@@ -1,4 +1,4 @@
-import { logger, logModules } from "../Logging/logger";
+import { logger, logModules } from "../Logging/Logger";
 import type { GameEventName, RosterEntry } from "../Protocol/PluginProtocol";
 import type { GuildSettings } from "../Settings/GuildSettings";
 

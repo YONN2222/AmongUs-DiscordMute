@@ -1,9 +1,9 @@
 import { UniqueConstraintError } from "sequelize";
-import type { Database } from "../Data/database";
-import type { LinkEntry as StoredLink } from "../Data/repositories/LinkRepository";
+import type { Database } from "../Data/Database";
+import type { LinkEntry as StoredLink } from "../Data/Repositories/LinkRepository";
 import type { GuildEventSink } from "../Events/GuildEvents";
-import type { Locale } from "../i18n";
-import { logger, logModules } from "../Logging/logger";
+import type { Locale } from "../I18n/Index";
+import { logger, logModules } from "../Logging/Logger";
 import { describePhrase, formatQuickChatCode, pickQuickChatPhrases } from "./QuickChatCatalog";
 
 const PENDING_TTL_MS = 5 * 60 * 1000;

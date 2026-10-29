@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
+import { MetricNames } from "../Metrics/MetricNames";
 import type { ProcessSnapshot } from "../Metrics/MetricsCollector";
-import { MetricNames } from "../Metrics/metricNames";
-import { MAX_BODY_BYTES } from "./contract/contract";
+import { MAX_BODY_BYTES } from "./Contract/contract";
 import {
     TELEMETRY_EVENT_NAMES,
     TELEMETRY_FEATURES,
@@ -11,7 +11,7 @@ import {
     type TelemetryPacket,
     telemetryPacketSchema,
     VERSION_PATTERN,
-} from "./contract/schema";
+} from "./Contract/schema";
 
 const MAX_LATENCY_MS = 30000;
 const FALLBACK_VERSION = "0";

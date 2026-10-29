@@ -1,4 +1,4 @@
-import { type ClusterRequest, type GatewayRequest, type RouterReply, toRouterReply } from "./messages";
+import { type ClusterRequest, type GatewayRequest, type RouterReply, toRouterReply } from "./Messages";
 
 const REQUEST_TIMEOUT_MS = 10000;
 

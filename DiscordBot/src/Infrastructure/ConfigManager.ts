@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { z } from "zod";
-import { logger, logModules } from "../Logging/logger";
+import { logger, logModules } from "../Logging/Logger";
 import { type Config, parseConfig } from "./ConfigSchema";
 
 export class ConfigManager {
