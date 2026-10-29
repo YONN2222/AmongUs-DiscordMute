@@ -70,5 +70,6 @@ For e2e, install the browser once with `bunx playwright install chromium`. The s
    |----------|--------|---------|--------|
    | `NUXT_PUBLIC_HOSTED_STATUS` | `available`, `coming-soon`, `unavailable` | `coming-soon` | Switches every hosted bot text on the home page. `available` shows the invite button. |
    | `NUXT_PUBLIC_HOSTED_BOT_CLIENT_ID` | Discord application ID | `1565436340114423808` | Builds the invite link. Empty or invalid behaves like `coming-soon`. |
+   | `NUXT_PUBLIC_STATS` | `visible`, `hidden` | `visible` | `hidden` removes the counter panel from the home page and the page stops requesting the stats. The stats API and telemetry ingest are not affected. |
 
 `bunx wrangler deploy --dry-run --outdir .wrangler/dry-run` shows the bundle size without uploading.

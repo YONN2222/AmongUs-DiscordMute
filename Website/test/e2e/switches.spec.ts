@@ -8,6 +8,8 @@ const VIEWS: Record<string, HostedView> = {
   'hosted-unavailable': hostedView('unavailable', DEFAULT_HOSTED_BOT_CLIENT_ID),
 }
 
+const STATS_HIDDEN: Record<string, boolean> = { 'hosted-available': false, 'hosted-unavailable': true }
+
 const INVITE_LINKS = 'a[href^="https://discord.com/oauth2/authorize"]'
 const HOSTED_FAQ_QUESTION = 'Can I use a hosted bot instead of running my own?'
 
@@ -22,6 +24,7 @@ async function jsonLdNodes(page: Page): Promise<JsonLdNode[]> {
 }
 
 const viewOf = () => VIEWS[test.info().project.name]!
+const statsHidden = () => STATS_HIDDEN[test.info().project.name]!
 
 test('the setup section shows the headline of the active status', async ({ page }) => {
   await page.goto('/')
@@ -51,7 +54,29 @@ test('a closed hosted bot shows its badge on the Hosted tab and the hosted count
     return
   }
   await expect(tab).toContainText(view.badge)
-  await expect(counter).toContainText(view.badge)
+  if (!statsHidden()) await expect(counter).toContainText(view.badge)
+})
+
+test('hidden stats render no counter panel and fetch no stats', async ({ page }) => {
+  test.skip(!statsHidden(), 'this server shows the stats')
+  const requests: string[] = []
+  page.on('request', (request) => {
+    if (request.url().includes('/api/v1/stats')) requests.push(request.url())
+  })
+  const response = await page.goto('/')
+  await page.waitForLoadState('networkidle')
+  const html = (await response?.text()) ?? ''
+  await expect(page.locator('#stats')).toHaveCount(0)
+  await expect(page.locator('a[href$="#stats"]')).toHaveCount(0)
+  expect(requests).toEqual([])
+  expect(html).not.toContain('public-stats')
+  expect(html).not.toContain('Rounds kept quiet')
+})
+
+test('visible stats render the counters', async ({ page }) => {
+  test.skip(statsHidden(), 'this server hides the stats')
+  await page.goto('/')
+  await expect(page.locator('#stats article').first()).toBeVisible()
 })
 
 test('the FAQ answer and the structured data match the active status', async ({ page }) => {

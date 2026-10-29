@@ -3,6 +3,7 @@ import { DOWNLOAD_URL, GITHUB_URL, SITE_DESCRIPTION } from '#shared/site'
 import { faqFor } from '~/content/faq'
 
 const hosted = useHostedView()
+const statsVisible = useStatsVisible()
 const faq = computed(() => faqFor(hosted.value))
 
 useHead({ titleTemplate: '%s' })
@@ -25,7 +26,7 @@ useSchemaOrg([
 <template>
   <div>
     <HomeHeroSection />
-    <HomeCounterPanel />
+    <HomeCounterPanel v-if="statsVisible" />
     <HomeHowItWorks />
     <HomeFeatureGrid />
     <HomeSetupGuide />

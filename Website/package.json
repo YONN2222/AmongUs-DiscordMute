@@ -33,7 +33,7 @@
     "e2e:serve:ingest": "bunx wrangler d1 migrations apply DB --local --persist-to .wrangler/e2e-ingest && bunx wrangler d1 execute DB --local --persist-to .wrangler/e2e-ingest --file test/e2e/seed.sql && bunx wrangler dev --port 8789 --persist-to .wrangler/e2e-ingest",
     "e2e:serve:empty": "bunx wrangler d1 migrations apply DB --local --persist-to .wrangler/e2e-empty && bunx wrangler dev --port 8788 --persist-to .wrangler/e2e-empty",
     "e2e:serve:available": "bunx wrangler d1 migrations apply DB --local --persist-to .wrangler/e2e-available && bunx wrangler d1 execute DB --local --persist-to .wrangler/e2e-available --file test/e2e/seed.sql && bunx wrangler dev --port 8790 --persist-to .wrangler/e2e-available --var NUXT_PUBLIC_HOSTED_STATUS:available",
-    "e2e:serve:unavailable": "bunx wrangler d1 migrations apply DB --local --persist-to .wrangler/e2e-unavailable && bunx wrangler d1 execute DB --local --persist-to .wrangler/e2e-unavailable --file test/e2e/seed.sql && bunx wrangler dev --port 8791 --persist-to .wrangler/e2e-unavailable --var NUXT_PUBLIC_HOSTED_STATUS:unavailable",
+    "e2e:serve:unavailable": "bunx wrangler d1 migrations apply DB --local --persist-to .wrangler/e2e-unavailable && bunx wrangler d1 execute DB --local --persist-to .wrangler/e2e-unavailable --file test/e2e/seed.sql && bunx wrangler dev --port 8791 --persist-to .wrangler/e2e-unavailable --var NUXT_PUBLIC_HOSTED_STATUS:unavailable --var NUXT_PUBLIC_STATS:hidden",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "cf-typegen": "wrangler types",
     "schema:export": "bun scripts/export-telemetry-schema.ts",
