@@ -69,7 +69,7 @@ async function readPacket(request: Request): Promise<TelemetryPacket | 'too_larg
   return parsed.success ? parsed.data : null
 }
 
-function bearerMatches(header: string | null, token: string): boolean {
+export function bearerMatches(header: string | null, token: string): boolean {
   if (!token || header === null) return false
   const subtle = crypto.subtle as WorkersSubtleCrypto
   const encoder = new TextEncoder()

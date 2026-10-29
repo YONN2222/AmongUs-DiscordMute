@@ -18,6 +18,7 @@ export default defineConfig({
         ),
         bindings: {
           TEST_MIGRATIONS: await readD1Migrations('./migrations'),
+          OPS_STATS_TOKEN: 'test-ops-stats-token-0123456789abcdef',
           HOSTED_TELEMETRY_TOKEN: 'test-hosted-token',
         },
       },

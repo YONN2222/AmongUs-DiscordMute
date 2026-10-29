@@ -72,4 +72,6 @@ For e2e, install the browser once with `bunx playwright install chromium`. The s
    | `NUXT_PUBLIC_HOSTED_BOT_CLIENT_ID` | Discord application ID | `1565436340114423808` | Builds the invite link. Empty or invalid behaves like `coming-soon`. |
    | `NUXT_PUBLIC_STATS` | `visible`, `hidden` | `visible` | `hidden` removes the counter panel from the home page and the page stops requesting the stats. The stats API and telemetry ingest are not affected. |
 
+10. The optional secret `OPS_STATS_TOKEN` (at least 32 characters, set with `bunx wrangler secret put OPS_STATS_TOKEN`) enables `GET /api/v1/ops/telemetry` for Grafana and the admin dashboard. Send `Authorization: Bearer <token>` and pick `view=daily|snapshot|versions|features`, optionally with `mode`, `from` and `to` (`YYYY-MM-DD`, up to 400 days). Without the secret the route answers 404. Locally, `wrangler dev` only loads the secrets listed in `secrets.required`, so pass this one with `--var OPS_STATS_TOKEN:<token>`.
+
 `bunx wrangler deploy --dry-run --outdir .wrangler/dry-run` shows the bundle size without uploading.
