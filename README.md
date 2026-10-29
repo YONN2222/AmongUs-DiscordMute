@@ -28,10 +28,9 @@ I built DiscordMute because my friend group kept talking during live rounds and 
 DiscordMute requires BepInEx.
 
 - If you already use another Among Us mod that ships with BepInEx, you can usually skip this step.
-- Otherwise, download the correct BepInEx build for your Among Us version:
-  - Steam: [`BepInEx-Unity.IL2CPP-win-x86-6.0.0-be.735+5fef357.zip`](https://builds.bepinex.dev/projects/bepinex_be/735/BepInEx-Unity.IL2CPP-win-x86-6.0.0-be.735%2B5fef357.zip)
-  - Microsoft Store / Epic Games: [`BepInEx-Unity.IL2CPP-win-x64-6.0.0-be.735+5fef357.zip`](https://builds.bepinex.dev/projects/bepinex_be/735/BepInEx-Unity.IL2CPP-win-x64-6.0.0-be.735%2B5fef357.zip)
-- Extract it into your Among Us folder first.
+- Otherwise, download the 64-bit BepInEx build. Among Us is a 64-bit game on Steam, Epic Games and the Microsoft Store (Steam since version 2026.9.29), so all of them use the same file:
+  - Steam / Epic Games / Microsoft Store: [`BepInEx-Unity.IL2CPP-win-x64-6.0.0-be.735+5fef357.zip`](https://builds.bepinex.dev/projects/bepinex_be/735/BepInEx-Unity.IL2CPP-win-x64-6.0.0-be.735%2B5fef357.zip)
+- Extract it into your Among Us folder first. If you used an older 32-bit (x86) BepInEx before the Steam update, replace it with this build.
 
 If the Steam version does not start or cannot connect to Steam correctly, make sure Steam is open. Also check that your Among Us folder contains a file named `steam_appid.txt` with this content:
 
