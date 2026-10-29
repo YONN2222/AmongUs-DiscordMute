@@ -12,6 +12,7 @@ import { clusterSpawnOptions, isCompiledExecutable } from "../Process/processRol
 import { GalacticClusterRouter } from "../Routing/ClusterRouter";
 import { TelemetryBuilder } from "../Telemetry/TelemetryBuilder";
 import { TelemetryService, telemetryTarget } from "../Telemetry/TelemetryService";
+import { startUpdateChecks } from "../Updates/UpdateChecker";
 import { LinkingService } from "../Utils/LinkingService";
 import { BOT_VERSION } from "../version";
 import { createGatewayRequestHandler } from "./gatewayRequestHandler";
@@ -119,6 +120,17 @@ export async function runGateway(): Promise<void> {
         ? createMetricsServer({ collector, token: config.metrics.token })
         : undefined;
     const telemetry = await createTelemetryService(db, collector);
+    const updateChecks = config.disableUpdateCheck
+        ? undefined
+        : startUpdateChecks({
+              currentVersion: BOT_VERSION,
+              fetch,
+              notify: ({ version, url }) =>
+                  logger.warn(
+                      logModules.Updates,
+                      `DiscordMute ${version} is available (running ${BOT_VERSION}): ${url}`,
+                  ),
+          });
     const server = createGatewayHttpServer();
     pluginGateway.attach(server);
 
@@ -130,6 +142,7 @@ export async function runGateway(): Promise<void> {
         if (stopping) return;
         stopping = true;
         telemetry?.stop();
+        updateChecks?.stop();
         setTimeout(() => process.exit(exitCode), SHUTDOWN_TIMEOUT_MS).unref();
         await shutdownGateway({
             stopRespawning: () => instance.stopRespawning(),
