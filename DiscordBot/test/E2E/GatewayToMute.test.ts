@@ -20,6 +20,20 @@ import { createTestDatabase } from "../Helpers/TestDatabase";
 const SECRET = "e2e-secret";
 const GUILD = "guild-e2e";
 const CHANNEL = "voice-1";
+const ROUTE_TIMEOUT_MS = 300;
+
+interface Gate {
+    promise: Promise<void>;
+    open: () => void;
+}
+
+function createGate(): Gate {
+    let open = (): void => {};
+    const promise = new Promise<void>((resolve) => {
+        open = resolve;
+    });
+    return { promise, open };
+}
 
 class FakeVoice implements VoiceAdapter {
     readonly channelOf = new Map<string, string>();
@@ -52,6 +66,11 @@ describe("gateway to mute", () => {
     let voice: FakeVoice;
     let baseUrl: string;
     let events: GuildEvent[];
+    let router: InMemoryClusterRouter;
+    /** While set, the cluster handler waits in its settings lookup, which holds a game event in relinking. */
+    let handlerSettingsGate: Gate | undefined;
+    /** The cluster answers this many session-ended requests with an error before it handles one. */
+    let failedSessionEnds: number;
     const sockets: WebSocket[] = [];
 
     beforeEach(async () => {
@@ -64,6 +83,8 @@ describe("gateway to mute", () => {
         voice = new FakeVoice();
         voice.channelOf.set("u-host", CHANNEL).set("u-crew", CHANNEL);
         events = [];
+        handlerSettingsGate = undefined;
+        failedSessionEnds = 0;
         const bus = new GuildEventBus();
         bus.on((e) => {
             events.push(e);
@@ -82,23 +103,34 @@ describe("gateway to mute", () => {
                 localeOf: async () => "en",
             }),
         });
-        const router = new InMemoryClusterRouter();
-        router.register(
-            GUILD,
-            createClusterRequestHandler({
-                mute,
-                updateLinkReply: async () => true,
-                isReady: () => true,
-                events: bus,
-                links: db.links,
-                settings: { get: async () => DEFAULT_SETTINGS },
-            }),
-        );
+        const handle = createClusterRequestHandler({
+            mute,
+            updateLinkReply: async () => true,
+            isReady: () => true,
+            events: bus,
+            links: db.links,
+            settings: {
+                get: async () => {
+                    await handlerSettingsGate?.promise;
+                    return DEFAULT_SETTINGS;
+                },
+            },
+        });
+        router = new InMemoryClusterRouter();
+        router.register(GUILD, async (req) => {
+            if (req.kind === "session-ended" && failedSessionEnds > 0) {
+                failedSessionEnds--;
+                return { ok: false, error: "timeout" };
+            }
+            return handle(req);
+        });
 
         gateway = new PluginGateway({
             resolver: new SelfHostSecretResolver({ secret: SECRET, guildId: GUILD }),
             router,
             linking: new LinkingService(db),
+            routeTimeoutMs: ROUTE_TIMEOUT_MS,
+            sessionEndRetryDelaysMs: [20, 20, 20],
         });
         server = createGatewayHttpServer();
         gateway.attach(server);
@@ -207,6 +239,55 @@ describe("gateway to mute", () => {
 
         second.close();
         await vi.waitFor(() => expect(voice.muted.size).toBe(0));
+        expect(await db.muteLedger.listByGuild(GUILD)).toEqual([]);
+    });
+
+    it("drops a game event that reaches the cluster after its session ended and leaves nobody muted", async () => {
+        const ws = await connectPlugin();
+        handlerSettingsGate = createGate();
+        ws.send(
+            JSON.stringify({
+                type: "game-event",
+                event: "game-start",
+                hostAccountName: "Red",
+                players: ["Red", "Blue"],
+                deadPlayers: [],
+                roster: [
+                    { name: "Red", dead: false, disconnected: false },
+                    { name: "Blue", dead: false, disconnected: false },
+                ],
+            }),
+        );
+        await vi.waitFor(() => expect(router.sent.some((s) => s.req.kind === "game-event")).toBe(true));
+
+        ws.close();
+        await vi.waitFor(() => expect(events.some((e) => e.type === "session-ended")).toBe(true), { timeout: 3000 });
+        handlerSettingsGate.open();
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
+        expect(voice.muted.size).toBe(0);
+        expect(await db.muteLedger.listByGuild(GUILD)).toEqual([]);
+        expect(events.some((e) => e.type === "game-event")).toBe(false);
+    });
+
+    it("retries a failed session-ended until the cluster handles it and lifts the mutes", async () => {
+        const ws = await connectPlugin();
+        ws.send(
+            JSON.stringify({
+                type: "game-event",
+                event: "game-start",
+                hostAccountName: "Red",
+                players: ["Red", "Blue"],
+                deadPlayers: [],
+            }),
+        );
+        await vi.waitFor(() => expect(voice.muted.size).toBe(2));
+        failedSessionEnds = 2;
+
+        ws.close();
+
+        await vi.waitFor(() => expect(voice.muted.size).toBe(0));
+        expect(router.sent.filter((s) => s.req.kind === "session-ended")).toHaveLength(3);
         expect(await db.muteLedger.listByGuild(GUILD)).toEqual([]);
     });
 

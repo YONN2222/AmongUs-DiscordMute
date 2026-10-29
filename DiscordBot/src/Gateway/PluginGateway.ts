@@ -31,6 +31,8 @@ const DEFAULT_HELLO_TIMEOUT_MS = 5000;
 const DEFAULT_PING_INTERVAL_MS = 15000;
 const DEFAULT_PONG_TIMEOUT_MS = 30000;
 const DEFAULT_ROUTE_TIMEOUT_MS = 10000;
+/** About four minutes in total; ending a session twice is harmless, so a retry never hurts. */
+const DEFAULT_SESSION_END_RETRY_DELAYS_MS = [1000, 2000, 5000, 10_000, 30_000, 60_000, 120_000];
 const MAX_PENDING_BEFORE_ACTIVE = 16;
 const MAX_PENDING_ACTIVE = 64;
 const OUTDATED_REASON = "Plugin outdated, please update DiscordMute";
@@ -66,6 +68,8 @@ export interface PluginGatewayDeps {
     pingIntervalMs?: number;
     pongTimeoutMs?: number;
     routeTimeoutMs?: number;
+    /** Waits between attempts when the cluster does not confirm a session end. */
+    sessionEndRetryDelaysMs?: readonly number[];
 }
 
 interface Connection {
@@ -94,14 +98,22 @@ export class PluginGateway {
     private readonly pingIntervalMs: number;
     private readonly pongTimeoutMs: number;
     private readonly routeTimeoutMs: number;
+    private readonly sessionEndRetryDelaysMs: readonly number[];
     private server: Server | null = null;
     private closed = false;
+    /** Resolves on close, so retries waiting out a delay stop instead of holding up shutdown. */
+    private readonly closedSignal: Promise<void>;
+    private signalClosed = (): void => {};
 
     constructor(private readonly deps: PluginGatewayDeps) {
         this.helloTimeoutMs = deps.helloTimeoutMs ?? DEFAULT_HELLO_TIMEOUT_MS;
         this.pingIntervalMs = deps.pingIntervalMs ?? DEFAULT_PING_INTERVAL_MS;
         this.pongTimeoutMs = deps.pongTimeoutMs ?? DEFAULT_PONG_TIMEOUT_MS;
         this.routeTimeoutMs = deps.routeTimeoutMs ?? DEFAULT_ROUTE_TIMEOUT_MS;
+        this.sessionEndRetryDelaysMs = deps.sessionEndRetryDelaysMs ?? DEFAULT_SESSION_END_RETRY_DELAYS_MS;
+        this.closedSignal = new Promise<void>((resolve) => {
+            this.signalClosed = resolve;
+        });
         if (this.pongTimeoutMs <= this.pingIntervalMs) {
             throw new Error(
                 `pongTimeoutMs (${this.pongTimeoutMs}) must be greater than pingIntervalMs (${this.pingIntervalMs})`,
@@ -146,6 +158,7 @@ export class PluginGateway {
     async close(): Promise<void> {
         if (this.closed) return;
         this.closed = true;
+        this.signalClosed();
         this.server?.off("upgrade", this.handleUpgrade);
         const open = [...this.connections];
         for (const conn of open) {
@@ -449,11 +462,34 @@ export class PluginGateway {
         this.sessions.delete(sessionKey);
         this.observe((observer, s) => observer.sessionEnded(s), session);
         logger.warn(logModules.WebServer, `Plugin disconnected for guild ${session.guildId}`);
-        await this.routeLogged(session.guildId, {
-            kind: "session-ended",
-            guildId: session.guildId,
-            sessionId: session.sessionId,
+        // A game event still being routed has to reach the cluster before the end, or it could restart the game there.
+        await conn.queue;
+        await this.routeSessionEnded(session);
+    }
+
+    /** Retries until the cluster confirms, because an unconfirmed end can leave members muted until a restart. */
+    private async routeSessionEnded({ guildId, sessionId }: GameSession): Promise<void> {
+        const req: ClusterRequest = { kind: "session-ended", guildId, sessionId };
+        let reply = await this.route(guildId, req);
+        for (const delayMs of this.sessionEndRetryDelaysMs) {
+            if (reply.ok || this.closed) break;
+            logger.warn(
+                logModules.WebServer,
+                `session-ended for guild ${guildId} failed (${reply.error}), retrying in ${delayMs} ms`,
+            );
+            await this.waitUnlessClosed(delayMs);
+            if (this.closed) break;
+            reply = await this.route(guildId, req);
+        }
+        if (!reply.ok) logger.error(logModules.WebServer, `session-ended for guild ${guildId} failed: ${reply.error}`);
+    }
+
+    private waitUnlessClosed(ms: number): Promise<void> {
+        let timer: NodeJS.Timeout | undefined;
+        const elapsed = new Promise<void>((resolve) => {
+            timer = setTimeout(resolve, ms);
         });
+        return Promise.race([elapsed, this.closedSignal]).finally(() => clearTimeout(timer));
     }
 
     private startHeartbeat(conn: Connection): void {

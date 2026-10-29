@@ -14,6 +14,7 @@ describe("createClusterRequestHandler", () => {
             async (_req: { players: string[] }): Promise<RouterReply & { channelIds?: string[] }> => ({ ok: true }),
         ),
         endSession: vi.fn(async () => {}),
+        hasEnded: vi.fn((_sessionId: string) => false),
     };
     let updateLinkReply: ReturnType<typeof vi.fn<ClusterRequestHandlerDeps["updateLinkReply"]>>;
     let events: { emit: ReturnType<typeof vi.fn<(e: GuildEvent) => void>> };
@@ -67,6 +68,16 @@ describe("createClusterRequestHandler", () => {
     it("passes game events to the mute service", async () => {
         expect(await handler()(gameEvent)).toEqual({ ok: true });
         expect(mute.handleGameEvent).toHaveBeenCalledWith(gameEvent);
+    });
+
+    it("drops a game event of a session that already ended without emitting it", async () => {
+        mute.hasEnded.mockReturnValueOnce(true);
+
+        expect(await handler()(gameEvent)).toEqual({ ok: true });
+
+        expect(mute.hasEnded).toHaveBeenCalledWith("s");
+        expect(mute.handleGameEvent).not.toHaveBeenCalled();
+        expect(events.emit).not.toHaveBeenCalled();
     });
 
     it("emits the game event with the channels the mute service used", async () => {

@@ -325,6 +325,69 @@ describe("PluginGateway", () => {
         expect(gateway.sessionCount()).toBe(0);
     });
 
+    it("retries session-ended until the cluster answers ok", async () => {
+        await restart({ sessionEndRetryDelaysMs: [10, 10, 10, 10] });
+        const replies: RouterReply[] = [
+            { ok: false, error: "timeout" },
+            { ok: false, error: "no cluster" },
+        ];
+        router.register(GUILD, async (req) =>
+            req.kind === "session-ended" ? (replies.shift() ?? { ok: true }) : { ok: true },
+        );
+        const ws = await authenticate();
+
+        ws.close();
+
+        await vi.waitFor(() => expect(sentOfKind("session-ended")).toHaveLength(3));
+        await sleep(50);
+        expect(sentOfKind("session-ended")).toHaveLength(3);
+        expect(new Set(sentOfKind("session-ended").map((e) => e.sessionId)).size).toBe(1);
+    });
+
+    it("gives up retrying session-ended after the last delay", async () => {
+        await restart({ sessionEndRetryDelaysMs: [10, 10] });
+        router.register(GUILD, async (req) =>
+            req.kind === "session-ended" ? { ok: false, error: "down" } : { ok: true },
+        );
+        const ws = await authenticate();
+
+        ws.close();
+
+        await vi.waitFor(() => expect(sentOfKind("session-ended")).toHaveLength(3));
+        await sleep(50);
+        expect(sentOfKind("session-ended")).toHaveLength(3);
+        expect(logger.error).toHaveBeenCalledWith(expect.anything(), expect.stringContaining("session-ended"));
+    });
+
+    it("waits for the message in flight before routing session-ended", async () => {
+        let finishEvent = (): void => {};
+        router.register(GUILD, async (req) => {
+            if (req.kind === "game-event") await new Promise<void>((resolve) => (finishEvent = resolve));
+            return { ok: true };
+        });
+        const ws = await authenticate();
+        ws.send(gameEvent());
+        await vi.waitFor(() => expect(sentOfKind("game-event")).toHaveLength(1));
+
+        ws.close();
+        await sleep(50);
+        expect(sentOfKind("session-ended")).toHaveLength(0);
+
+        finishEvent();
+        await vi.waitFor(() => expect(sentOfKind("session-ended")).toHaveLength(1));
+    });
+
+    it("close() does not wait for session-ended retries", async () => {
+        await restart({ sessionEndRetryDelaysMs: [60_000] });
+        router.register(GUILD, async () => ({ ok: false, error: "down" }));
+        await authenticate();
+
+        const startedAt = Date.now();
+        await gateway.close();
+
+        expect(Date.now() - startedAt).toBeLessThan(1000);
+    });
+
     it("does not end a session for a connection that never authenticated", async () => {
         const ws = await connect();
         const closed = waitForClose(ws);

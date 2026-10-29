@@ -6,6 +6,7 @@ import type { ClusterRequest, RouterReply } from "../Routing/Messages";
 import type { VoiceAction } from "../Settings/GuildSettings";
 import type { SettingsService } from "../Settings/SettingsService";
 import { ActiveSessions } from "../Utils/ActiveSessions";
+import { EndedSessions } from "../Utils/EndedSessions";
 import { GuildQueue } from "../Utils/GuildQueue";
 import { computeDesiredState, type DesiredState } from "./DesiredState";
 import { delayFor, effectiveRules, type Phase, phaseOf } from "./VoiceRules";
@@ -90,6 +91,8 @@ export class MuteService {
     private readonly queue = new GuildQueue();
     /** The sessions per guild that are in a game; the ledger rows they own stay until they end or reach the lobby. */
     private readonly activeSessions = new ActiveSessions();
+    /** A late game event of an ended session must not start it again, or its mutes would stay until restart. */
+    private readonly endedSessions = new EndedSessions();
     /** Counts the events of a session in arrival order; a delayed event that was overtaken is dropped. */
     private readonly sequence = new Map<string, number>();
     private readonly pendingDelays = new Map<string, Set<PendingDelay>>();
@@ -105,6 +108,7 @@ export class MuteService {
 
     async handleGameEvent(req: GameEventRequest): Promise<GameEventReply> {
         const { guildId, sessionId } = req;
+        if (this.hasEnded(sessionId)) return { ok: true };
         // A death does not change the phase, so it must not supersede a delayed phase change.
         const isDeath = req.event === "player-died";
         const seq = isDeath ? (this.sequence.get(sessionId) ?? 0) : this.nextSequence(sessionId);
@@ -173,7 +177,14 @@ export class MuteService {
             });
     }
 
+    /** True once endSession was called for the session, before its release even ran. */
+    hasEnded(sessionId: string): boolean {
+        return this.endedSessions.has(sessionId);
+    }
+
     endSession(guildId: string, sessionId: string): Promise<void> {
+        // Recorded right away, so an event that is still on its way is dropped instead of queued behind the end.
+        this.endedSessions.add(sessionId);
         return this.enqueue(guildId, async () => {
             this.phases.delete(sessionId);
             this.latestDeath.delete(sessionId);
@@ -261,6 +272,7 @@ export class MuteService {
 
     private async applyGameEvent(req: GameEventRequest): Promise<GameEventReply> {
         const { guildId, sessionId } = req;
+        if (this.hasEnded(sessionId)) return { ok: true };
         if (req.event === "lobby") {
             this.phases.delete(sessionId);
             await this.releaseSession(guildId, sessionId);

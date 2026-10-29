@@ -828,6 +828,19 @@ describe("MuteService", () => {
             expect(await ledgerIds()).toEqual(["u3", "u4"]);
         });
 
+        it("a game event that arrives after its session ended is dropped", async () => {
+            const service = createParallelService();
+            await startBoth(service);
+            await service.endSession(GUILD, "A");
+            expect(service.hasEnded("A")).toBe(true);
+            expect(service.hasEnded("B")).toBe(false);
+
+            expect(await service.handleGameEvent(eventOf("A", "meeting-end", ["Red", "Blue"]))).toEqual({ ok: true });
+
+            expect([...voice.muted].sort()).toEqual(["u3", "u4"]);
+            expect(await sessionIsActive(service, "A")).toBe(false);
+        });
+
         it("recover still releases every row", async () => {
             await startBoth(createParallelService());
 

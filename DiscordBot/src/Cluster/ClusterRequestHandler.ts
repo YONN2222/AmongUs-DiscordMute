@@ -12,7 +12,7 @@ export type ConfirmedLinkReply = Omit<Extract<ClusterRequest, { kind: "link-conf
 type GameEventRequest = Extract<ClusterRequest, { kind: "game-event" }>;
 
 export interface ClusterRequestHandlerDeps {
-    mute: Pick<MuteService, "handleGameEvent" | "endSession">;
+    mute: Pick<MuteService, "handleGameEvent" | "endSession" | "hasEnded">;
     /** Resolves to false when the original /link reply could not be updated. */
     updateLinkReply: (link: ConfirmedLinkReply) => Promise<boolean>;
     /** False until startup recovery ran, so recovery can never undo a mute applied before it. */
@@ -46,6 +46,8 @@ async function restoreNicknames(deps: ClusterRequestHandlerDeps, guildId: string
 
 async function handleGameEvent(deps: ClusterRequestHandlerDeps, req: GameEventRequest): Promise<RouterReply> {
     await relinkSafely(deps, req);
+    // session-ended can overtake this event while it relinks; an ended game must not mute, rename or post again.
+    if (deps.mute.hasEnded(req.sessionId)) return { ok: true };
     const { channelIds, ...reply } = await deps.mute.handleGameEvent(req);
     const { kind: _kind, ...event } = req;
     const usedChannels = reply.ok && !reply.notice ? (channelIds ?? []) : [];
