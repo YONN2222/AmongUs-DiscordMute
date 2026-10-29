@@ -1,7 +1,10 @@
 import type { Database } from "../Data/Database";
+import type { BlockOutcome } from "../Data/Repositories/BlockRepository";
 import type { HostedGuildRow } from "../Data/Repositories/HostedGuildRepository";
 import type { PluginGateway } from "../Gateway/PluginGateway";
+import { CLOSE_BLOCKED } from "../Protocol/PluginProtocol";
 import type { ClusterRouter } from "../Routing/ClusterRouter";
+import type { GuildLeaveReason, RouterReply } from "../Routing/Messages";
 import type {
     AuditEntry,
     AuditListQuery,
@@ -22,6 +25,14 @@ import type {
 
 const DAY_MS = 24 * 3600 * 1000;
 const GUILD_ICON_SIZE = 128;
+const USER_BLOCK_LEAVE_BUDGET_MS = 30_000;
+
+/** Close reasons the plugin receives; the close frame allows 123 bytes. */
+const DISCONNECT_REASONS: Record<GuildLeaveReason, string> = {
+    "guild-blocked": "Server blocked",
+    "owner-blocked": "Server owner blocked",
+    admin: "Removed by an operator",
+};
 
 export interface Page<T> {
     rows: T[];
@@ -90,6 +101,40 @@ export function createAdminHandlers(deps: AdminHandlerDeps): AdminHandlers {
         }));
     }
 
+    /** Disconnects the plugin first so it learns it was blocked, then lets the owning cluster leave. */
+    async function leaveThroughCluster(guildId: string, reason: GuildLeaveReason): Promise<RouterReply> {
+        plugins.disconnectGuild(guildId, CLOSE_BLOCKED, DISCONNECT_REASONS[reason]);
+        return deps.router.send(guildId, { kind: "leave-guild", guildId, reason });
+    }
+
+    async function leaveBlockedGuild(guildId: string): Promise<BlockOutcome> {
+        if (!(await db.hostedGuilds.get(guildId))) {
+            return { summary: "Bot was not in the server", leftGuild: false, leftGuildCount: 0 };
+        }
+        const reply = await leaveThroughCluster(guildId, "guild-blocked");
+        if (reply.ok) return { summary: "Left the server", leftGuild: true, leftGuildCount: 1 };
+        return { summary: `Leaving the server failed: ${reply.error}`, leftGuild: false, leftGuildCount: 0 };
+    }
+
+    /** Leaves one server after the other; servers still waiting when the time budget is used up count as not left. */
+    async function leaveGuildsOfBlockedUser(ownerId: string): Promise<BlockOutcome> {
+        const owned = await db.hostedGuilds.listByOwner(ownerId);
+        if (owned.length === 0) {
+            return { summary: "No servers owned by this user", leftGuild: false, leftGuildCount: 0 };
+        }
+        const deadline = now() + USER_BLOCK_LEAVE_BUDGET_MS;
+        let left = 0;
+        for (const guild of owned) {
+            if (now() >= deadline) break;
+            if ((await leaveThroughCluster(guild.guildId, "owner-blocked")).ok) left += 1;
+        }
+        const summary =
+            left === owned.length
+                ? `Left ${left} server(s) owned by this user`
+                : `Left ${left} of ${owned.length} server(s) owned by this user`;
+        return { summary, leftGuild: left > 0, leftGuildCount: left };
+    }
+
     return {
         async health() {
             return { status: "ok", mode: "hosted", version: deps.version };
@@ -128,17 +173,42 @@ export function createAdminHandlers(deps: AdminHandlerDeps): AdminHandlers {
             const row = await db.hostedGuilds.get(guildId);
             return row ? (await summarize([row]))[0] : null;
         },
-        async leaveGuild() {
-            throw new Error("not implemented");
+        async leaveGuild(guildId, { actorId, reason }) {
+            if (!(await db.hostedGuilds.get(guildId))) return null;
+            const left = (await leaveThroughCluster(guildId, "admin")).ok;
+            await db.audit.record(
+                { actorId, action: "guild.leave", targetType: "guild", targetId: guildId, details: { reason, left } },
+                now(),
+            );
+            return { left };
         },
         listBlocks(query) {
             return db.blocks.list({ type: query.type, targetId: query.q, offset: offsetOf(query), limit: query.limit });
         },
-        async createBlock() {
-            throw new Error("not implemented");
+        async createBlock({ type, targetId, reason, actorId }) {
+            const created = await db.blocks.create({ type, targetId, reason, blockedBy: actorId }, now());
+            if (!created) return "conflict";
+            const outcome =
+                type === "guild" ? await leaveBlockedGuild(targetId) : await leaveGuildsOfBlockedUser(targetId);
+            const block = await db.blocks.finish(created.id, outcome);
+            await db.audit.record(
+                {
+                    actorId,
+                    action: "block.create",
+                    targetType: type,
+                    targetId,
+                    details: { reason, leftGuildCount: outcome.leftGuildCount },
+                },
+                now(),
+            );
+            return block;
         },
-        async removeBlock() {
-            throw new Error("not implemented");
+        async removeBlock(type, targetId, { actorId }) {
+            const removed = await db.blocks.remove(type, targetId);
+            if (removed) {
+                await db.audit.record({ actorId, action: "block.remove", targetType: type, targetId }, now());
+            }
+            return removed;
         },
         listAudit(query) {
             return db.audit.list({
@@ -149,8 +219,8 @@ export function createAdminHandlers(deps: AdminHandlerDeps): AdminHandlers {
                 limit: query.limit,
             });
         },
-        async recordDashboardAudit() {
-            throw new Error("not implemented");
+        recordDashboardAudit({ actorId, action, details }) {
+            return db.audit.record({ actorId, action, details }, now());
         },
     };
 }
