@@ -83,8 +83,10 @@ const TIMELINE_UI = {
             <p>
               In the <code class="code">DiscordBot</code> folder of the release, rename <code class="code">config.example.json</code>
               to <code class="code">config.json</code>. Create an application and bot in the
-              <ULink :to="DEVELOPER_PORTAL_URL" rel="noopener" class="inline-link">Discord Developer Portal</ULink> and fill in the
-              values. Pick your own <code class="code">secret</code>.
+              <ULink :to="DEVELOPER_PORTAL_URL" rel="noopener" class="inline-link">Discord Developer Portal</ULink> and turn on
+              <b>Server Members Intent</b> under Bot, and invite the bot with the <code class="code">bot</code> and
+              <code class="code">applications.commands</code> scopes (permission integer
+              <code class="code">146877440</code>). Then fill in the values and pick your own <code class="code">secret</code>.
             </p>
 <pre><code>{
   <span class="k">"token"</span>: <span class="s">"YOUR_BOT_TOKEN"</span>,
