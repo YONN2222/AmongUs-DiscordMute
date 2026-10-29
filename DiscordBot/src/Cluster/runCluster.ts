@@ -6,6 +6,7 @@ import { databaseOptionsFrom, openDatabase } from "../Data/database";
 import { deployCommands } from "../deploy-commands";
 import { GuildEventBus } from "../Events/GuildEvents";
 import { SHUTDOWN_SIGNALS } from "../Gateway/shutdown";
+import { LogChannelWriter } from "../LogChannel/LogChannelWriter";
 import { logger, logModules } from "../Logging/logger";
 import { MuteService } from "../Mute/MuteService";
 import { createVoiceTargetResolver } from "../Mute/VoiceTargetResolver";
@@ -20,6 +21,7 @@ import { DiscordVoiceAdapter } from "./DiscordVoiceAdapter";
 import { onFatalGatewayClose } from "./fatalGatewayClose";
 import { registerInteractionHandlers } from "./interactionHandler";
 import { resolveLinkReplyLocale, updateOriginalLinkReply } from "./linkReply";
+import { createDiscordMessagePort } from "./messagePort";
 import { registerVoiceRejoin } from "./voiceRejoin";
 
 const LOGIN_RETRY_DELAY_MS = 5000;
@@ -78,6 +80,8 @@ export async function runCluster(): Promise<void> {
     const events = new GuildEventBus();
     const settings = new SettingsService(db.settings, events);
     const guildLanguage = (guildId: string) => settings.get(guildId).then((s) => s.language);
+    const logWriter = new LogChannelWriter({ port: createDiscordMessagePort(client), settings });
+    events.on((event) => logWriter.handle(event));
     const voice = new DiscordVoiceAdapter(client);
     const mute = new MuteService({
         events,
@@ -115,6 +119,11 @@ export async function runCluster(): Promise<void> {
     });
 
     const stop = async (): Promise<void> => {
+        try {
+            await logWriter.flushAll();
+        } catch (error) {
+            logger.error(logModules.Bot, `Cluster ${cluster.clusterID} could not flush the log channel`, error);
+        }
         try {
             await client.destroy();
             await db.close();

@@ -47,6 +47,27 @@ export const en = {
     "testConnection.fail.title": "Connection Failed",
     "testConnection.fail.body":
         "The Among Us plugin is not connected.\n\nStart the game with the plugin loaded and try again.",
+
+    "log.sessionStarted": "Plugin connected (plugin {pluginVersion}, game {gameVersion})",
+    "log.sessionStartedImplicit": "Plugin connected",
+    "log.sessionEnded": "Plugin disconnected",
+    "log.gameStarted": "Game started in {channel} ({count} players)",
+    "log.gameStartedNoChannel": "Game started ({count} players)",
+    "log.gameEnded": "Game ended: {reason} | Winners: {winners} | Died: {dead}",
+    "log.none": "none",
+    "log.someone": "Someone",
+    "log.linked": "{user} linked to {name}",
+    "log.forceLinked": "{actor} force-linked {user} to {name}",
+    "log.relinked": "{user} was relinked automatically to {name}",
+    "log.unlinked": "{user} was unlinked",
+    "log.unlinkedFrom": "{user} was unlinked from {name}",
+    "log.settingsChanged": "{actor} changed settings:\n{changes}",
+    "log.forMember": " for {user}",
+    "log.voiceMissingPermission":
+        "Voice update failed{member}: the bot needs the Mute Members and Deafen Members permission (and Manage Nicknames for nickname sync).",
+    "log.voiceNotEditable":
+        "Voice update failed{member}: the bot role must be above the highest role of that member (role order), otherwise Discord refuses the change.",
+    "log.more": "and {count} more",
 };
 
 export type MessageKey = keyof typeof en;

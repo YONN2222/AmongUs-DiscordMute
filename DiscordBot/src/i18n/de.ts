@@ -49,4 +49,25 @@ export const de: Record<MessageKey, string> = {
     "testConnection.fail.title": "Verbindung fehlgeschlagen",
     "testConnection.fail.body":
         "Das Among-Us-Plugin ist nicht verbunden.\n\nStarte das Spiel mit geladenem Plugin und versuche es erneut.",
+
+    "log.sessionStarted": "Plugin verbunden (Plugin {pluginVersion}, Spiel {gameVersion})",
+    "log.sessionStartedImplicit": "Plugin verbunden",
+    "log.sessionEnded": "Plugin getrennt",
+    "log.gameStarted": "Spiel gestartet in {channel} ({count} Spieler)",
+    "log.gameStartedNoChannel": "Spiel gestartet ({count} Spieler)",
+    "log.gameEnded": "Spiel beendet: {reason} | Gewinner: {winners} | Gestorben: {dead}",
+    "log.none": "keine",
+    "log.someone": "Jemand",
+    "log.linked": "{user} wurde mit {name} verknüpft",
+    "log.forceLinked": "{actor} hat {user} manuell mit {name} verknüpft",
+    "log.relinked": "{user} wurde automatisch erneut mit {name} verknüpft",
+    "log.unlinked": "Verknüpfung von {user} wurde aufgehoben",
+    "log.unlinkedFrom": "Verknüpfung von {user} mit {name} wurde aufgehoben",
+    "log.settingsChanged": "{actor} hat Einstellungen geändert:\n{changes}",
+    "log.forMember": " für {user}",
+    "log.voiceMissingPermission":
+        "Sprachänderung fehlgeschlagen{member}: Der Bot braucht die Berechtigungen Mitglieder stummschalten und Mitglieder taub schalten (und Spitznamen verwalten für den Namensabgleich).",
+    "log.voiceNotEditable":
+        "Sprachänderung fehlgeschlagen{member}: Die Rolle des Bots muss über der höchsten Rolle dieses Mitglieds stehen (Rollenreihenfolge), sonst lehnt Discord die Änderung ab.",
+    "log.more": "und {count} weitere",
 };
