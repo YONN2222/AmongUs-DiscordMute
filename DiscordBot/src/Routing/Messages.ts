@@ -7,6 +7,9 @@ import {
     type RosterEntry,
 } from "../Protocol/PluginProtocol";
 
+/** Limit of the websocket close frame reason is 123 bytes; requests stay well below it. */
+const MAX_CLOSE_REASON_LENGTH = 64;
+
 export type ClusterRequest =
     | {
           kind: "game-event";
@@ -55,7 +58,8 @@ export type GatewayRequest =
           quickChatCode: string;
           discordId: string;
       }
-    | { kind: "is-plugin-connected"; guildId: string };
+    | { kind: "is-plugin-connected"; guildId: string }
+    | { kind: "disconnect-guild"; guildId: string; code: 4001 | 4005; reason: string };
 
 export type RouterReply = { ok: true; notice?: GatewayNotice } | { ok: false; error: string };
 
@@ -136,6 +140,12 @@ const gatewayRequestSchema: z.ZodType<GatewayRequest> = z.discriminatedUnion("ki
         discordId: z.string(),
     }),
     z.object({ kind: z.literal("is-plugin-connected"), guildId: z.string() }),
+    z.object({
+        kind: z.literal("disconnect-guild"),
+        guildId: z.string(),
+        code: z.union([z.literal(4001), z.literal(4005)]),
+        reason: z.string().max(MAX_CLOSE_REASON_LENGTH),
+    }),
 ]);
 
 export function parseClusterRequest(value: unknown): ClusterRequest | null {

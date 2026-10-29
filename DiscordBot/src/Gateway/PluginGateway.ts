@@ -4,6 +4,7 @@ import { type RawData, WebSocket, WebSocketServer } from "ws";
 import { logger, logModules } from "../Logging/Logger";
 import type { PluginEventType } from "../Metrics/MetricNames";
 import {
+    CLOSE_BLOCKED,
     CLOSE_HELLO_TIMEOUT,
     CLOSE_INVALID_MESSAGE,
     CLOSE_PROTOCOL_TOO_OLD,
@@ -37,6 +38,7 @@ const MAX_PENDING_BEFORE_ACTIVE = 16;
 const MAX_PENDING_ACTIVE = 64;
 const OUTDATED_REASON = "Plugin outdated, please update DiscordMute";
 const TOO_MANY_SESSIONS_REASON = "Too many games on this server";
+const BLOCKED_REASON = "Blocked";
 /** Plugins that send no connection key share this one, so a guild has a single session for them as before. */
 const DEFAULT_CONNECTION_KEY = "default";
 export const MAX_SESSIONS_PER_GUILD = 25;
@@ -279,6 +281,11 @@ export class PluginGateway {
         if (!resolved) {
             logger.warn(logModules.WebServer, unauthorizedMessage("Rejected plugin connection", hello.secret));
             conn.ws.close(CLOSE_UNAUTHORIZED, "Unauthorized");
+            return;
+        }
+        if (resolved.blocked) {
+            logger.warn(logModules.WebServer, `Rejected plugin connection for blocked guild ${resolved.guildId}`);
+            conn.ws.close(CLOSE_BLOCKED, BLOCKED_REASON);
             return;
         }
         if (hello.protocolVersion < MIN_PROTOCOL_VERSION) {

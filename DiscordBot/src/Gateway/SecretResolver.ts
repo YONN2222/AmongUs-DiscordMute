@@ -2,6 +2,8 @@ import { createHash, timingSafeEqual } from "node:crypto";
 
 export interface ResolvedSecret {
     guildId: string;
+    /** The guild exists but may not use the bot; the gateway refuses it with a clear close reason. */
+    blocked?: boolean;
 }
 
 export interface SecretResolver {

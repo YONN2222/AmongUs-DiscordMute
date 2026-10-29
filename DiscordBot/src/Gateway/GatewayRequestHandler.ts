@@ -6,7 +6,7 @@ const NOT_CONNECTED: RouterReply = { ok: false, error: "plugin not connected" };
 
 /** Serves the requests clusters send to the gateway; `ok` carries the yes/no answer. */
 export function createGatewayRequestHandler(
-    plugins: Pick<PluginGateway, "pushLinkPending" | "isConnected">,
+    plugins: Pick<PluginGateway, "pushLinkPending" | "isConnected" | "disconnectGuild">,
 ): (data: unknown) => RouterReply {
     return (data) => {
         const req = parseGatewayRequest(data);
@@ -21,6 +21,9 @@ export function createGatewayRequestHandler(
                     : NOT_CONNECTED;
             case "is-plugin-connected":
                 return plugins.isConnected(req.guildId) ? { ok: true } : NOT_CONNECTED;
+            case "disconnect-guild":
+                plugins.disconnectGuild(req.guildId, req.code, req.reason);
+                return { ok: true };
         }
     };
 }

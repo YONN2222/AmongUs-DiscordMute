@@ -3,6 +3,7 @@ import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WebSocket } from "ws";
 import type { Database } from "../../src/Data/Database";
+import { createGatewayRequestHandler } from "../../src/Gateway/GatewayRequestHandler";
 import { MAX_SESSIONS_PER_GUILD, PluginGateway, type PluginGatewayDeps } from "../../src/Gateway/PluginGateway";
 import { SelfHostSecretResolver } from "../../src/Gateway/SecretResolver";
 import { logger } from "../../src/Logging/Logger";
@@ -587,6 +588,24 @@ describe("PluginGateway", () => {
             expect(gateway.isConnected(GUILD)).toBe(false);
             expect(gateway.disconnectGuild(GUILD, 4005, "Blocked")).toBe(0);
         });
+
+        it("rotating the secret disconnects every session of the guild", async () => {
+            const sockets = [await authenticateWithKey(keyOf(1)), await authenticateWithKey(keyOf(2))];
+            const closed = sockets.map((ws) => waitForClose(ws));
+
+            const reply = createGatewayRequestHandler(gateway)({
+                kind: "disconnect-guild",
+                guildId: GUILD,
+                code: 4001,
+                reason: "Secret rotated",
+            });
+
+            expect(reply).toEqual({ ok: true });
+            for (const result of await Promise.all(closed)) {
+                expect(result).toEqual({ code: 4001, reason: "Secret rotated" });
+            }
+            await vi.waitFor(() => expect(sentOfKind("session-ended")).toHaveLength(2));
+        });
     });
 
     it("terminates a socket that stops answering pings", async () => {
@@ -752,6 +771,21 @@ describe("PluginGateway", () => {
                 ["link-confirmed", "first", "second"],
             );
         });
+    });
+
+    it("blocked hello is closed with 4005", async () => {
+        await restart({ resolver: { resolve: async () => ({ guildId: GUILD, blocked: true }) } });
+        const ws = await connect();
+        const closed = waitForClose(ws);
+        ws.send(hello());
+
+        expect(await closed).toEqual({ code: 4005, reason: "Blocked" });
+        expect(logger.warn).toHaveBeenCalledWith(
+            expect.anything(),
+            `Rejected plugin connection for blocked guild ${GUILD}`,
+        );
+        expect(gateway.sessionCount()).toBe(0);
+        expect(sentOfKind("session-started")).toHaveLength(0);
     });
 
     describe("resolver failures", () => {
