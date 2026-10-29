@@ -1,5 +1,6 @@
 import { type Client, Events } from "discord.js";
 import { Cluster, ShardingUtil } from "galactic.ts";
+import { Registry } from "prom-client";
 import type { CommandContext } from "../commands/Command";
 import { config, DISCORD_GUILD_ID } from "../config";
 import { databaseOptionsFrom, openDatabase } from "../Data/database";
@@ -13,6 +14,8 @@ import { SHUTDOWN_SIGNALS } from "../Gateway/shutdown";
 import { LinkOverviewPublisher } from "../LinkOverview/LinkOverviewPublisher";
 import { LogChannelWriter } from "../LogChannel/LogChannelWriter";
 import { configureLogger, logger, logModules } from "../Logging/logger";
+import { createClusterMetrics, instrumentVoiceAdapter, registerDiscordMetrics } from "../Metrics/clusterMetrics";
+import { isMetricsSnapshotRequest } from "../Metrics/snapshotMessages";
 import { MuteService } from "../Mute/MuteService";
 import { createVoiceTargetResolver } from "../Mute/VoiceTargetResolver";
 import { CLUSTER_EXIT_LOGIN_FAILED, loginFailureExitCode } from "../Process/processRole";
@@ -103,6 +106,9 @@ export async function runCluster(): Promise<void> {
     cluster.client = client;
 
     const db = await openDatabase(databaseOptionsFrom(config), { migrate: false });
+    const registry = new Registry();
+    const metrics = createClusterMetrics(registry, cluster.clusterID);
+    registerDiscordMetrics(client, metrics);
     const events = new GuildEventBus();
     const settings = new SettingsService(db.settings, events);
     const guildLanguage = (guildId: string) => settings.get(guildId).then((s) => s.language);
@@ -142,7 +148,7 @@ export async function runCluster(): Promise<void> {
     events.on((event) => nicknameSync.handle(event));
     const mute = new MuteService({
         events,
-        voice,
+        voice: instrumentVoiceAdapter(voice, metrics),
         settings,
         links: db.links,
         ledger: db.muteLedger,
@@ -180,6 +186,13 @@ export async function runCluster(): Promise<void> {
         nicknames: nicknameSync,
     });
     cluster.on("request", (data, resolve) => {
+        if (isMetricsSnapshotRequest(data)) {
+            registry.getMetricsAsJSON().then(
+                (m) => resolve({ ok: true, source: `cluster-${cluster.clusterID}`, metrics: m }),
+                (e: unknown) => resolve(failure(e)),
+            );
+            return;
+        }
         handleRequest(data).then(resolve, (error: unknown) => resolve(failure(error)));
     });
 

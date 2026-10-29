@@ -1,5 +1,7 @@
+import { type Client, RESTEvents } from "discord.js";
 import { Counter, Gauge, Histogram, type Registry } from "prom-client";
-import { MetricNames, MUTE_LATENCY_BUCKETS } from "./metricNames";
+import type { VoiceAdapter } from "../Mute/MuteService";
+import { MetricNames, MUTE_LATENCY_BUCKETS, type MuteAction } from "./metricNames";
 
 export interface ClusterClientStats {
     guilds: { cache: { size: number } };
@@ -86,4 +88,34 @@ export function createClusterMetrics(registry: Registry, clusterId: number): Clu
             client = next;
         },
     };
+}
+
+/**
+ * Wraps the voice adapter so every successful server mute or unmute is counted and timed, and every failure is
+ * counted, without touching the mute logic. Deafen-only changes are neither counted nor timed, so the latency
+ * sample count always equals the mute and unmute count.
+ */
+export function instrumentVoiceAdapter(inner: VoiceAdapter, metrics: ClusterMetrics): VoiceAdapter {
+    return {
+        membersInChannel: (guildId, channelId) => inner.membersInChannel(guildId, channelId),
+        findVoiceMember: (guildId, discordId) => inner.findVoiceMember(guildId, discordId),
+        async setVoiceState(guildId, discordId, patch) {
+            const stopTimer = metrics.muteLatency.startTimer();
+            try {
+                await inner.setVoiceState(guildId, discordId, patch);
+            } catch (error) {
+                metrics.muteFailures.inc();
+                throw error;
+            }
+            if (patch.mute === undefined) return;
+            stopTimer();
+            const action: MuteAction = patch.mute ? "mute" : "unmute";
+            metrics.mutes.inc({ action });
+        },
+    };
+}
+
+export function registerDiscordMetrics(client: Client, metrics: ClusterMetrics): void {
+    client.rest.on(RESTEvents.RateLimited, () => metrics.rateLimitHits.inc());
+    metrics.attachClient(client);
 }
