@@ -15,25 +15,23 @@
 
 <br />
 
-> DiscordMute is an Among Us companion mod that automatically mutes and unmutes players in Discord during a game, keeping voice chat aligned with the round state. It also supports EHR Blackmailer behavior, so blackmailed players stay muted during meetings instead of speaking normally in Discord.
+DiscordMute mutes and unmutes players in Discord in step with the Among Us round state. It also supports the EHR Blackmailer, so blackmailed players stay muted during meetings.
 
-## 1. Overview
+I built it because my friend group kept talking during live rounds and didn't want to mute themselves every game. It has two parts: an Among Us plugin (`DLL`) and a Discord bot (`DiscordBot`).
 
-I built DiscordMute because my friend group kept talking during live rounds and didn't want to manually mute and unmute themselves every game. It's made up of two pieces you install together: an Among Us plugin (`DLL`) and a Discord bot (`DiscordBot`).
-
-## 2. Quick start
+## Quick start
 
 1. Install the 64-bit BepInEx build into your Among Us folder and copy `DiscordMute.dll` into `BepInEx/plugins`.
-2. Start Among Us once, then set `ip`, `secret` and `exe` in the plugin `config.json` that DiscordMute creates in `BepInEx/DiscordMute`.
+2. Start Among Us once, then set `ip`, `secret` and `exe` in the `config.json` created in `BepInEx/DiscordMute`.
 3. In `DiscordBot`, rename `config.example.json` to `config.json` and fill in `token`, `clientId`, `guildId` and the same `secret`.
 4. Host a lobby (online or LAN), join a Discord voice channel and run `/link self`.
-5. Send the phrase the bot gives you in Among Us Free Chat. You are linked.
+5. Send the phrase the bot gives you in Among Us Free Chat.
 
-The full walkthrough, including the itch.io note and path escaping, is in [docs/content/1.getting-started/2.self-host-setup.md](docs/content/1.getting-started/2.self-host-setup.md).
+The full walkthrough is in [docs/content/1.getting-started/2.self-host-setup.md](docs/content/1.getting-started/2.self-host-setup.md).
 
-### Documentation
+## Documentation
 
-The project website is [mute.yonn2222.com](https://mute.yonn2222.com) (source in `Website/`, deploy notes in [Website/README.md](Website/README.md)). The documentation is a Docus site in `docs/`. To read it as a website, run `cd docs && bun install && bun run dev`.
+The website is [mute.yonn2222.com](https://mute.yonn2222.com) (source in `Website/`, see [Website/README.md](Website/README.md)). The docs are a Docus site in `docs/`; run it with `cd docs && bun install && bun run dev`.
 
 - [Self-host setup](docs/content/1.getting-started/2.self-host-setup.md)
 - [Hosted setup](docs/content/1.getting-started/3.hosted-setup.md)
@@ -44,118 +42,96 @@ The project website is [mute.yonn2222.com](https://mute.yonn2222.com) (source in
 - [Server setup](docs/content/6.server-setup/1.setup-panel.md) and [game features](docs/content/6.server-setup/2.game-features.md)
 - [FAQ](docs/content/7.faq/1.faq.md)
 
-## 3. Linking Discord users to Among Us players
+## Linking players
 
-DiscordMute needs to know which Discord user belongs to which Among Us player name before it can mute the correct person.
+DiscordMute has to know which Discord user is which Among Us player.
 
-The normal flow is:
+1. Run `/link self` in Discord. The bot replies with a one-time phrase such as `link-AB12`.
+2. Send that phrase exactly in Free Chat in an Among Us lobby.
+3. The plugin catches it before it shows up in chat and sends your Among Us name to the bot, which links the account and confirms in-game.
 
-1. A player runs `/link self` in Discord.
-2. The bot replies with a short one-time phrase such as `link-AB12`.
-3. The player opens Free Chat in an Among Us lobby and sends that phrase exactly.
-4. The plugin catches the phrase before it appears in chat and sends the detected Among Us name to the bot. The bot links the account and answers in-game with "Account linked successfully!" or a failure message.
+Phrases expire after 5 minutes. Links are stored in `DiscordBot/data/linking.sqlite`. If a player changes their Among Us name, they run `/link self` again or an admin uses `/link force`.
 
-Link phrases expire after 5 minutes. The bot stores links in `DiscordBot/data/linking.sqlite`.
+| Command                         | Purpose                                                                  |
+|---------------------------------|--------------------------------------------------------------------------|
+| `/link self`                    | Link your own account.                                                   |
+| `/link force user display-name` | Link a Discord user to an Among Us name (admin).                         |
+| `/link reset [user]`            | Unlink your account, or another user's (requires Manage Server).         |
+| `/testconnection`               | Check that the bot can reach the plugin.                                 |
+| `/setup`                        | Open the private settings panel for the server (requires Manage Server). |
 
-### Discord bot commands
+## Host mods
 
-| Command                         | Purpose                                                                                                                      |
-|---------------------------------|------------------------------------------------------------------------------------------------------------------------------|
-| `/link self`                    | Starts the normal self-link flow for the Discord user who runs the command.                                                  |
-| `/link force user display-name` | Lets a server admin manually link a Discord user to an Among Us display name. Useful if the normal flow cannot be completed. |
-| `/link reset [user]`            | Unlinks your own account, or another user's (requires Manage Server).                                                        |
-| `/testconnection`               | Checks whether the Discord bot can reach the Among Us plugin. Useful while setting up or debugging the integration.          |
-| `/setup`                        | Opens the private settings panel for this server (requires Manage Server). See [Server setup](#6-server-setup).             |
+- Town Of Host Enhanced and Endless Host Roles improve player-name resolution.
+- Endless Host Roles also enables Blackmailer support: a silenced player is treated like a dead player for the voice sync and stays muted in the meeting.
 
-### About the link data
+Without these mods DiscordMute works normally, minus the Blackmailer support.
 
-- Links are stored in `DiscordBot/data/linking.sqlite`. An existing file from an earlier version keeps working.
-- You normally do not need to touch it by hand.
-- If a player changes their Among Us name, they should run `/link self` again or an admin can use `/link force`.
+## Features
 
-## 4. Optional mod integration
+- Automatic mute sync with the round state
+- EHR Blackmailer support
+- Self-service linking through Free Chat, or Quick Chat phrases when Free Chat is unavailable
+- Crash-safe mutes: after a crash or restart the bot unmutes the players it muted, and only those
+- Optional forwarding of plugin and BepInEx logs to the bot console
 
-DiscordMute also integrates with supported host mods when they are installed:
+## Server setup
 
-- `Town Of Host Enhanced` or `Endless Host Roles` can provide more accurate player-name resolution.
-- `Endless Host Roles` additionally enables Blackmailer support. When an EHR Blackmailer silences a player during a meeting, DiscordMute treats that player like a muted/dead player for the Discord voice sync and keeps them muted instead of allowing them to speak normally in the meeting.
+Admins with Manage Server configure the bot per server with `/setup`:
 
-If EHR is not installed, DiscordMute still works normally; only EHR-specific Blackmailer support is disabled.
+- log channel for plugin, game, link and settings events
+- self-updating link overview with Link/Unlink buttons
+- live status message (phase, players, spoiler lobby code) and a match summary after each game
+- voice rules per phase for living and dead players (free, mute, deafen), delays up to 5 seconds, handling of members who are not playing
+- optional ghost chat (dead players talk while the living are deafened; it leaks information if a deafen fails)
+- nickname sync and automatic relink after an Among Us rename
 
-## 5. Features
+The bot needs **Mute Members**, **Deafen Members** and **Manage Nicknames**, plus View Channel, Send Messages and Manage Messages in the channels you pick. Its role must sit above your players' roles.
 
-- **Automatic mute sync**: players are muted and unmuted in Discord in step with the Among Us round state.
-- **EHR Blackmailer support**: when installed alongside Endless Host Roles, a blackmailed player stays muted during meetings instead of being able to speak.
-- **Host mod integration**: Town Of Host Enhanced and Endless Host Roles improve player-name resolution when present.
-- **Self-service linking**: players link their Discord account to their Among Us name in-game with a one-time Free Chat phrase or, if Free Chat isn't available, a pair of Quick Chat phrases — no manual admin setup required.
-- **Crash-safe mutes**: the bot unmutes the players it muted after a crash or restart and only lifts mutes it applied itself.
-- **Log bridging**: optionally forward plugin/BepInEx logs to the bot console for easier debugging.
+Update the bot and the plugin together. An older plugin still works, with fewer features.
 
-## 6. Server setup
+Details: [setup panel](docs/content/6.server-setup/1.setup-panel.md), [game features](docs/content/6.server-setup/2.game-features.md).
 
-Server admins (Manage Server permission) configure the bot per server with `/setup`. It covers:
+## Telemetry
 
-- a **log channel** for plugin, game, link and settings events
-- a self-updating **link overview** message with Link/Unlink buttons
-- a live **status message** (phase, players, spoiler lobby code) and a **match summary** after each game
-- **voice rules** per phase for living and dead players (free, mute, deafen), delays of up to 5 seconds, and handling of members who are not playing
-- optional **ghost chat** (dead players talk while the living are deafened; it can leak information if a deafen fails)
-- **nickname sync** and **automatic relink** after an Among Us rename
+DiscordMute sends a small anonymous usage packet by default. Please leave it on; it is the only way I can see which versions are in use and where to improve. It is a counter, not a tracker.
 
-The bot needs the **Mute Members**, **Deafen Members** and **Manage Nicknames** permissions, plus View Channel, Send Messages and Manage Messages in the channels you pick, and its role must sit above the roles of your players.
+Every 5 minutes the bot sends to `mute.yonn2222.com`:
 
-Update **both** the bot and the plugin: the player list, deaths and match results come from the new plugin version, and an older plugin keeps working with reduced features.
+- a random instance id, generated on first start and stored in the bot database
+- a random packet id and a schema version
+- self-hosted or hosted, and the bot version
+- how many plugins run each plugin version and Among Us version
+- counts: linked users, active games, servers, connected plugins
+- counts since the last packet: games muted, mutes, unmutes, rate limit hits, lobbies, game starts, meeting starts and ends
+- average mute latency and its sample count
+- per optional feature, the number of servers that enabled it
 
-Details for every setting are in the [setup panel](docs/content/6.server-setup/1.setup-panel.md) and [game features](docs/content/6.server-setup/2.game-features.md) pages.
+Never sent: Discord IDs, server, channel or player names, IP addresses, secrets, or hashes of any of these. The server rejects any field beyond the above. The connection reaches the server from your IP address, which is used only for rate limiting at the edge and is not stored with the packet.
 
-## 7. Telemetry
-
-DiscordMute sends a small anonymous usage packet by default. Please leave it on: these few numbers are the only way I can see how DiscordMute is really used, which versions are still out there and where it needs to get better. It is a counter, not a tracker.
-
-What is sent, every 5 minutes, to `mute.yonn2222.com`:
-
-- A random instance id, generated once on first start and stored in the bot database. It is not derived from anything about you or your machine.
-- A random id for each packet and a schema version.
-- Whether the bot runs self-hosted or hosted.
-- The bot version, plus how many connected plugins run each plugin version and each Among Us version.
-- Counts: linked users, active games, servers the bot is in and connected plugins.
-- Counts since the last packet: games muted, mutes, unmutes, Discord rate limit hits, and lobbies, game starts, meeting starts and meeting ends reported by plugins.
-- Mute latency: the average in milliseconds and how many samples it is based on.
-- For each optional feature, how many servers have it enabled (a number only, never which servers).
-
-Never sent: Discord IDs, server or channel names, player names, IP addresses, secrets, or hashes of any of these. The packet format is strict, so the server refuses anything beyond the fields above. Like any web request, the connection reaches the server from your IP address. It is used only for rate limiting at the edge and is not stored with the packet data.
-
-Telemetry is only active in the compiled `bot.exe` from a release. It is off when you run from source (`bun run dev`) unless you set the environment variable `DISCORDMUTE_TELEMETRY=1`.
-
-To turn it off, add this to the bot `config.json`:
+Telemetry runs only in the compiled `bot.exe` from a release. From source (`bun run dev`) it is off unless `DISCORDMUTE_TELEMETRY=1` is set. To disable it, add this to the bot `config.json` (the key is intentionally missing from `config.example.json`):
 
 ```json
 "disableTelemetry": true
 ```
 
-The key is not in `config.example.json` on purpose. See [docs/content/2.configuration/1.bot-config.md](docs/content/2.configuration/1.bot-config.md).
+See [bot configuration](docs/content/2.configuration/1.bot-config.md).
 
-## 8. Update check
+## Update check
 
-The bot and the plugin look up the latest release with one request to the GitHub API (`api.github.com/repos/YONN2222/AmongUs-DiscordMute/releases/latest`). No data about you is sent, only the usual request headers (GitHub sees the request like any other web request) including a `User-Agent` with the DiscordMute version. The bot logs a notice when a newer release exists (at start and then daily). The plugin checks once per game launch, when you become lobby host, and shows a one-time notice in lobby chat.
+The bot and plugin request the latest release from the GitHub API (`api.github.com/repos/YONN2222/AmongUs-DiscordMute/releases/latest`). Nothing about you is sent beyond the usual request headers and a `User-Agent` with the DiscordMute version. The bot logs a notice at start and then daily. The plugin checks once per game launch and when you become lobby host, and shows a one-time notice in lobby chat.
 
-Turn it off with `"disableUpdateCheck": true` in the bot `config.json` and, separately, in the plugin `config.json`.
+Disable it with `"disableUpdateCheck": true` in the bot `config.json` and, separately, in the plugin `config.json`.
 
 <details>
-<summary><h2 style="display:inline;">9. Technical details</h2></summary>
+<summary><h2 style="display:inline;">Technical details</h2></summary>
 
-### Tech Stack
-
-| Component    | Stack                                                                                 |
-|--------------|---------------------------------------------------------------------------------------|
-| `DLL`        | C# (.NET 6) + [BepInEx](https://github.com/BepInEx/BepInEx) IL2CPP plugin             |
+| Component    | Stack                                                                                   |
+|--------------|-----------------------------------------------------------------------------------------|
+| `DLL`        | C# (.NET 6) + [BepInEx](https://github.com/BepInEx/BepInEx) IL2CPP plugin               |
 | `DiscordBot` | [Bun](https://bun.sh/) + TypeScript + [discord.js](https://discord.js.org/) + WebSocket |
 
-The bot runs as a gateway process plus one or more cluster processes. The plugin connects to the gateway over one WebSocket (the secret is sent in the handshake, not in URLs).
-
-The bot is distributed as a compiled `bot.exe` (via `bun build --compile`), so end users don't need Bun or Node.js installed to run a release build.
-
-### Repository Structure
+The bot runs as a gateway process plus one or more cluster processes. The plugin connects to the gateway over one WebSocket and sends the secret in the handshake, not in URLs. Releases ship the bot as a compiled `bot.exe` (`bun build --compile`), so Bun is not needed to run it.
 
 ```text
 AmongUs-DiscordMute/
