@@ -204,14 +204,22 @@ describe("StatusMessage", () => {
         expect(port.post).toHaveBeenCalledTimes(2);
     });
 
-    it("removes the status message of a replaced session", async () => {
-        const { port, status } = setup();
+    it("status messages of parallel sessions do not replace each other", async () => {
+        const { port, status, rows } = setup();
+        port.post.mockResolvedValueOnce("m-1").mockResolvedValueOnce("m-2");
         await status.handle(gameEvent("lobby", roster(["Red", false])));
         await vi.advanceTimersByTimeAsync(10);
-        await status.handle(gameEvent("lobby", roster(["Red", false]), { sessionId: "s2" }));
+        await status.handle(gameEvent("lobby", roster(["Blue", false]), { sessionId: "s2" }));
         await vi.advanceTimersByTimeAsync(10);
-        expect(port.delete).toHaveBeenCalledWith(CHANNEL, "m-new");
+
         expect(port.post).toHaveBeenCalledTimes(2);
+        expect(port.delete).not.toHaveBeenCalled();
+        expect(rows.get(`${GUILD}:status:${SESSION}`)).toMatchObject({ messageId: "m-1" });
+        expect(rows.get(`${GUILD}:status:s2`)).toMatchObject({ messageId: "m-2" });
+
+        await status.handle({ type: "session-ended", guildId: GUILD, sessionId: SESSION });
+        expect(port.delete).toHaveBeenCalledTimes(1);
+        expect(port.delete).toHaveBeenCalledWith(CHANNEL, "m-1");
     });
 
     it("recover deletes the message of a leftover row", async () => {

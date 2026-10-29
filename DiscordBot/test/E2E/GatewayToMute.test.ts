@@ -22,15 +22,17 @@ const GUILD = "guild-e2e";
 const CHANNEL = "voice-1";
 
 class FakeVoice implements VoiceAdapter {
-    readonly inChannel = new Set<string>();
+    readonly channelOf = new Map<string, string>();
     readonly muted = new Set<string>();
 
     async membersInChannel(_guildId: string, channelId: string): Promise<VoiceMember[]> {
-        return channelId === CHANNEL ? [...this.inChannel].map((id) => this.member(id)) : [];
+        return [...this.channelOf]
+            .filter(([, channel]) => channel === channelId)
+            .map(([discordId]) => this.member(discordId));
     }
 
     async findVoiceMember(_guildId: string, discordId: string): Promise<VoiceMember | null> {
-        return this.inChannel.has(discordId) ? this.member(discordId) : null;
+        return this.channelOf.has(discordId) ? this.member(discordId) : null;
     }
 
     async setVoiceState(_guildId: string, discordId: string, patch: { mute?: boolean }): Promise<void> {
@@ -60,7 +62,7 @@ describe("gateway to mute", () => {
         await db.links.upsert(GUILD, "u-host", "Red");
         await db.links.upsert(GUILD, "u-crew", "Blue");
         voice = new FakeVoice();
-        voice.inChannel.add("u-host").add("u-crew");
+        voice.channelOf.set("u-host", CHANNEL).set("u-crew", CHANNEL);
         events = [];
         const bus = new GuildEventBus();
         bus.on((e) => {
@@ -75,7 +77,7 @@ describe("gateway to mute", () => {
             ledger: db.muteLedger,
             resolveTarget: createVoiceTargetResolver({
                 links: db.links,
-                memberVoiceChannel: async (_guildId, discordId) => (voice.inChannel.has(discordId) ? CHANNEL : null),
+                memberVoiceChannel: async (_guildId, discordId) => voice.channelOf.get(discordId) ?? null,
                 fallbackChannelIds: [],
                 localeOf: async () => "en",
             }),
@@ -113,7 +115,7 @@ describe("gateway to mute", () => {
         vi.restoreAllMocks();
     });
 
-    async function connectPlugin(): Promise<WebSocket> {
+    async function connectPlugin(connectionKey?: string): Promise<WebSocket> {
         const ws = new WebSocket(`ws://${baseUrl}/ws`);
         sockets.push(ws);
         await new Promise((resolve, reject) => {
@@ -128,6 +130,7 @@ describe("gateway to mute", () => {
                 secret: SECRET,
                 pluginVersion: "2.0.0",
                 gameVersion: "2026.9.1",
+                ...(connectionKey ? { connectionKey } : {}),
             }),
         );
         expect(await welcome).toMatchObject({ type: "welcome" });
@@ -174,6 +177,37 @@ describe("gateway to mute", () => {
         );
         expect([...voice.muted].sort()).toEqual(["u-crew", "u-host"]);
         expect(ws.readyState).toBe(WebSocket.OPEN);
+    });
+
+    it("two plugins in one guild mute their own channels", async () => {
+        await db.links.upsert(GUILD, "u-host2", "Green");
+        await db.links.upsert(GUILD, "u-crew2", "Yellow");
+        voice.channelOf.set("u-host2", "voice-2").set("u-crew2", "voice-2");
+        const startGame = (ws: WebSocket, host: string, crew: string) =>
+            ws.send(
+                JSON.stringify({
+                    type: "game-event",
+                    event: "game-start",
+                    hostAccountName: host,
+                    players: [host, crew],
+                    deadPlayers: [],
+                }),
+            );
+        const first = await connectPlugin("a".repeat(32));
+        const second = await connectPlugin("b".repeat(32));
+
+        startGame(first, "Red", "Blue");
+        await vi.waitFor(() => expect([...voice.muted].sort()).toEqual(["u-crew", "u-host"]));
+        startGame(second, "Green", "Yellow");
+        await vi.waitFor(() => expect(voice.muted.size).toBe(4));
+
+        first.close();
+        await vi.waitFor(() => expect([...voice.muted].sort()).toEqual(["u-crew2", "u-host2"]));
+        expect(second.readyState).toBe(WebSocket.OPEN);
+
+        second.close();
+        await vi.waitFor(() => expect(voice.muted.size).toBe(0));
+        expect(await db.muteLedger.listByGuild(GUILD)).toEqual([]);
     });
 
     it("answers /health without the secret and 404 elsewhere", async () => {

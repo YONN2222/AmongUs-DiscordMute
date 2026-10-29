@@ -10,6 +10,8 @@ export interface MuteLedgerEntry extends LedgerFlags {
     guildId: string;
     discordId: string;
     mutedAt: number;
+    /** The plugin session that touched the member last; null when no session owns the row. */
+    sessionId: string | null;
 }
 
 const GUILD_BATCH = 500;
@@ -17,10 +19,10 @@ const GUILD_BATCH = 500;
 /** What the bot itself server-muted or server-deafened; only these flags may ever be lifted by the bot. */
 export interface MuteLedgerRepository {
     get(guildId: string, discordId: string): Promise<MuteLedgerEntry | null>;
-    /** Stores both flags at once; neither flag set removes the row. */
-    set(guildId: string, discordId: string, flags: LedgerFlags): Promise<void>;
+    /** Stores both flags and the owning session at once; neither flag set removes the row. */
+    set(guildId: string, discordId: string, flags: LedgerFlags, sessionId?: string | null): Promise<void>;
     /** Marks a mute and leaves a recorded deafen as it is. */
-    add(guildId: string, discordId: string): Promise<void>;
+    add(guildId: string, discordId: string, sessionId?: string | null): Promise<void>;
     remove(guildId: string, discordId: string): Promise<void>;
     has(guildId: string, discordId: string): Promise<boolean>;
     listByGuild(guildId: string): Promise<MuteLedgerEntry[]>;
@@ -34,6 +36,7 @@ function toEntry(row: MuteLedgerModel): MuteLedgerEntry {
         mutedAt: Number(row.mutedAt),
         muted: Number(row.muted) !== 0,
         deafened: Number(row.deafened) !== 0,
+        sessionId: row.sessionId ?? null,
     };
 }
 
@@ -43,7 +46,7 @@ export function createMuteLedgerRepository(model: typeof MuteLedgerModel): MuteL
             const row = await model.findOne({ where: { guildId, discordId } });
             return row ? toEntry(row) : null;
         },
-        async set(guildId, discordId, flags) {
+        async set(guildId, discordId, flags, sessionId = null) {
             if (!flags.muted && !flags.deafened) {
                 await model.destroy({ where: { guildId, discordId } });
                 return;
@@ -54,11 +57,13 @@ export function createMuteLedgerRepository(model: typeof MuteLedgerModel): MuteL
                 mutedAt: Date.now(),
                 muted: flags.muted ? 1 : 0,
                 deafened: flags.deafened ? 1 : 0,
+                sessionId,
             });
         },
-        async add(guildId, discordId) {
+        async add(guildId, discordId, sessionId = null) {
             const existing = await repository.get(guildId, discordId);
-            await repository.set(guildId, discordId, { muted: true, deafened: existing?.deafened ?? false });
+            const flags = { muted: true, deafened: existing?.deafened ?? false };
+            await repository.set(guildId, discordId, flags, sessionId);
         },
         async remove(guildId, discordId) {
             await model.destroy({ where: { guildId, discordId } });

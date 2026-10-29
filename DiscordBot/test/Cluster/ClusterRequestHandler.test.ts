@@ -142,7 +142,7 @@ describe("createClusterRequestHandler", () => {
     it("answers session-ended only after the nicknames are restored, once", async () => {
         const order: string[] = [];
         const nicknames = {
-            restoreGuild: vi.fn(async () => {
+            restoreSession: vi.fn(async () => {
                 await new Promise((resolve) => setTimeout(resolve, 10));
                 order.push("restored");
             }),
@@ -155,13 +155,13 @@ describe("createClusterRequestHandler", () => {
         order.push("answered");
 
         expect(reply).toEqual({ ok: true });
-        expect(nicknames.restoreGuild).toHaveBeenCalledTimes(1);
-        expect(nicknames.restoreGuild).toHaveBeenCalledWith("g");
+        expect(nicknames.restoreSession).toHaveBeenCalledTimes(1);
+        expect(nicknames.restoreSession).toHaveBeenCalledWith("g", "s");
         expect(order).toEqual(["restored", "emitted", "answered"]);
     });
 
     it("still answers session-ended when restoring nicknames fails", async () => {
-        const nicknames = { restoreGuild: vi.fn(async () => Promise.reject(new Error("rest down"))) };
+        const nicknames = { restoreSession: vi.fn(async () => Promise.reject(new Error("rest down"))) };
 
         expect(
             await handler(undefined, { nicknames })({ kind: "session-ended", guildId: "g", sessionId: "s" }),

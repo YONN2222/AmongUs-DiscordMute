@@ -8,6 +8,7 @@ import {
     CLOSE_INVALID_MESSAGE,
     CLOSE_PROTOCOL_TOO_OLD,
     CLOSE_REPLACED,
+    CLOSE_TOO_MANY_SESSIONS,
     CLOSE_UNAUTHORIZED,
     type GameEventName,
     type GatewayMessage,
@@ -33,12 +34,21 @@ const DEFAULT_ROUTE_TIMEOUT_MS = 10000;
 const MAX_PENDING_BEFORE_ACTIVE = 16;
 const MAX_PENDING_ACTIVE = 64;
 const OUTDATED_REASON = "Plugin outdated, please update DiscordMute";
+const TOO_MANY_SESSIONS_REASON = "Too many games on this server";
+/** Plugins that send no connection key share this one, so a guild has a single session for them as before. */
+const DEFAULT_CONNECTION_KEY = "default";
+export const MAX_SESSIONS_PER_GUILD = 25;
 const CLUSTER_UNAVAILABLE_MESSAGE = "The Discord bot could not handle this event, please try again shortly";
 
 type GameEventMessage = Extract<PluginMessage, { type: "game-event" }>;
 type GameEndMessage = Extract<PluginMessage, { type: "game-end" }>;
 type LinkChatMessage = Extract<PluginMessage, { type: "link-chat" }>;
 type PluginLogMessage = Extract<PluginMessage, { type: "plugin-log" }>;
+type HelloMessage = Extract<PluginMessage, { type: "hello" }>;
+
+function sessionKeyOf(guildId: string, connectionKey: string | undefined): string {
+    return `${guildId}:${connectionKey ?? DEFAULT_CONNECTION_KEY}`;
+}
 
 export interface GatewayObserver {
     sessionStarted(session: GameSession): void;
@@ -62,6 +72,8 @@ interface Connection {
     ws: WebSocket;
     state: "awaiting-hello" | "active";
     session?: GameSession;
+    /** Guild and connection key; a new hello with the same key replaces this connection. */
+    sessionKey?: string;
     replaced: boolean;
     /** Messages are handled strictly one after another, in the order they arrived. */
     queue: Promise<void>;
@@ -102,19 +114,33 @@ export class PluginGateway {
         server.on("upgrade", this.handleUpgrade);
     }
 
+    /** Any game of the guild can show the link phrase, so it goes to every open session. */
     pushLinkPending(guildId: string, phrase: string, quickChatCode: string, discordId: string): boolean {
-        const conn = this.sessions.get(guildId);
-        if (!conn || conn.ws.readyState !== WebSocket.OPEN) return false;
-        this.send(conn, { type: "link-pending", phrase, quickChatCode, discordId });
-        return true;
+        const open = this.openConnectionsOf(guildId);
+        for (const conn of open) this.send(conn, { type: "link-pending", phrase, quickChatCode, discordId });
+        return open.length > 0;
     }
 
     isConnected(guildId: string): boolean {
-        return this.sessions.get(guildId)?.ws.readyState === WebSocket.OPEN;
+        return this.openConnectionsOf(guildId).length > 0;
     }
 
     sessionCount(): number {
         return this.sessions.size;
+    }
+
+    sessionsOfGuild(guildId: string): number {
+        return this.connectionsOf(guildId).length;
+    }
+
+    /** Closes every session of the guild; each close ends its session like a normal disconnect. */
+    disconnectGuild(guildId: string, code: number, reason: string): number {
+        const connections = this.connectionsOf(guildId);
+        for (const conn of connections) conn.ws.close(code, reason);
+        if (connections.length > 0) {
+            logger.info(logModules.WebServer, `Closed ${connections.length} plugin session(s) of guild ${guildId}`);
+        }
+        return connections.length;
     }
 
     async close(): Promise<void> {
@@ -226,7 +252,15 @@ export class PluginGateway {
         }
     }
 
-    private async onHello(conn: Connection, hello: Extract<PluginMessage, { type: "hello" }>): Promise<void> {
+    private connectionsOf(guildId: string): Connection[] {
+        return [...this.sessions.values()].filter((conn) => conn.session?.guildId === guildId);
+    }
+
+    private openConnectionsOf(guildId: string): Connection[] {
+        return this.connectionsOf(guildId).filter((conn) => conn.ws.readyState === WebSocket.OPEN);
+    }
+
+    private async onHello(conn: Connection, hello: HelloMessage): Promise<void> {
         const resolved = await this.resolveSecret(hello.secret);
         if (conn.ws.readyState !== WebSocket.OPEN) return;
         if (!resolved) {
@@ -243,9 +277,15 @@ export class PluginGateway {
         this.activate(conn, resolved.guildId, hello);
     }
 
-    private activate(conn: Connection, guildId: string, hello: Extract<PluginMessage, { type: "hello" }>): void {
+    private activate(conn: Connection, guildId: string, hello: HelloMessage): void {
         const { pluginVersion, gameVersion, protocolVersion } = hello;
-        const previous = this.sessions.get(guildId);
+        const sessionKey = sessionKeyOf(guildId, hello.connectionKey);
+        const previous = this.sessions.get(sessionKey);
+        if (!previous && this.sessionsOfGuild(guildId) >= MAX_SESSIONS_PER_GUILD) {
+            logger.warn(logModules.WebServer, `Rejected plugin for guild ${guildId}: too many parallel games`);
+            conn.ws.close(CLOSE_TOO_MANY_SESSIONS, TOO_MANY_SESSIONS_REASON);
+            return;
+        }
         const sessionId = previous?.session?.sessionId;
         if (previous) {
             previous.replaced = true;
@@ -255,8 +295,9 @@ export class PluginGateway {
 
         clearTimeout(conn.helloTimer);
         conn.session = createGameSession(guildId, pluginVersion, gameVersion, protocolVersion, sessionId);
+        conn.sessionKey = sessionKey;
         conn.state = "active";
-        this.sessions.set(guildId, conn);
+        this.sessions.set(sessionKey, conn);
         this.startHeartbeat(conn);
         this.send(conn, { type: "welcome", protocolVersion: PROTOCOL_VERSION });
         logger.success(
@@ -402,10 +443,10 @@ export class PluginGateway {
     }
 
     private async endSession(conn: Connection): Promise<void> {
-        const session = conn.session;
-        if (conn.replaced || !session || this.sessions.get(session.guildId) !== conn) return;
+        const { session, sessionKey } = conn;
+        if (conn.replaced || !session || !sessionKey || this.sessions.get(sessionKey) !== conn) return;
 
-        this.sessions.delete(session.guildId);
+        this.sessions.delete(sessionKey);
         this.observe((observer, s) => observer.sessionEnded(s), session);
         logger.warn(logModules.WebServer, `Plugin disconnected for guild ${session.guildId}`);
         await this.routeLogged(session.guildId, {

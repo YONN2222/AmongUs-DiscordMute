@@ -82,12 +82,12 @@ export class StatusMessage {
             case "game-event":
                 // A death stays hidden until the next meeting, so this event is not even a reason to edit.
                 if (event.event === "player-died") return;
-                await this.update(event.guildId, event.sessionId, (session, previous) =>
+                this.update(event.guildId, event.sessionId, (session, previous) =>
                     this.applyGameEvent(session, event, previous),
                 );
                 return;
             case "game-ended":
-                await this.update(event.guildId, event.sessionId, (session) => this.applyGameEnded(session, event));
+                this.update(event.guildId, event.sessionId, (session) => this.applyGameEnded(session, event));
                 return;
             case "session-ended":
                 await this.end(event.guildId, event.sessionId);
@@ -103,13 +103,15 @@ export class StatusMessage {
         for (const row of rows) await this.discard(row.guildId, row.key);
     }
 
-    /** State changes happen synchronously so events that arrive back to back are applied in order. */
-    private async update(
+    /**
+     * State changes happen synchronously so events that arrive back to back are applied in order. Each session owns
+     * its own message, so parallel games in one guild never replace each other's status.
+     */
+    private update(
         guildId: string,
         sessionId: string,
         apply: (session: Session, previousDead: Set<string>) => void,
-    ): Promise<void> {
-        const replaced = [...this.sessions.values()].filter((s) => s.guildId === guildId && s.sessionId !== sessionId);
+    ): void {
         let session = this.sessions.get(sessionKey(guildId, sessionId));
         if (!session) {
             session = this.createSession(guildId, sessionId);
@@ -117,7 +119,6 @@ export class StatusMessage {
         }
         apply(session, new Set(session.players.filter((p) => p.dead).map((p) => nameKey(p.name))));
         this.pump(session);
-        await Promise.all(replaced.map((old) => this.end(old.guildId, old.sessionId)));
     }
 
     private createSession(guildId: string, sessionId: string): Session {

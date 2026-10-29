@@ -8,6 +8,8 @@ export const CLOSE_UNAUTHORIZED = 4001;
 export const CLOSE_PROTOCOL_TOO_OLD = 4002;
 export const CLOSE_INVALID_MESSAGE = 4003;
 export const CLOSE_REPLACED = 4004;
+export const CLOSE_BLOCKED = 4005;
+export const CLOSE_TOO_MANY_SESSIONS = 4006;
 
 export const GAME_EVENT_NAMES = ["lobby", "game-start", "meeting-start", "meeting-end", "player-died"] as const;
 export type GameEventName = (typeof GAME_EVENT_NAMES)[number];
@@ -33,6 +35,12 @@ const helloSchema = z.object({
     secret: z.string().min(1).max(256),
     pluginVersion: z.string().max(32),
     gameVersion: z.string().max(32),
+    /** Tells several games in one guild apart; plugins without it share one session per guild. */
+    connectionKey: z
+        .string()
+        .regex(/^[0-9a-f]{32}$/)
+        .optional()
+        .catch(undefined),
 });
 
 const gameEventSchema = z.object({
@@ -81,7 +89,7 @@ const pluginMessageSchema = z.discriminatedUnion("type", [
 
 export type PluginMessage = z.infer<typeof pluginMessageSchema>;
 
-export const NOTICE_CODES = ["host-not-linked", "host-not-in-voice", "cluster-unavailable"] as const;
+export const NOTICE_CODES = ["host-not-linked", "host-not-in-voice", "cluster-unavailable", "host-blocked"] as const;
 
 export interface GatewayNotice {
     code: (typeof NOTICE_CODES)[number];

@@ -45,11 +45,16 @@ describe.each(backends)("NicknameSync (%s)", (backend) => {
         let settings: GuildSettings;
         let sync: NicknameSync;
 
-        function gameEvent(event: "game-start" | "lobby", players: string[], channelIds = [VOICE]): GuildEvent {
+        function gameEvent(
+            event: "game-start" | "lobby",
+            players: string[],
+            channelIds = [VOICE],
+            sessionId = "s1",
+        ): GuildEvent {
             return {
                 type: "game-event",
                 guildId,
-                sessionId: "s1",
+                sessionId,
                 event,
                 hostAccountName: "Red",
                 players,
@@ -89,13 +94,46 @@ describe.each(backends)("NicknameSync (%s)", (backend) => {
 
             expect(adapter.nicks.get("u1")).toBe("Red");
             expect(await db.nicknameLedger.listByGuild(guildId)).toEqual([
-                { guildId, discordId: "u1", originalNick: "Bob", appliedNick: "Red" },
+                { guildId, discordId: "u1", originalNick: "Bob", appliedNick: "Red", sessionId: "s1" },
             ]);
 
             await sync.handle(gameEvent("lobby", []));
 
             expect(adapter.nicks.get("u1")).toBe("Bob");
             expect(await db.nicknameLedger.listByGuild(guildId)).toEqual([]);
+        });
+
+        it("restoreSession leaves the other session's nicknames", async () => {
+            await db.links.upsert(guildId, "u1", "Red");
+            await db.links.upsert(guildId, "u2", "Blue");
+            adapter.join("u1", "Bob");
+            adapter.join("u2", "Ann", "v2");
+            await sync.handle(gameEvent("game-start", ["Red"]));
+            await sync.handle(gameEvent("game-start", ["Blue"], ["v2"], "s2"));
+
+            await sync.restoreSession(guildId, "s1");
+
+            expect(adapter.nicks.get("u1")).toBe("Bob");
+            expect(adapter.nicks.get("u2")).toBe("Blue");
+            expect(await db.nicknameLedger.listByGuild(guildId)).toEqual([
+                { guildId, discordId: "u2", originalNick: "Ann", appliedNick: "Blue", sessionId: "s2" },
+            ]);
+
+            await sync.handle(gameEvent("lobby", [], ["v2"], "s2"));
+            expect(adapter.nicks.get("u2")).toBe("Ann");
+        });
+
+        it("a member renamed by two games is restored only by the game that touched them last", async () => {
+            await db.links.upsert(guildId, "u1", "Red");
+            adapter.join("u1", "Bob");
+            await sync.handle(gameEvent("game-start", ["Red"]));
+            await sync.handle(gameEvent("game-start", ["Red"], [VOICE], "s2"));
+
+            await sync.restoreSession(guildId, "s1");
+            expect(adapter.nicks.get("u1")).toBe("Red");
+
+            await sync.restoreSession(guildId, "s2");
+            expect(adapter.nicks.get("u1")).toBe("Bob");
         });
 
         it("restores a member without a nickname back to none", async () => {
@@ -137,7 +175,7 @@ describe.each(backends)("NicknameSync (%s)", (backend) => {
             expect(await db.nicknameLedger.listByGuild(guildId)).toHaveLength(1);
 
             adapter.failing.delete("u1");
-            await sync.restoreGuild(guildId);
+            await sync.restoreSession(guildId, "s1");
 
             expect(adapter.nicks.get("u1")).toBe("Bob");
             expect(await db.nicknameLedger.listByGuild(guildId)).toEqual([]);
@@ -260,13 +298,13 @@ describe.each(backends)("NicknameSync (%s)", (backend) => {
             adapter.join("u1", "Red");
             adapter.lookupFails.add("u1");
 
-            await sync.restoreGuild(guildId);
+            await sync.restoreSession(guildId, "s1");
 
             expect((await db.nicknameLedger.listByGuild(guildId)).map((e) => e.discordId)).toEqual(["u1"]);
             expect(adapter.nicks.get("u1")).toBe("Red");
 
             adapter.lookupFails.delete("u1");
-            await sync.restoreGuild(guildId);
+            await sync.restoreSession(guildId, "s1");
 
             expect(adapter.nicks.get("u1")).toBe("Bob");
             expect(await db.nicknameLedger.listByGuild(guildId)).toEqual([]);
@@ -277,7 +315,7 @@ describe.each(backends)("NicknameSync (%s)", (backend) => {
             adapter.join("u1", "Red");
             adapter.failing.add("u1");
 
-            await sync.restoreGuild(guildId);
+            await sync.restoreSession(guildId, "s1");
 
             expect(await db.nicknameLedger.listByGuild(guildId)).toHaveLength(1);
             expect(logger.error).toHaveBeenCalled();

@@ -20,7 +20,7 @@ export interface ClusterRequestHandlerDeps {
     events: Pick<GuildEventBus, "emit">;
     links: LinkRepository;
     settings: Pick<SettingsService, "get">;
-    nicknames?: Pick<NicknameSync, "restoreGuild">;
+    nicknames?: Pick<NicknameSync, "restoreSession">;
     onLinkConfirmed?: (link: ConfirmedLinkReply) => Promise<void>;
 }
 
@@ -36,9 +36,9 @@ async function relinkSafely(deps: ClusterRequestHandlerDeps, req: GameEventReque
 }
 
 /** Awaited with the mute release so the restore is not cut off when the cluster stops right after. */
-async function restoreNicknames(deps: ClusterRequestHandlerDeps, guildId: string): Promise<void> {
+async function restoreNicknames(deps: ClusterRequestHandlerDeps, guildId: string, sessionId: string): Promise<void> {
     try {
-        await deps.nicknames?.restoreGuild(guildId);
+        await deps.nicknames?.restoreSession(guildId, sessionId);
     } catch (error) {
         logger.error(logModules.Bot, `Guild ${guildId}: restoring nicknames failed`, error);
     }
@@ -89,7 +89,7 @@ export function createClusterRequestHandler(deps: ClusterRequestHandlerDeps): (d
             }
             case "session-ended":
                 await deps.mute.endSession(req.guildId, req.sessionId);
-                await restoreNicknames(deps, req.guildId);
+                await restoreNicknames(deps, req.guildId, req.sessionId);
                 deps.events.emit({ type: "session-ended", guildId: req.guildId, sessionId: req.sessionId });
                 return { ok: true };
             case "game-ended": {

@@ -4,6 +4,7 @@ import type { NicknameLedgerEntry, NicknameLedgerRepository } from "../Data/Repo
 import type { GuildEvent, GuildEventBus } from "../Events/GuildEvents";
 import { logger, logModules } from "../Logging/Logger";
 import type { SettingsService } from "../Settings/SettingsService";
+import { ActiveSessions } from "../Utils/ActiveSessions";
 import { GuildQueue } from "../Utils/GuildQueue";
 
 const MAX_NICKNAME_LENGTH = 32;
@@ -34,32 +35,55 @@ function isMemberGone(err: unknown): boolean {
     return typeof err === "object" && err !== null && "code" in err && err.code === 10007;
 }
 
+/** One member a game wants to show under their Among Us name. */
+interface Rename {
+    guildId: string;
+    sessionId: string;
+    discordId: string;
+    nick: string;
+    channelIds: string[];
+}
+
 function truncate(name: string): string {
     return [...name].slice(0, MAX_NICKNAME_LENGTH).join("");
 }
 
-/** Shows the Among Us name as server nickname while a game runs and puts the old nickname back afterwards. */
+/**
+ * Shows the Among Us name as server nickname while a game runs and puts the old nickname back afterwards. Several
+ * games can run in one guild; the ledger records which session renamed a member last, and only that session (or
+ * nobody, once it ended) puts the nickname back.
+ */
 export class NicknameSync {
     private readonly queue = new GuildQueue();
+    /** Sessions that already reported a member who cannot be renamed. */
     private readonly reportedGames = new Set<string>();
+    /** The sessions per guild that renamed members in their running game. */
+    private readonly activeSessions = new ActiveSessions();
 
     constructor(private readonly deps: NicknameSyncDeps) {}
 
     handle(event: GuildEvent): Promise<void> {
         // session-ended is restored by the cluster request handler, which awaits it before the cluster can stop.
-        if (event.type === "game-event" && event.event === "lobby") return this.restoreGuild(event.guildId);
+        if (event.type === "game-event" && event.event === "lobby") {
+            return this.restoreSession(event.guildId, event.sessionId);
+        }
         if (event.type !== "game-event" || event.event !== "game-start") return Promise.resolve();
-        const { guildId } = event;
+        const { guildId, sessionId } = event;
         return this.queue.run(guildId, async () => {
             if (!(await this.deps.settings.get(guildId)).nicknameSync) return;
-            await this.applyNames(guildId, event.players, event.channelIds);
+            this.activeSessions.add(guildId, sessionId);
+            await this.applyNames(guildId, sessionId, event.players, event.channelIds);
         });
     }
 
-    restoreGuild(guildId: string): Promise<void> {
+    /** Puts back the nicknames of this session and those no running session owns any more. */
+    restoreSession(guildId: string, sessionId: string): Promise<void> {
         return this.queue.run(guildId, async () => {
-            this.reportedGames.delete(guildId);
-            for (const entry of await this.deps.ledger.listByGuild(guildId)) await this.restoreOne(entry);
+            this.reportedGames.delete(sessionId);
+            this.activeSessions.delete(guildId, sessionId);
+            for (const entry of await this.deps.ledger.listByGuild(guildId)) {
+                if (!this.activeSessions.has(guildId, entry.sessionId)) await this.restoreOne(entry);
+            }
         });
     }
 
@@ -69,13 +93,24 @@ export class NicknameSync {
         await Promise.all([...guilds].map((guildId) => this.restoreGuild(guildId)));
     }
 
-    private async applyNames(guildId: string, players: string[], channelIds: string[]): Promise<void> {
+    private restoreGuild(guildId: string): Promise<void> {
+        return this.queue.run(guildId, async () => {
+            for (const entry of await this.deps.ledger.listByGuild(guildId)) await this.restoreOne(entry);
+        });
+    }
+
+    private async applyNames(
+        guildId: string,
+        sessionId: string,
+        players: string[],
+        channelIds: string[],
+    ): Promise<void> {
         if (channelIds.length === 0) return;
         const targets = await this.resolveTargets(guildId, players);
         const ledger = new Map((await this.deps.ledger.listByGuild(guildId)).map((entry) => [entry.discordId, entry]));
         for (const [discordId, nick] of targets) {
             try {
-                await this.applyOne(guildId, discordId, nick, channelIds, ledger.get(discordId));
+                await this.applyOne({ guildId, sessionId, discordId, nick, channelIds }, ledger.get(discordId));
             } catch (err) {
                 logger.error(logModules.Discord, `Guild ${guildId}, member ${discordId}: nickname update failed`, err);
             }
@@ -103,32 +138,41 @@ export class NicknameSync {
         return targets;
     }
 
-    private async applyOne(
-        guildId: string,
-        discordId: string,
-        nick: string,
-        channelIds: string[],
-        previous: NicknameLedgerEntry | undefined,
-    ): Promise<void> {
+    private async applyOne(rename: Rename, previous: NicknameLedgerEntry | undefined): Promise<void> {
+        const { guildId, sessionId, discordId, nick, channelIds } = rename;
         const channelId = await this.deps.adapter.voiceChannelOf(guildId, discordId);
         if (channelId === null || !channelIds.includes(channelId)) return;
         const member = await this.deps.adapter.nicknameOf(guildId, discordId);
-        if (!member || member.nick === nick) return;
+        if (!member) return;
+        if (member.nick === nick) {
+            await this.takeOver(rename, previous);
+            return;
+        }
 
         // Only a nickname the bot set itself can be put back, so a changed one never overwrites the real original.
         const originalNick = previous && previous.appliedNick === member.nick ? previous.originalNick : member.nick;
-        await this.deps.ledger.set(guildId, discordId, originalNick, nick);
+        await this.deps.ledger.set(guildId, discordId, originalNick, nick, sessionId);
         try {
             await this.deps.adapter.setNickname(guildId, discordId, nick);
         } catch (err) {
             await this.revertLedger(guildId, discordId, previous);
             if (!isMissingPermission(err)) throw err;
             logger.warn(logModules.Discord, `Guild ${guildId}, member ${discordId}: nickname cannot be changed`);
-            if (!this.reportedGames.has(guildId)) {
-                this.reportedGames.add(guildId);
-                this.deps.events.emit({ type: "voice-error", guildId, code: "member-not-editable", discordId });
-            }
+            this.reportNotEditable(guildId, sessionId, discordId);
         }
+    }
+
+    /** Another game already gave the member this name; the game that touched them last puts the old one back. */
+    private async takeOver(rename: Rename, previous: NicknameLedgerEntry | undefined): Promise<void> {
+        if (!previous || previous.appliedNick !== rename.nick || previous.sessionId === rename.sessionId) return;
+        const { guildId, sessionId, discordId, nick } = rename;
+        await this.deps.ledger.set(guildId, discordId, previous.originalNick, nick, sessionId);
+    }
+
+    private reportNotEditable(guildId: string, sessionId: string, discordId: string): void {
+        if (this.reportedGames.has(sessionId)) return;
+        this.reportedGames.add(sessionId);
+        this.deps.events.emit({ type: "voice-error", guildId, code: "member-not-editable", discordId });
     }
 
     private async revertLedger(
@@ -137,8 +181,12 @@ export class NicknameSync {
         previous: NicknameLedgerEntry | undefined,
     ): Promise<void> {
         try {
-            if (previous) await this.deps.ledger.set(guildId, discordId, previous.originalNick, previous.appliedNick);
-            else await this.deps.ledger.remove(guildId, discordId);
+            if (previous) {
+                const { originalNick, appliedNick, sessionId } = previous;
+                await this.deps.ledger.set(guildId, discordId, originalNick, appliedNick, sessionId);
+            } else {
+                await this.deps.ledger.remove(guildId, discordId);
+            }
         } catch (err) {
             logger.error(
                 logModules.Database,

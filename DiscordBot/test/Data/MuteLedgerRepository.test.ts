@@ -73,7 +73,22 @@ describe.each(backends)("MuteLedgerRepository (%s)", (backend) => {
                 mutedAt: 1700000000000,
                 muted: true,
                 deafened: false,
+                sessionId: null,
             });
+        });
+
+        it("stores the session of the last writer and keeps it on add", async () => {
+            await db.muteLedger.set(g1, "u1", { muted: true, deafened: false }, "A");
+            expect(await db.muteLedger.get(g1, "u1")).toMatchObject({ sessionId: "A" });
+
+            await db.muteLedger.set(g1, "u1", { muted: true, deafened: true }, "B");
+            expect(await db.muteLedger.get(g1, "u1")).toMatchObject({ deafened: true, sessionId: "B" });
+
+            await db.muteLedger.add(g1, "u1", "C");
+            await db.muteLedger.add(g1, "u2");
+            expect(await db.muteLedger.get(g1, "u1")).toMatchObject({ muted: true, deafened: true, sessionId: "C" });
+            expect(await db.muteLedger.get(g1, "u2")).toMatchObject({ sessionId: null });
+            expect((await db.muteLedger.listByGuilds([g1])).map((e) => e.sessionId).sort()).toEqual(["C", null]);
         });
 
         it("listByGuilds spans guilds and ignores others", async () => {
@@ -118,7 +133,14 @@ describe("MuteLedgerRepository (sqlite upgrade)", () => {
         const db = await openDatabase({ dialect: "sqlite", storage });
         try {
             expect(await db.muteLedger.listByGuild("g1")).toEqual([
-                { guildId: "g1", discordId: "u1", mutedAt: 1700000000000, muted: true, deafened: false },
+                {
+                    guildId: "g1",
+                    discordId: "u1",
+                    mutedAt: 1700000000000,
+                    muted: true,
+                    deafened: false,
+                    sessionId: null,
+                },
             ]);
         } finally {
             await db.close();

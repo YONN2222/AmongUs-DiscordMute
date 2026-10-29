@@ -6,13 +6,21 @@ export interface NicknameLedgerEntry {
     discordId: string;
     originalNick: string | null;
     appliedNick: string;
+    /** The plugin session that renamed the member last; null when no session owns the row. */
+    sessionId: string | null;
 }
 
 const GUILD_BATCH = 500;
 
 /** The nicknames the bot changed, so only a nickname it set itself is ever put back. */
 export interface NicknameLedgerRepository {
-    set(guildId: string, discordId: string, originalNick: string | null, appliedNick: string): Promise<void>;
+    set(
+        guildId: string,
+        discordId: string,
+        originalNick: string | null,
+        appliedNick: string,
+        sessionId?: string | null,
+    ): Promise<void>;
     listByGuild(guildId: string): Promise<NicknameLedgerEntry[]>;
     listByGuilds(guildIds: string[]): Promise<NicknameLedgerEntry[]>;
     remove(guildId: string, discordId: string): Promise<void>;
@@ -24,13 +32,14 @@ function toEntry(row: NicknameLedgerModel): NicknameLedgerEntry {
         discordId: row.discordId,
         originalNick: row.originalNick,
         appliedNick: row.appliedNick,
+        sessionId: row.sessionId ?? null,
     };
 }
 
 export function createNicknameLedgerRepository(model: typeof NicknameLedgerModel): NicknameLedgerRepository {
     return {
-        async set(guildId, discordId, originalNick, appliedNick) {
-            await model.upsert({ guildId, discordId, originalNick, appliedNick });
+        async set(guildId, discordId, originalNick, appliedNick, sessionId = null) {
+            await model.upsert({ guildId, discordId, originalNick, appliedNick, sessionId });
         },
         async listByGuild(guildId) {
             const rows = await model.findAll({ where: { guildId } });

@@ -6,6 +6,7 @@ export class MuteLedgerModel extends Model {
     declare mutedAt: number;
     declare muted: number;
     declare deafened: number;
+    declare sessionId: string | null;
 }
 
 export function initMuteLedgerModel(sequelize: Sequelize): typeof MuteLedgerModel {
@@ -17,6 +18,7 @@ export function initMuteLedgerModel(sequelize: Sequelize): typeof MuteLedgerMode
             mutedAt: { type: DataTypes.BIGINT, allowNull: false, field: "muted_at" },
             muted: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
             deafened: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+            sessionId: { type: DataTypes.STRING(64), allowNull: true, field: "session_id" },
         },
         { sequelize, tableName: "mute_ledger", timestamps: false },
     );

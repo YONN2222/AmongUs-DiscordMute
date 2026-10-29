@@ -99,13 +99,13 @@ describe("MuteService", () => {
         });
     }
 
-    /** releaseIfIdle lifts a left-behind mute only while no session runs, which makes the session observable. */
-    async function sessionIsActive(service: MuteService, guildId = GUILD): Promise<boolean> {
+    /** releaseIfIdle lifts a left-behind mute only while its session does not run, which makes the session observable. */
+    async function sessionIsActive(service: MuteService, sessionId = "s1", guildId = GUILD): Promise<boolean> {
         const probe = "session-probe";
         const callsBefore = voice.calls.length;
         voice.channels.set("probe-channel", [probe]);
         voice.muted.add(probe);
-        await db.muteLedger.add(guildId, probe);
+        await db.muteLedger.add(guildId, probe, sessionId);
 
         await service.releaseIfIdle(guildId, probe);
         const active = voice.muted.has(probe);
@@ -306,7 +306,7 @@ describe("MuteService", () => {
 
         await service.handleGameEvent(gameEvent("game-start", ["Red"]));
         expect(await sessionIsActive(service)).toBe(true);
-        expect(await sessionIsActive(service, "other")).toBe(false);
+        expect(await sessionIsActive(service, "s1", "other")).toBe(false);
 
         await service.handleGameEvent(gameEvent("lobby", ["Red"]));
         expect(await sessionIsActive(service)).toBe(false);
@@ -324,7 +324,7 @@ describe("MuteService", () => {
 
         await service.endSession(GUILD, "s1");
 
-        expect(await sessionIsActive(service)).toBe(true);
+        expect(await sessionIsActive(service, "s2")).toBe(true);
         expect([...voice.muted]).toEqual(["u1"]);
     });
 
@@ -400,12 +400,12 @@ describe("MuteService", () => {
         await service.handleGameEvent({ ...gameEvent("meeting-end", ["Red"]), sessionId: "s2" });
 
         await service.endSession(GUILD, "s1");
-        expect(await sessionIsActive(service)).toBe(true);
+        expect(await sessionIsActive(service, "s2")).toBe(true);
         expect([...voice.muted]).toEqual(["u1"]);
         expect(voice.calls.filter((c) => !c.mute)).toEqual([]);
 
         await service.endSession(GUILD, "s2");
-        expect(await sessionIsActive(service)).toBe(false);
+        expect(await sessionIsActive(service, "s2")).toBe(false);
         expect(voice.muted.size).toBe(0);
     });
 
@@ -613,7 +613,7 @@ describe("MuteService", () => {
 
             await vi.waitFor(() => expect(voice.calls.filter((c) => c.mute)).toHaveLength(2));
             expect([...voice.muted]).toEqual(["u1"]);
-            expect(await sessionIsActive(service)).toBe(true);
+            expect(await sessionIsActive(service, "s2")).toBe(true);
         });
 
         it("keeps meeting rules when a death arrives during a meeting", async () => {
@@ -709,6 +709,143 @@ describe("MuteService", () => {
 
             expect(voice.muted.size).toBe(0);
             expect(await sessionIsActive(service)).toBe(false);
+        });
+    });
+
+    describe("parallel sessions", () => {
+        /** Game A is hosted by Red in c1, game B by Green in c2. */
+        const HOSTS: Record<string, { host: string; channelId: string }> = {
+            A: { host: "Red", channelId: "c1" },
+            B: { host: "Green", channelId: "c2" },
+        };
+
+        function eventOf(sessionId: "A" | "B", event: GameEventName, players: string[]): GameEventRequest {
+            return { ...gameEvent(event, players), sessionId, hostAccountName: HOSTS[sessionId].host };
+        }
+
+        function createParallelService(): MuteService {
+            return new MuteService({
+                voice,
+                links: db.links,
+                ledger: db.muteLedger,
+                resolveTarget: async (_guildId, host) => ({
+                    channelIds: [host === "Red" ? HOSTS.A.channelId : HOSTS.B.channelId],
+                }),
+                settings: { get: async () => settings },
+                sleep: (ms) => sleep(ms),
+            });
+        }
+
+        async function startBoth(service: MuteService): Promise<void> {
+            await service.handleGameEvent(eventOf("A", "game-start", ["Red", "Blue"]));
+            await service.handleGameEvent(eventOf("B", "game-start", ["Green", "Yellow"]));
+        }
+
+        beforeEach(async () => {
+            await db.links.upsert(GUILD, "u4", "Yellow");
+            voice.channels.set("c1", ["u1", "u2"]);
+            voice.channels.set("c2", ["u3", "u4"]);
+        });
+
+        it("ending one session leaves the other session's mutes", async () => {
+            const service = createParallelService();
+            await startBoth(service);
+            expect([...voice.muted].sort()).toEqual(["u1", "u2", "u3", "u4"]);
+
+            await service.endSession(GUILD, "A");
+
+            expect([...voice.muted].sort()).toEqual(["u3", "u4"]);
+            expect(await ledgerIds()).toEqual(["u3", "u4"]);
+        });
+
+        it("lobby of one session releases only its members", async () => {
+            const service = createParallelService();
+            await startBoth(service);
+
+            await service.handleGameEvent(eventOf("A", "lobby", []));
+
+            expect([...voice.muted].sort()).toEqual(["u3", "u4"]);
+            expect(await sessionIsActive(service, "B")).toBe(true);
+            expect(await sessionIsActive(service, "A")).toBe(false);
+        });
+
+        it("a member moved to another game is released only by that game", async () => {
+            const service = createParallelService();
+            await service.handleGameEvent(eventOf("A", "game-start", ["Red", "Blue"]));
+            voice.channels.set("c1", ["u1"]);
+            voice.channels.set("c2", ["u3", "u2"]);
+            await service.handleGameEvent(eventOf("B", "game-start", ["Green", "Blue"]));
+            expect(await db.muteLedger.get(GUILD, "u2")).toMatchObject({ sessionId: "B" });
+
+            await service.endSession(GUILD, "A");
+            expect([...voice.muted].sort()).toEqual(["u2", "u3"]);
+
+            await service.endSession(GUILD, "B");
+            expect(voice.muted.size).toBe(0);
+            expect(await ledgerIds()).toEqual([]);
+        });
+
+        it("delayed event of session A is not dropped by an event of session B", async () => {
+            settings = { ...DEFAULT_SETTINGS, delaysMs: { gameStart: 3000, meetingStart: 0, meetingEnd: 0, lobby: 0 } };
+            const wake: Array<() => void> = [];
+            sleep = () => new Promise<void>((resolve) => wake.push(resolve));
+            const service = createParallelService();
+
+            await service.handleGameEvent(eventOf("A", "game-start", ["Red", "Blue"]));
+            await vi.waitFor(() => expect(wake).toHaveLength(1));
+            await service.handleGameEvent(eventOf("B", "meeting-end", ["Green", "Yellow"]));
+            expect([...voice.muted].sort()).toEqual(["u3", "u4"]);
+            wake[0]();
+
+            await vi.waitFor(() => expect([...voice.muted].sort()).toEqual(["u1", "u2", "u3", "u4"]));
+        });
+
+        it("sweepIdle releases rows of sessions that are no longer active", async () => {
+            const service = createParallelService();
+            await startBoth(service);
+            voice.channels.set("c3", ["u8", "u9"]);
+            voice.muted.add("u8").add("u9");
+            await db.muteLedger.add(GUILD, "u8", "ended-session");
+            await db.muteLedger.add(GUILD, "u9");
+
+            await service.sweepIdle([GUILD]);
+
+            expect([...voice.muted].sort()).toEqual(["u1", "u2", "u3", "u4"]);
+            expect(await ledgerIds()).toEqual(["u1", "u2", "u3", "u4"]);
+        });
+
+        it("releaseIfIdle lifts a row of an ended session while another game runs", async () => {
+            const service = createParallelService();
+            await startBoth(service);
+            voice.leave("u1");
+            await service.endSession(GUILD, "A");
+            expect(await ledgerIds()).toEqual(["u1", "u3", "u4"]);
+
+            voice.channels.set("c3", ["u1"]);
+            await service.releaseIfIdle(GUILD, "u1");
+
+            expect([...voice.muted].sort()).toEqual(["u3", "u4"]);
+            expect(await ledgerIds()).toEqual(["u3", "u4"]);
+        });
+
+        it("recover still releases every row", async () => {
+            await startBoth(createParallelService());
+
+            await createParallelService().recover([GUILD]);
+
+            expect(voice.muted.size).toBe(0);
+            expect(await ledgerIds()).toEqual([]);
+        });
+
+        it("ledger row carries the session before the mute call", async () => {
+            const seen: Array<string | null | undefined> = [];
+            voice.beforeSetMute = async (discordId, mute) => {
+                if (mute) seen.push((await db.muteLedger.get(GUILD, discordId))?.sessionId);
+            };
+
+            await startBoth(createParallelService());
+
+            expect(seen).toEqual(["A", "A", "B", "B"]);
         });
     });
 

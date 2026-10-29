@@ -5,6 +5,7 @@ import { logger, logModules } from "../Logging/Logger";
 import type { ClusterRequest, RouterReply } from "../Routing/Messages";
 import type { VoiceAction } from "../Settings/GuildSettings";
 import type { SettingsService } from "../Settings/SettingsService";
+import { ActiveSessions } from "../Utils/ActiveSessions";
 import { GuildQueue } from "../Utils/GuildQueue";
 import { computeDesiredState, type DesiredState } from "./DesiredState";
 import { delayFor, effectiveRules, type Phase, phaseOf } from "./VoiceRules";
@@ -77,20 +78,25 @@ class DelayedEvent {
 }
 
 interface PendingDelay {
-    sessionId: string;
     cancelled: boolean;
 }
 
+/**
+ * Applies the voice rules of every running game. Several games (sessions) can run in one guild at once; the mute
+ * ledger records which session touched a member last, and a session only ever lifts rows no running session owns.
+ * Per-session state is keyed by the session id, which the gateway generates and which is unique across guilds.
+ */
 export class MuteService {
     private readonly queue = new GuildQueue();
-    private readonly activeSessions = new Map<string, string>();
-    /** Counts the events of a guild in arrival order; a delayed event that was overtaken is dropped. */
+    /** The sessions per guild that are in a game; the ledger rows they own stay until they end or reach the lobby. */
+    private readonly activeSessions = new ActiveSessions();
+    /** Counts the events of a session in arrival order; a delayed event that was overtaken is dropped. */
     private readonly sequence = new Map<string, number>();
     private readonly pendingDelays = new Map<string, Set<PendingDelay>>();
-    /** The phase last applied per guild; a death keeps a running meeting a meeting. */
+    /** The phase last applied per session; a death keeps a running meeting a meeting. */
     private readonly phases = new Map<string, Phase>();
-    /** The player lists of the latest death, so a delayed phase change does not revive the dead. */
-    private readonly latestDeath = new Map<string, Pick<GameEventRequest, "sessionId" | "players" | "deadPlayers">>();
+    /** The player lists of the latest death per session, so a delayed phase change does not revive the dead. */
+    private readonly latestDeath = new Map<string, Pick<GameEventRequest, "players" | "deadPlayers">>();
     private readonly sleep: (ms: number) => Promise<void>;
 
     constructor(private readonly deps: MuteServiceDeps) {
@@ -98,15 +104,14 @@ export class MuteService {
     }
 
     async handleGameEvent(req: GameEventRequest): Promise<GameEventReply> {
-        const { guildId } = req;
+        const { guildId, sessionId } = req;
         // A death does not change the phase, so it must not supersede a delayed phase change.
         const isDeath = req.event === "player-died";
-        const seq = isDeath ? (this.sequence.get(guildId) ?? 0) : this.nextSequence(guildId);
+        const seq = isDeath ? (this.sequence.get(sessionId) ?? 0) : this.nextSequence(sessionId);
         if (isDeath) {
-            const { sessionId, players, deadPlayers } = req;
-            this.latestDeath.set(guildId, { sessionId, players, deadPlayers });
+            this.latestDeath.set(sessionId, { players: req.players, deadPlayers: req.deadPlayers });
         } else {
-            this.latestDeath.delete(guildId);
+            this.latestDeath.delete(sessionId);
         }
         // The first pass sits in the queue so events keep their arrival order, but it never sleeps there.
         const first = await this.enqueue(guildId, async () => {
@@ -122,11 +127,11 @@ export class MuteService {
 
     /** Resolves the target up front so the host still gets the notice or the channels in the reply. */
     private async acceptDelayed(req: GameEventRequest, delayMs: number): Promise<GameEventReply | DelayedEvent> {
-        if (req.event === "lobby") return new DelayedEvent(delayMs, this.registerDelay(req));
+        if (req.event === "lobby") return new DelayedEvent(delayMs, this.registerDelay(req.sessionId));
         try {
             const target = await this.deps.resolveTarget(req.guildId, req.hostAccountName);
             if ("notice" in target) return { ok: true, notice: target.notice };
-            return new DelayedEvent(delayMs, this.registerDelay(req), target.channelIds);
+            return new DelayedEvent(delayMs, this.registerDelay(req.sessionId), target.channelIds);
         } catch (err) {
             logger.error(logModules.Mute, `Game event ${req.event} failed in guild ${req.guildId}`, err);
             return { ok: false, error: "mute update failed" };
@@ -134,29 +139,29 @@ export class MuteService {
     }
 
     /** Registered inside the queue, so an endSession queued behind the event always sees it. */
-    private registerDelay(req: GameEventRequest): PendingDelay {
-        const pending: PendingDelay = { sessionId: req.sessionId, cancelled: false };
-        const set = this.pendingDelays.get(req.guildId) ?? new Set<PendingDelay>();
+    private registerDelay(sessionId: string): PendingDelay {
+        const pending: PendingDelay = { cancelled: false };
+        const set = this.pendingDelays.get(sessionId) ?? new Set<PendingDelay>();
         set.add(pending);
-        this.pendingDelays.set(req.guildId, set);
+        this.pendingDelays.set(sessionId, set);
         return pending;
     }
 
     private applyLater(req: GameEventRequest, seq: number, { ms, pending }: DelayedEvent): void {
-        const { guildId } = req;
-        const set = this.pendingDelays.get(guildId);
+        const { guildId, sessionId } = req;
+        const set = this.pendingDelays.get(sessionId);
         void this.sleep(ms)
             .then(() =>
                 this.enqueue(guildId, async () => {
-                    if (pending.cancelled || this.sequence.get(guildId) !== seq) {
+                    if (pending.cancelled || this.sequence.get(sessionId) !== seq) {
                         logger.debug(
                             logModules.Mute,
                             `Guild ${guildId}: dropped delayed ${req.event}, it was replaced or its session ended`,
                         );
                         return;
                     }
-                    const death = this.latestDeath.get(guildId);
-                    await this.applySafely(death?.sessionId === req.sessionId ? { ...req, ...death } : req);
+                    const death = this.latestDeath.get(sessionId);
+                    await this.applySafely(death ? { ...req, ...death } : req);
                 }),
             )
             .catch((err: unknown) => {
@@ -164,23 +169,19 @@ export class MuteService {
             })
             .finally(() => {
                 set?.delete(pending);
-                if (set?.size === 0 && this.pendingDelays.get(guildId) === set) this.pendingDelays.delete(guildId);
+                if (set?.size === 0 && this.pendingDelays.get(sessionId) === set) this.pendingDelays.delete(sessionId);
             });
     }
 
     endSession(guildId: string, sessionId: string): Promise<void> {
         return this.enqueue(guildId, async () => {
-            const active = this.activeSessions.get(guildId);
-            if (active !== undefined && active !== sessionId) return;
-            this.activeSessions.delete(guildId);
-            this.phases.delete(guildId);
-            this.latestDeath.delete(guildId);
+            this.phases.delete(sessionId);
+            this.latestDeath.delete(sessionId);
+            this.sequence.delete(sessionId);
             // Only events still waiting out their delay that belong to the session that just ended are dropped.
-            for (const pending of this.pendingDelays.get(guildId) ?? []) {
-                if (pending.sessionId === sessionId) pending.cancelled = true;
-            }
+            for (const pending of this.pendingDelays.get(sessionId) ?? []) pending.cancelled = true;
             try {
-                await this.releaseGuild(guildId);
+                await this.releaseSession(guildId, sessionId);
             } catch (err) {
                 logger.error(logModules.Mute, `Could not end the session in guild ${guildId}`, err);
             }
@@ -202,29 +203,27 @@ export class MuteService {
         );
     }
 
-    /** Lifts a mute left behind for a member who rejoins voice once no session is running. */
+    /** Lifts a mute left behind for a member who rejoins voice once the session that owns it no longer runs. */
     releaseIfIdle(guildId: string, discordId: string): Promise<void> {
-        return this.enqueue(guildId, async () => {
-            if (this.activeSessions.has(guildId)) return;
-            await this.guarded(guildId, discordId, async () => {
+        return this.enqueue(guildId, () =>
+            this.guarded(guildId, discordId, async () => {
                 const entry = await this.deps.ledger.get(guildId, discordId);
-                if (!entry) return;
+                if (!entry || this.activeSessions.has(guildId, entry.sessionId)) return;
                 const member = await this.deps.voice.findVoiceMember(guildId, discordId);
-                if (member) await this.reconcile(guildId, member, RELEASE, entry);
-            });
-        });
+                if (member) await this.reconcile(guildId, member, RELEASE, entry, entry.sessionId);
+            }),
+        );
     }
 
-    /** Periodic retry for guilds without a running session that still have mutes on record. */
+    /** Periodic retry for mutes on record that no running session owns any more. */
     async sweepIdle(guildIds: string[]): Promise<void> {
         if (guildIds.length === 0) return;
         const withEntries = new Set((await this.deps.ledger.listByGuilds(guildIds)).map((entry) => entry.guildId));
         await Promise.all(
             [...withEntries].map((guildId) =>
                 this.enqueue(guildId, async () => {
-                    if (this.activeSessions.has(guildId)) return;
                     try {
-                        await this.releaseGuild(guildId);
+                        await this.releaseUnowned(guildId);
                     } catch (err) {
                         logger.error(logModules.Mute, `Could not sweep mutes in guild ${guildId}`, err);
                     }
@@ -237,9 +236,9 @@ export class MuteService {
         return this.queue.run(guildId, task);
     }
 
-    private nextSequence(guildId: string): number {
-        const next = (this.sequence.get(guildId) ?? 0) + 1;
-        this.sequence.set(guildId, next);
+    private nextSequence(sessionId: string): number {
+        const next = (this.sequence.get(sessionId) ?? 0) + 1;
+        this.sequence.set(sessionId, next);
         return next;
     }
 
@@ -261,16 +260,16 @@ export class MuteService {
     }
 
     private async applyGameEvent(req: GameEventRequest): Promise<GameEventReply> {
+        const { guildId, sessionId } = req;
         if (req.event === "lobby") {
-            this.activeSessions.delete(req.guildId);
-            this.phases.delete(req.guildId);
-            await this.releaseGuild(req.guildId);
+            this.phases.delete(sessionId);
+            await this.releaseSession(guildId, sessionId);
             return { ok: true };
         }
-        this.activeSessions.set(req.guildId, req.sessionId);
+        this.activeSessions.add(guildId, sessionId);
         const event =
-            req.event === "player-died" && this.phases.get(req.guildId) === "meeting" ? "meeting-start" : req.event;
-        if (req.event !== "player-died") this.phases.set(req.guildId, phaseOf(req.event));
+            req.event === "player-died" && this.phases.get(sessionId) === "meeting" ? "meeting-start" : req.event;
+        if (req.event !== "player-died") this.phases.set(sessionId, phaseOf(req.event));
 
         const target = await this.deps.resolveTarget(req.guildId, req.hostAccountName);
         if ("notice" in target) return { ok: true, notice: target.notice };
@@ -290,11 +289,16 @@ export class MuteService {
                 `Guild ${req.guildId}: ${state.ambiguousNames.length} player name(s) match several links and were skipped`,
             );
         }
-        await this.applyState(req.guildId, target.channelIds, state);
+        await this.applyState(req.guildId, sessionId, target.channelIds, state);
         return { ok: true, channelIds: target.channelIds };
     }
 
-    private async applyState(guildId: string, channelIds: string[], state: DesiredState): Promise<void> {
+    private async applyState(
+        guildId: string,
+        sessionId: string,
+        channelIds: string[],
+        state: DesiredState,
+    ): Promise<void> {
         const members = await this.membersInChannels(guildId, channelIds);
         const ledger = new Map((await this.deps.ledger.listByGuild(guildId)).map((entry) => [entry.discordId, entry]));
 
@@ -304,7 +308,8 @@ export class MuteService {
                     if (member.isBot) return;
                     const action = state.actions.get(member.discordId) ?? state.nonPlayerAction;
                     if (action === null) return;
-                    await this.reconcile(guildId, member, wantedFlags(action), ledger.get(member.discordId));
+                    const entry = ledger.get(member.discordId);
+                    await this.reconcile(guildId, member, wantedFlags(action), entry, sessionId);
                 }),
             ),
         );
@@ -327,15 +332,18 @@ export class MuteService {
     /**
      * Brings one member to the wanted mute and deafen state with a single Discord call. A flag is only ever
      * lifted when the ledger says the bot set it, and a newly set flag is written to the ledger first so a
-     * crash mid-call can never leave an untracked mute.
+     * crash mid-call can never leave an untracked mute. The row is recorded for `sessionId`, so the session that
+     * touched the member last owns the row, even when only the owner changes.
      */
     private async reconcile(
         guildId: string,
         member: VoiceMember,
         want: WantedFlags,
         entry: MuteLedgerEntry | undefined,
+        sessionId: string | null,
     ): Promise<void> {
         const prev: LedgerFlags = { muted: entry?.muted ?? false, deafened: entry?.deafened ?? false };
+        const prevOwner = entry?.sessionId ?? null;
         const addMute = want.mute && !member.serverMuted;
         const addDeaf = want.deaf && !member.serverDeafened;
         const liftMute = !want.mute && prev.muted;
@@ -349,36 +357,63 @@ export class MuteService {
 
         const withAdds: LedgerFlags = { muted: prev.muted || addMute, deafened: prev.deafened || addDeaf };
         const final: LedgerFlags = { muted: withAdds.muted && !liftMute, deafened: withAdds.deafened && !liftDeaf };
+        const changesOwner = entry !== undefined && prevOwner !== sessionId;
+        const writesFirst = !sameFlags(prev, withAdds) || changesOwner;
 
-        if (!sameFlags(prev, withAdds)) await this.deps.ledger.set(guildId, member.discordId, withAdds);
+        if (writesFirst) await this.deps.ledger.set(guildId, member.discordId, withAdds, sessionId);
         if (patch.mute !== undefined || patch.deaf !== undefined) {
             try {
                 await this.deps.voice.setVoiceState(guildId, member.discordId, patch);
             } catch (err) {
                 // Even if the call may have gone through, dropping the new flags means we never lift a later moderator change.
-                if (!sameFlags(prev, withAdds)) {
-                    await this.deps.ledger.set(guildId, member.discordId, prev).catch((revertErr: unknown) => {
-                        logger.error(
-                            logModules.Mute,
-                            `Guild ${guildId}, member ${member.discordId}: could not restore the ledger`,
-                            revertErr,
-                        );
-                    });
-                }
+                if (writesFirst) await this.restoreLedger(guildId, member.discordId, prev, prevOwner);
                 throw err;
             }
         }
-        if (!sameFlags(withAdds, final)) await this.deps.ledger.set(guildId, member.discordId, final);
+        if (!sameFlags(withAdds, final)) await this.deps.ledger.set(guildId, member.discordId, final, sessionId);
+    }
+
+    /** Never rejects, so the error of the failed voice call is the one that gets reported. */
+    private async restoreLedger(
+        guildId: string,
+        discordId: string,
+        flags: LedgerFlags,
+        sessionId: string | null,
+    ): Promise<void> {
+        try {
+            await this.deps.ledger.set(guildId, discordId, flags, sessionId);
+        } catch (err) {
+            logger.error(logModules.Mute, `Guild ${guildId}, member ${discordId}: could not restore the ledger`, err);
+        }
+    }
+
+    /** Takes the session out of the game and lifts every mute no running session owns, its own included. */
+    private async releaseSession(guildId: string, sessionId: string): Promise<void> {
+        this.activeSessions.delete(guildId, sessionId);
+        await this.releaseUnowned(guildId);
+    }
+
+    /** Rows of other running sessions stay; rows without a session or of a session that ended are lifted. */
+    private async releaseUnowned(guildId: string): Promise<void> {
+        const entries = await this.deps.ledger.listByGuild(guildId);
+        await this.releaseEntries(
+            guildId,
+            entries.filter((entry) => !this.activeSessions.has(guildId, entry.sessionId)),
+        );
+    }
+
+    /** Lifts every row of the guild, whichever session owns it. */
+    private async releaseGuild(guildId: string): Promise<void> {
+        await this.releaseEntries(guildId, await this.deps.ledger.listByGuild(guildId));
     }
 
     /** Members who left voice stay in the ledger and are released when they rejoin. */
-    private async releaseGuild(guildId: string): Promise<void> {
-        const entries = await this.deps.ledger.listByGuild(guildId);
+    private async releaseEntries(guildId: string, entries: MuteLedgerEntry[]): Promise<void> {
         await Promise.all(
             entries.map((entry) =>
                 this.guarded(guildId, entry.discordId, async () => {
                     const member = await this.deps.voice.findVoiceMember(guildId, entry.discordId);
-                    if (member) await this.reconcile(guildId, member, RELEASE, entry);
+                    if (member) await this.reconcile(guildId, member, RELEASE, entry, entry.sessionId);
                 }),
             ),
         );

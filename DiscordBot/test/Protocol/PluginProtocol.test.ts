@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+    CLOSE_BLOCKED,
     CLOSE_HELLO_TIMEOUT,
     CLOSE_INVALID_MESSAGE,
     CLOSE_PROTOCOL_TOO_OLD,
     CLOSE_REPLACED,
+    CLOSE_TOO_MANY_SESSIONS,
     CLOSE_UNAUTHORIZED,
     MIN_PROTOCOL_VERSION,
+    NOTICE_CODES,
     PROTOCOL_VERSION,
     parsePluginMessage,
     serialize,
@@ -38,6 +41,22 @@ describe("parsePluginMessage", () => {
         };
         for (const msg of [hello, gameEvent, linkChat, pluginLog]) {
             expect(parsePluginMessage(json(msg))).toEqual(msg);
+        }
+    });
+
+    it("hello accepts a 32 hex connectionKey and drops a malformed one", () => {
+        const base = {
+            type: "hello",
+            protocolVersion: 3,
+            secret: "test-secret",
+            pluginVersion: "3.0.0",
+            gameVersion: "2026.9.29",
+        };
+        const connectionKey = "0123456789abcdef0123456789abcdef";
+
+        expect(parsePluginMessage(json({ ...base, connectionKey }))).toEqual({ ...base, connectionKey });
+        for (const malformed of ["0123456789ABCDEF0123456789ABCDEF", "abc", 42, `${connectionKey}0`]) {
+            expect(parsePluginMessage(json({ ...base, connectionKey: malformed }))).toEqual(base);
         }
     });
 
@@ -166,5 +185,7 @@ describe("serialize and constants", () => {
             CLOSE_INVALID_MESSAGE,
             CLOSE_REPLACED,
         ]).toEqual([4000, 4001, 4002, 4003, 4004]);
+        expect([CLOSE_BLOCKED, CLOSE_TOO_MANY_SESSIONS]).toEqual([4005, 4006]);
+        expect(NOTICE_CODES).toContain("host-blocked");
     });
 });

@@ -23,7 +23,18 @@ describe.each(backends)("NicknameLedgerRepository (%s)", (backend) => {
             await db.nicknameLedger.set(g1, "u1", "Bob", "Red");
             await db.nicknameLedger.set(g1, "u1", "Bob", "Crimson");
             expect(await db.nicknameLedger.listByGuild(g1)).toEqual([
-                { guildId: g1, discordId: "u1", originalNick: "Bob", appliedNick: "Crimson" },
+                { guildId: g1, discordId: "u1", originalNick: "Bob", appliedNick: "Crimson", sessionId: null },
+            ]);
+        });
+
+        it("stores the session of the last writer", async () => {
+            await db.nicknameLedger.set(g1, "u1", "Bob", "Red", "A");
+            await db.nicknameLedger.set(g1, "u2", "Ann", "Blue", "A");
+            await db.nicknameLedger.set(g1, "u1", "Bob", "Red", "B");
+            const sessions = (await db.nicknameLedger.listByGuild(g1)).map((e) => [e.discordId, e.sessionId]).sort();
+            expect(sessions).toEqual([
+                ["u1", "B"],
+                ["u2", "A"],
             ]);
         });
 
