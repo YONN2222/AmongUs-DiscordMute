@@ -2,12 +2,14 @@ import type { IncomingMessage, Server } from "node:http";
 import type { Duplex } from "node:stream";
 import { type RawData, WebSocket, WebSocketServer } from "ws";
 import { logger, logModules } from "../Logging/logger";
+import type { PluginEventType } from "../Metrics/metricNames";
 import {
     CLOSE_HELLO_TIMEOUT,
     CLOSE_INVALID_MESSAGE,
     CLOSE_PROTOCOL_TOO_OLD,
     CLOSE_REPLACED,
     CLOSE_UNAUTHORIZED,
+    type GameEventName,
     type GatewayMessage,
     MIN_PROTOCOL_VERSION,
     type PluginMessage,
@@ -38,10 +40,18 @@ type GameEndMessage = Extract<PluginMessage, { type: "game-end" }>;
 type LinkChatMessage = Extract<PluginMessage, { type: "link-chat" }>;
 type PluginLogMessage = Extract<PluginMessage, { type: "plugin-log" }>;
 
+export interface GatewayObserver {
+    sessionStarted(session: GameSession): void;
+    sessionEnded(session: GameSession): void;
+    pluginMessage(session: GameSession, type: PluginEventType): void;
+    gameEventApplied(session: GameSession, event: GameEventName, reply: RouterReply): void;
+}
+
 export interface PluginGatewayDeps {
     resolver: SecretResolver;
     router: ClusterRouter;
     linking: LinkingService;
+    observer?: GatewayObserver;
     helloTimeoutMs?: number;
     pingIntervalMs?: number;
     pongTimeoutMs?: number;
@@ -253,6 +263,7 @@ export class PluginGateway {
             logModules.WebServer,
             `Plugin ${pluginVersion} (game ${gameVersion}) connected for guild ${guildId}${previous ? ", replacing the previous connection" : ""}`,
         );
+        this.observe((observer, session) => observer.sessionStarted(session), conn.session);
         // Not awaited, so a slow cluster never holds back the messages queued behind hello.
         void this.routeLogged(conn.session.guildId, {
             kind: "session-started",
@@ -262,6 +273,16 @@ export class PluginGateway {
             gameVersion,
             protocolVersion,
         });
+    }
+
+    private observe(call: (observer: GatewayObserver, session: GameSession) => void, session: GameSession): void {
+        const observer = this.deps.observer;
+        if (!observer) return;
+        try {
+            call(observer, session);
+        } catch (error) {
+            logger.debug(logModules.WebServer, `Gateway observer failed: ${String(error)}`);
+        }
     }
 
     private async dispatch(conn: Connection, message: PluginMessage): Promise<void> {
@@ -275,7 +296,7 @@ export class PluginGateway {
                 await this.onGameEnd(session, message);
                 return;
             case "link-chat":
-                await this.onLinkChat(conn, message);
+                await this.onLinkChat(conn, session, message);
                 return;
             case "plugin-log":
                 this.onPluginLog(message);
@@ -287,6 +308,7 @@ export class PluginGateway {
     }
 
     private async onGameEvent(conn: Connection, session: GameSession, message: GameEventMessage): Promise<void> {
+        this.observe((observer, s) => observer.pluginMessage(s, message.event), session);
         const reply = await this.route(session.guildId, {
             kind: "game-event",
             guildId: session.guildId,
@@ -298,6 +320,7 @@ export class PluginGateway {
             ...(message.roster ? { roster: message.roster } : {}),
             ...(message.lobbyCode ? { lobbyCode: message.lobbyCode } : {}),
         });
+        this.observe((observer, s) => observer.gameEventApplied(s, message.event, reply), session);
         if (!reply.ok) {
             logger.warn(logModules.WebServer, `Game event for guild ${session.guildId} failed: ${reply.error}`);
             this.send(conn, { type: "notice", code: "cluster-unavailable", message: CLUSTER_UNAVAILABLE_MESSAGE });
@@ -307,6 +330,7 @@ export class PluginGateway {
     }
 
     private async onGameEnd(session: GameSession, message: GameEndMessage): Promise<void> {
+        this.observe((observer, s) => observer.pluginMessage(s, "game-end"), session);
         await this.routeLogged(session.guildId, {
             kind: "game-ended",
             guildId: session.guildId,
@@ -317,7 +341,8 @@ export class PluginGateway {
         });
     }
 
-    private async onLinkChat(conn: Connection, message: LinkChatMessage): Promise<void> {
+    private async onLinkChat(conn: Connection, session: GameSession, message: LinkChatMessage): Promise<void> {
+        this.observe((observer, s) => observer.pluginMessage(s, "link-chat"), session);
         let confirmed: Awaited<ReturnType<LinkingService["confirmLink"]>>;
         try {
             confirmed = await this.deps.linking.confirmLink(message.code, message.accountName, message.friendCode);
@@ -381,6 +406,7 @@ export class PluginGateway {
         if (conn.replaced || !session || this.sessions.get(session.guildId) !== conn) return;
 
         this.sessions.delete(session.guildId);
+        this.observe((observer, s) => observer.sessionEnded(s), session);
         logger.warn(logModules.WebServer, `Plugin disconnected for guild ${session.guildId}`);
         await this.routeLogged(session.guildId, {
             kind: "session-ended",
