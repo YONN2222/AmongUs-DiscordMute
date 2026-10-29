@@ -41,7 +41,8 @@ The documentation is a Docus site in `docs/`. To read it as a website, run `cd d
 - [Commands](docs/content/3.commands/1.slash-commands.md)
 - [Metrics](docs/content/4.monitoring/1.metrics.md) and [JSON logs](docs/content/4.monitoring/2.json-logs.md)
 - [Telemetry](docs/content/5.privacy/1.telemetry.md) and [update check](docs/content/5.privacy/2.update-check.md)
-- [FAQ](docs/content/6.faq/1.faq.md)
+- [Server setup](docs/content/6.server-setup/1.setup-panel.md) and [game features](docs/content/6.server-setup/2.game-features.md)
+- [FAQ](docs/content/7.faq/1.faq.md)
 
 ## 3. Linking Discord users to Among Us players
 
@@ -105,7 +106,7 @@ The bot needs the **Mute Members**, **Deafen Members** and **Manage Nicknames** 
 
 Update **both** the bot and the plugin: the player list, deaths and match results come from the new plugin version, and an older plugin keeps working with reduced features.
 
-Details for every setting are in [`docs/content/7.server-setup/`](docs/content/7.server-setup/).
+Details for every setting are in the [setup panel](docs/content/6.server-setup/1.setup-panel.md) and [game features](docs/content/6.server-setup/2.game-features.md) pages.
 
 ## 7. Telemetry
 
