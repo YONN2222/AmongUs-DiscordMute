@@ -1,0 +1,81 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+
+@font-face {
+  font-family: "Outfit";
+  src: url("/fonts/outfit-variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@theme {
+  --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+
+:root {
+  --bg: #0a0a0f;
+  --surface: #14141c;
+  --surface-2: #1c1c27;
+  --line: #22222e;
+  --text: #fafafa;
+  --muted: #a3a3a3;
+  --dim: #8b8b94;
+  --accent: #dc2f35;
+  --accent-hover: #c4262c;
+  --accent-text: #ff6b70;
+  --accent-soft: rgba(229, 72, 77, 0.14);
+  --indigo-text: #9295ff;
+  --radius-btn: 12px;
+  --radius-card: 24px;
+}
+
+:root.dark {
+  --ui-bg: var(--bg);
+  --ui-bg-muted: var(--surface);
+  --ui-bg-elevated: var(--surface);
+  --ui-bg-accented: var(--surface-2);
+  --ui-border: var(--line);
+  --ui-border-muted: var(--line);
+  --ui-border-accented: var(--line);
+  --ui-text: var(--text);
+  --ui-text-highlighted: var(--text);
+  --ui-text-muted: var(--muted);
+  --ui-text-dimmed: var(--dim);
+  --ui-primary: var(--accent);
+  --ui-radius: var(--radius-btn);
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  letter-spacing: -0.015em;
+}
+
+::selection { background: rgba(220, 47, 53, 0.35); }
+
+:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+.docs-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.docs-logo b { color: var(--indigo-text); font-weight: 800; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
