@@ -276,6 +276,37 @@ describe("createClusterRequestHandler", () => {
         await vi.waitFor(() => expect(logger.error).toHaveBeenCalled());
     });
 
+    describe("leave-guild", () => {
+        const leaveRequest = { kind: "leave-guild", guildId: "g", reason: "admin" };
+
+        it("leave-guild request is refused when not hosted", async () => {
+            expect(await handler()(leaveRequest)).toEqual({ ok: false, error: "not hosted" });
+        });
+
+        it("replies ok when the bot left the guild", async () => {
+            const lifecycle = { leave: vi.fn(async () => true) };
+
+            expect(await handler(undefined, { lifecycle })(leaveRequest)).toEqual({ ok: true });
+            expect(lifecycle.leave).toHaveBeenCalledWith("g", "admin");
+        });
+
+        it("replies not-in-guild when the bot was not in the guild", async () => {
+            const lifecycle = { leave: vi.fn(async () => false) };
+
+            expect(await handler(undefined, { lifecycle })(leaveRequest)).toEqual({ ok: false, error: "not-in-guild" });
+        });
+
+        it("rejects an unknown reason", async () => {
+            const lifecycle = { leave: vi.fn(async () => true) };
+
+            expect(await handler(undefined, { lifecycle })({ ...leaveRequest, reason: "whim" })).toEqual({
+                ok: false,
+                error: "invalid request",
+            });
+            expect(lifecycle.leave).not.toHaveBeenCalled();
+        });
+    });
+
     it("rejects malformed requests", async () => {
         expect(await handler()({ kind: "game-event", guildId: "g" })).toEqual({ ok: false, error: "invalid request" });
         expect(await handler()("nonsense")).toEqual({ ok: false, error: "invalid request" });

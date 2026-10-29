@@ -2,6 +2,7 @@ import type { LinkRepository } from "../Data/Repositories/LinkRepository";
 import type { GuildEventBus } from "../Events/GuildEvents";
 import { relinkFromRoster } from "../Game/AutoRelink";
 import type { NicknameSync } from "../Game/NicknameSync";
+import type { GuildLifecycle } from "../Hosted/GuildLifecycle";
 import { logger, logModules } from "../Logging/Logger";
 import type { MuteService } from "../Mute/MuteService";
 import { type ClusterRequest, parseClusterRequest, type RouterReply } from "../Routing/Messages";
@@ -22,6 +23,8 @@ export interface ClusterRequestHandlerDeps {
     settings: Pick<SettingsService, "get">;
     nicknames?: Pick<NicknameSync, "restoreSession">;
     onLinkConfirmed?: (link: ConfirmedLinkReply) => Promise<void>;
+    /** Set only in hosted mode. */
+    lifecycle?: Pick<GuildLifecycle, "leave">;
 }
 
 /** Runs ahead of the mute update so the same request already mutes by the renamed link; never blocks the mute. */
@@ -72,6 +75,14 @@ async function handleLinkConfirmed(deps: ClusterRequestHandlerDeps, link: Confir
     return updated ? { ok: true } : { ok: false, error: "could not update the link reply" };
 }
 
+async function handleLeaveGuild(
+    deps: ClusterRequestHandlerDeps,
+    req: Extract<ClusterRequest, { kind: "leave-guild" }>,
+): Promise<RouterReply> {
+    if (!deps.lifecycle) return { ok: false, error: "not hosted" };
+    return (await deps.lifecycle.leave(req.guildId, req.reason)) ? { ok: true } : { ok: false, error: "not-in-guild" };
+}
+
 /** Serves the requests the gateway routes to the cluster that owns a guild. */
 export function createClusterRequestHandler(deps: ClusterRequestHandlerDeps): (data: unknown) => Promise<RouterReply> {
     return async (data) => {
@@ -103,6 +114,8 @@ export function createClusterRequestHandler(deps: ClusterRequestHandlerDeps): (d
                 const { kind: _kind, ...link } = req;
                 return handleLinkConfirmed(deps, link);
             }
+            case "leave-guild":
+                return handleLeaveGuild(deps, req);
         }
     };
 }

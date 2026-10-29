@@ -69,7 +69,7 @@ async function onReady(
     const guildId = DISCORD_GUILD_ID;
     if (guildId && cluster.shardList.includes(ShardingUtil.getShardIDForGuild(guildId, cluster.totalShards))) {
         try {
-            await deployCommands({ guildId, rest: client.rest });
+            await deployCommands({ target: { guildId }, rest: client.rest });
         } catch (error) {
             logger.error(logModules.Command, "Failed to deploy commands during startup", error);
         }

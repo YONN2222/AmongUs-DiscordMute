@@ -10,6 +10,9 @@ import {
 /** Limit of the websocket close frame reason is 123 bytes; requests stay well below it. */
 const MAX_CLOSE_REASON_LENGTH = 64;
 
+export const GUILD_LEAVE_REASONS = ["guild-blocked", "owner-blocked", "admin"] as const;
+export type GuildLeaveReason = (typeof GUILD_LEAVE_REASONS)[number];
+
 export type ClusterRequest =
     | {
           kind: "game-event";
@@ -48,7 +51,8 @@ export type ClusterRequest =
           applicationId?: string;
           interactionToken?: string;
           locale?: "en" | "de";
-      };
+      }
+    | { kind: "leave-guild"; guildId: string; reason: GuildLeaveReason };
 
 export type GatewayRequest =
     | {
@@ -129,6 +133,7 @@ const clusterRequestSchema: z.ZodType<ClusterRequest> = z.discriminatedUnion("ki
         interactionToken: z.string().optional(),
         locale: z.enum(["en", "de"]).optional(),
     }),
+    z.object({ kind: z.literal("leave-guild"), guildId: z.string(), reason: z.enum(GUILD_LEAVE_REASONS) }),
 ]);
 
 const gatewayRequestSchema: z.ZodType<GatewayRequest> = z.discriminatedUnion("kind", [
