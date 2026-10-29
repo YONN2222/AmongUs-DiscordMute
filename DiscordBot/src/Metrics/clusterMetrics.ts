@@ -1,11 +1,19 @@
 import { type Client, RESTEvents } from "discord.js";
 import { Counter, Gauge, Histogram, type Registry } from "prom-client";
 import type { VoiceAdapter } from "../Mute/MuteService";
+import type { GuildSettings } from "../Settings/GuildSettings";
+import { TELEMETRY_FEATURES } from "../Telemetry/contract/schema";
+import { countFeatureGuilds } from "./featureUsage";
 import { MetricNames, MUTE_LATENCY_BUCKETS, type MuteAction } from "./metricNames";
 
 export interface ClusterClientStats {
     guilds: { cache: { size: number } };
     ws: { ping: number };
+}
+
+export interface FeatureSource {
+    guildIds(): string[];
+    settings(guildId: string): Promise<GuildSettings>;
 }
 
 export interface ClusterMetrics {
@@ -17,13 +25,16 @@ export interface ClusterMetrics {
     clusterGuilds: Gauge<"cluster">;
     clusterWsPing: Gauge<"cluster">;
     processResidentMemory: Gauge<"process">;
+    featureGuilds: Gauge<"feature">;
     attachClient(client: ClusterClientStats): void;
+    attachFeatureSource(source: FeatureSource): void;
 }
 
 export function createClusterMetrics(registry: Registry, clusterId: number): ClusterMetrics {
     const registers = [registry];
     const cluster = String(clusterId);
     let client: ClusterClientStats | undefined;
+    let featureSource: FeatureSource | undefined;
 
     return {
         mutes: new Counter<"action">({
@@ -84,8 +95,25 @@ export function createClusterMetrics(registry: Registry, clusterId: number): Clu
                 this.set({ process: `cluster-${clusterId}` }, process.memoryUsage().rss);
             },
         }),
+        featureGuilds: new Gauge<"feature">({
+            name: MetricNames.featureGuilds,
+            help: "Guilds served by this cluster that have a feature enabled",
+            labelNames: ["feature"],
+            registers,
+            async collect() {
+                if (!featureSource) return;
+                const guildIds = featureSource.guildIds();
+                const settings = await Promise.all(guildIds.map((guildId) => featureSource?.settings(guildId)));
+                const counts = countFeatureGuilds(settings.filter((s): s is GuildSettings => s !== undefined));
+                this.reset();
+                for (const feature of TELEMETRY_FEATURES) this.set({ feature }, counts[feature]);
+            },
+        }),
         attachClient(next) {
             client = next;
+        },
+        attachFeatureSource(next) {
+            featureSource = next;
         },
     };
 }

@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createDiscordClient } from "../../src/Cluster/createDiscordClient";
 import { createClusterMetrics, instrumentVoiceAdapter, registerDiscordMetrics } from "../../src/Metrics/clusterMetrics";
 import type { VoiceAdapter, VoiceMember } from "../../src/Mute/MuteService";
+import { DEFAULT_SETTINGS, type GuildSettings, mergeSettings } from "../../src/Settings/GuildSettings";
+import { TELEMETRY_FEATURES } from "../../src/Telemetry/contract/schema";
 import { createTestProbe } from "../helpers/probe";
 
 const MEMBERS: VoiceMember[] = [{ discordId: "1", serverMuted: false, serverDeafened: false, isBot: false }];
@@ -101,6 +103,43 @@ describe("instrumentVoiceAdapter", () => {
         expect(await voice.membersInChannel("g", "c")).toBe(MEMBERS);
         expect(await voice.findVoiceMember("g", "u")).toBeNull();
         expect(inner.calls).toEqual(["members:g:c"]);
+    });
+});
+
+describe("feature_guilds gauge", () => {
+    const GUILD_A = "111111111111111111";
+    const GUILD_B = "222222222222222222";
+    const saved: Record<string, GuildSettings> = {
+        [GUILD_A]: mergeSettings(DEFAULT_SETTINGS, { ghostChat: true, autoRelink: false }),
+    };
+
+    async function featureValues(guildIds: string[]) {
+        const registry = new Registry();
+        createClusterMetrics(registry, 0).attachFeatureSource({
+            guildIds: () => guildIds,
+            settings: async (guildId) => saved[guildId] ?? DEFAULT_SETTINGS,
+        });
+        const values = await metricValues(registry, "discordmute_feature_guilds");
+        return Object.fromEntries(values.map((v) => [v.labels.feature, v.value]));
+    }
+
+    it("counts enabled features per served guild and applies defaults to guilds without settings", async () => {
+        const counts = await featureValues([GUILD_A, GUILD_B]);
+
+        expect(counts).toMatchObject({ ghostChat: 1, autoRelink: 1, serverLog: 0, nicknameSync: 0 });
+        expect(Object.keys(counts).sort()).toEqual([...TELEMETRY_FEATURES].sort());
+    });
+
+    it("does not count a guild the cluster no longer serves", async () => {
+        const counts = await featureValues([GUILD_B]);
+
+        expect(counts).toMatchObject({ ghostChat: 0, autoRelink: 1 });
+    });
+
+    it("reports zero for every feature without guilds", async () => {
+        const counts = await featureValues([]);
+
+        expect(Object.values(counts).every((value) => value === 0)).toBe(true);
     });
 });
 

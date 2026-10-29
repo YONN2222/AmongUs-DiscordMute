@@ -111,6 +111,10 @@ export async function runCluster(): Promise<void> {
     registerDiscordMetrics(client, metrics);
     const events = new GuildEventBus();
     const settings = new SettingsService(db.settings, events);
+    metrics.attachFeatureSource({
+        guildIds: () => [...client.guilds.cache.keys()],
+        settings: (guildId) => settings.get(guildId),
+    });
     const guildLanguage = (guildId: string) => settings.get(guildId).then((s) => s.language);
     const messagePort = createDiscordMessagePort(client);
     const logWriter = new LogChannelWriter({ port: messagePort, settings });

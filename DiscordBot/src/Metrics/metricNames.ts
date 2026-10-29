@@ -15,6 +15,7 @@ export const MetricNames = {
     guilds: `${METRIC_PREFIX}guilds`,
     clusterGuilds: `${METRIC_PREFIX}cluster_guilds`,
     clusterWsPing: `${METRIC_PREFIX}cluster_ws_ping_seconds`,
+    featureGuilds: `${METRIC_PREFIX}feature_guilds`,
 } as const;
 
 export const PLUGIN_EVENT_TYPES = [

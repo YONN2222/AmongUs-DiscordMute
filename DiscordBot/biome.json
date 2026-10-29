@@ -39,6 +39,6 @@
     }
   },
   "files": {
-    "includes": ["src/**", "test/**", "vitest.config.mts", "!src/commands/generated.ts"]
+    "includes": ["src/**", "test/**", "vitest.config.mts", "!src/commands/generated.ts", "!src/Telemetry/contract"]
   }
 }
