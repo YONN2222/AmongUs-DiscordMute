@@ -49,6 +49,16 @@ describe.each(backends)("LinkingService (%s)", (backend) => {
             expect(await service.confirmLink(codes.phrase, "Crew")).toMatchObject({ locale: "de" });
         });
 
+        it("confirmLink stores a non-empty friend code and ignores an empty one", async () => {
+            const first = await service.createPendingLink(guildId, "u1");
+            await service.confirmLink(first.phrase, "Crew", "crew#1234");
+            expect(await db.links.get(guildId, "u1")).toMatchObject({ friendCode: "crew#1234" });
+
+            const second = await service.createPendingLink(guildId, "u2");
+            await service.confirmLink(second.phrase, "Blue", "");
+            expect(await db.links.get(guildId, "u2")).toMatchObject({ friendCode: null });
+        });
+
         it("confirmLink accepts the quick chat code", async () => {
             const codes = await service.createPendingLink(guildId, "u1");
             expect(await service.confirmLink(codes.quickChatCode, "Crew")).not.toBeNull();

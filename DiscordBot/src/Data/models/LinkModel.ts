@@ -5,6 +5,7 @@ export class LinkModel extends Model {
     declare discordId: string;
     declare accountName: string;
     declare linkedAt: string;
+    declare friendCode: string | null;
 }
 
 export function initLinkModel(sequelize: Sequelize): typeof LinkModel {
@@ -15,6 +16,7 @@ export function initLinkModel(sequelize: Sequelize): typeof LinkModel {
             discordId: { type: DataTypes.STRING, allowNull: false, primaryKey: true, field: "discord_id" },
             accountName: { type: DataTypes.STRING, allowNull: false, field: "account_name" },
             linkedAt: { type: DataTypes.STRING, allowNull: false, field: "linked_at" },
+            friendCode: { type: DataTypes.STRING, allowNull: true, field: "friend_code" },
         },
         { sequelize, tableName: "links", timestamps: false },
     );

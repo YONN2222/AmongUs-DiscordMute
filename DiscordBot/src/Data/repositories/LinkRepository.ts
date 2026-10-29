@@ -7,11 +7,16 @@ export interface LinkEntry {
     discordId: string;
     accountName: string;
     linkedAt: string;
+    friendCode: string | null;
 }
 
 export interface LinkRepository {
     get(guildId: string, discordId: string): Promise<LinkEntry | null>;
+    /** Keeps a friend code stored earlier. */
     upsert(guildId: string, discordId: string, accountName: string): Promise<void>;
+    setFriendCode(guildId: string, discordId: string, friendCode: string): Promise<void>;
+    findByFriendCode(guildId: string, friendCode: string): Promise<LinkEntry[]>;
+    rename(guildId: string, discordId: string, accountName: string): Promise<void>;
     remove(guildId: string, discordId: string): Promise<boolean>;
     listByGuild(guildId: string): Promise<LinkEntry[]>;
     countByGuild(guildId: string): Promise<number>;
@@ -26,6 +31,7 @@ function toEntry(row: LinkModel): LinkEntry {
         discordId: row.discordId,
         accountName: row.accountName,
         linkedAt: row.linkedAt,
+        friendCode: row.friendCode ?? null,
     };
 }
 
@@ -37,6 +43,16 @@ export function createLinkRepository(model: typeof LinkModel): LinkRepository {
         },
         async upsert(guildId, discordId, accountName) {
             await model.upsert({ guildId, discordId, accountName, linkedAt: new Date().toISOString() });
+        },
+        async setFriendCode(guildId, discordId, friendCode) {
+            await model.update({ friendCode }, { where: { guildId, discordId } });
+        },
+        async findByFriendCode(guildId, friendCode) {
+            const rows = await model.findAll({ where: { guildId, friendCode } });
+            return rows.map(toEntry);
+        },
+        async rename(guildId, discordId, accountName) {
+            await model.update({ accountName }, { where: { guildId, discordId } });
         },
         async remove(guildId, discordId) {
             return (await model.destroy({ where: { guildId, discordId } })) > 0;

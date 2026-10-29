@@ -127,11 +127,12 @@ export class LinkingService {
         await this.db.pendingLinks.attachInteraction(guildId, discordId, applicationId, interactionToken, locale);
     }
 
-    async confirmLink(code: string, accountName: string): Promise<ConfirmedLink | null> {
+    async confirmLink(code: string, accountName: string, friendCode?: string): Promise<ConfirmedLink | null> {
         const matched = await this.db.pendingLinks.consumeByCode(code, Date.now());
         if (!matched) return null;
 
         await this.db.links.upsert(matched.guildId, matched.discordId, accountName);
+        if (friendCode) await this.db.links.setFriendCode(matched.guildId, matched.discordId, friendCode);
         logger.info(
             logModules.Command,
             `Linked Discord ${matched.discordId} -> Among Us "${accountName}" in guild ${matched.guildId}`,

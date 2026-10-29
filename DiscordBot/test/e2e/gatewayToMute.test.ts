@@ -83,7 +83,14 @@ describe("gateway to mute", () => {
         const router = new InMemoryClusterRouter();
         router.register(
             GUILD,
-            createClusterRequestHandler({ mute, updateLinkReply: async () => true, isReady: () => true, events: bus }),
+            createClusterRequestHandler({
+                mute,
+                updateLinkReply: async () => true,
+                isReady: () => true,
+                events: bus,
+                links: db.links,
+                settings: { get: async () => DEFAULT_SETTINGS },
+            }),
         );
 
         gateway = new PluginGateway({

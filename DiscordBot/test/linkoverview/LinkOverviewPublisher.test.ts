@@ -54,6 +54,7 @@ function setup(initial: GuildSettings = settingsWith(CHANNEL), tracked?: Tracked
                     discordId: `${USER}${i}`,
                     accountName: `Player${i}`,
                     linkedAt: "2026-01-01T00:00:00.000Z",
+                    friendCode: null,
                 })),
         },
         pending: {

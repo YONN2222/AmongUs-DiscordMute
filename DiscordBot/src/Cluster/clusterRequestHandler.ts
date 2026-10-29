@@ -1,7 +1,10 @@
+import type { LinkRepository } from "../Data/repositories/LinkRepository";
 import type { GuildEventBus } from "../Events/GuildEvents";
+import { relinkFromRoster } from "../Game/autoRelink";
 import { logger, logModules } from "../Logging/logger";
 import type { MuteService } from "../Mute/MuteService";
 import { type ClusterRequest, parseClusterRequest, type RouterReply } from "../Routing/messages";
+import type { SettingsService } from "../Settings/SettingsService";
 
 export type ConfirmedLinkReply = Omit<Extract<ClusterRequest, { kind: "link-confirmed" }>, "kind">;
 
@@ -14,10 +17,24 @@ export interface ClusterRequestHandlerDeps {
     /** False until startup recovery ran, so recovery can never undo a mute applied before it. */
     isReady: () => boolean;
     events: Pick<GuildEventBus, "emit">;
+    links: LinkRepository;
+    settings: Pick<SettingsService, "get">;
     onLinkConfirmed?: (link: ConfirmedLinkReply) => Promise<void>;
 }
 
+/** Runs ahead of the mute update so the same request already mutes by the renamed link; never blocks the mute. */
+async function relinkSafely(deps: ClusterRequestHandlerDeps, req: GameEventRequest): Promise<void> {
+    if (!req.roster || req.roster.length === 0) return;
+    try {
+        if (!(await deps.settings.get(req.guildId)).autoRelink) return;
+        await relinkFromRoster(deps, req.guildId, req.roster);
+    } catch (error) {
+        logger.error(logModules.Bot, `Guild ${req.guildId}: relinking players by friend code failed`, error);
+    }
+}
+
 async function handleGameEvent(deps: ClusterRequestHandlerDeps, req: GameEventRequest): Promise<RouterReply> {
+    await relinkSafely(deps, req);
     const { channelIds, ...reply } = await deps.mute.handleGameEvent(req);
     const { kind: _kind, ...event } = req;
     const usedChannels = reply.ok && !reply.notice ? (channelIds ?? []) : [];

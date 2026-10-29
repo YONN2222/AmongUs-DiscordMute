@@ -83,6 +83,31 @@ describe.each(backends)("LinkRepository (%s)", (backend) => {
             expect(first.map((e) => e.accountName)).toEqual(["alice", "Bob", "Name00"]);
         });
 
+        it("stores a friend code that survives an upsert", async () => {
+            await db.links.upsert(g1, "u1", "Crew");
+            expect((await db.links.get(g1, "u1"))?.friendCode).toBeNull();
+            await db.links.setFriendCode(g1, "u1", "crew#1");
+            await db.links.upsert(g1, "u1", "Renamed");
+            expect(await db.links.get(g1, "u1")).toMatchObject({ accountName: "Renamed", friendCode: "crew#1" });
+        });
+
+        it("finds links by friend code within one guild", async () => {
+            await db.links.upsert(g1, "u1", "A");
+            await db.links.upsert(g1, "u2", "B");
+            await db.links.upsert(g2, "u3", "C");
+            await db.links.setFriendCode(g1, "u1", "x#1");
+            await db.links.setFriendCode(g2, "u3", "x#1");
+            expect((await db.links.findByFriendCode(g1, "x#1")).map((e) => e.discordId)).toEqual(["u1"]);
+            expect(await db.links.findByFriendCode(g1, "none#9")).toEqual([]);
+        });
+
+        it("renames a link and keeps its friend code", async () => {
+            await db.links.upsert(g1, "u1", "Red");
+            await db.links.setFriendCode(g1, "u1", "x#1");
+            await db.links.rename(g1, "u1", "Crimson");
+            expect(await db.links.get(g1, "u1")).toMatchObject({ accountName: "Crimson", friendCode: "x#1" });
+        });
+
         it("listByGuild is guild-scoped", async () => {
             await db.links.upsert(g1, "u1", "A");
             await db.links.upsert(g2, "u2", "B");

@@ -4,7 +4,7 @@ import { computeDesiredState } from "../../src/Mute/desiredState";
 import { DEFAULT_SETTINGS, type GuildSettings } from "../../src/Settings/GuildSettings";
 
 function link(discordId: string, accountName: string): LinkEntry {
-    return { guildId: "g1", discordId, accountName, linkedAt: "2026-01-01T00:00:00.000Z" };
+    return { guildId: "g1", discordId, accountName, linkedAt: "2026-01-01T00:00:00.000Z", friendCode: null };
 }
 
 const links = [link("u1", "Red"), link("u2", "Blue"), link("u3", "Green"), link("u4", "Lime")];

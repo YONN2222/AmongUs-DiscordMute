@@ -8,6 +8,7 @@ import { guildSettingsMigration } from "./migrations/0002-guild-settings";
 import { pendingLinkLocaleMigration } from "./migrations/0003-pending-link-locale";
 import { trackedMessagesMigration } from "./migrations/0004-tracked-messages";
 import { voiceLedgerMigration } from "./migrations/0005-voice-ledger";
+import { linkFriendCodeMigration } from "./migrations/0006-link-friend-code";
 import { initGuildSettingsModel } from "./models/GuildSettingsModel";
 import { initLinkModel } from "./models/LinkModel";
 import { initMuteLedgerModel } from "./models/MuteLedgerModel";
@@ -62,6 +63,7 @@ async function runMigrations(sequelize: Sequelize): Promise<void> {
             pendingLinkLocaleMigration,
             trackedMessagesMigration,
             voiceLedgerMigration,
+            linkFriendCodeMigration,
         ],
         context: sequelize.getQueryInterface(),
         storage: new SequelizeStorage({ sequelize, tableName: "schema_migrations" }),

@@ -133,6 +133,8 @@ export async function runCluster(): Promise<void> {
             updateOriginalLinkReply(client.rest, link, await resolveLinkReplyLocale(link, guildLanguage)),
         isReady: () => ready,
         events,
+        links: db.links,
+        settings,
     });
     cluster.on("request", (data, resolve) => {
         handleRequest(data).then(resolve, (error: unknown) => resolve(failure(error)));

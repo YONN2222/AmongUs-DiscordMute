@@ -1,31 +1,50 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type ClusterRequestHandlerDeps, createClusterRequestHandler } from "../../src/Cluster/clusterRequestHandler";
+import type { Database } from "../../src/Data/database";
+import type { LinkRepository } from "../../src/Data/repositories/LinkRepository";
 import { type GuildEvent, GuildEventBus } from "../../src/Events/GuildEvents";
 import { logger } from "../../src/Logging/logger";
 import type { RouterReply } from "../../src/Routing/messages";
+import { DEFAULT_SETTINGS } from "../../src/Settings/GuildSettings";
+import { createTestDatabase } from "../helpers/testDatabase";
 
 describe("createClusterRequestHandler", () => {
     const mute = {
-        handleGameEvent: vi.fn(async (): Promise<RouterReply & { channelIds?: string[] }> => ({ ok: true })),
+        handleGameEvent: vi.fn(
+            async (_req: { players: string[] }): Promise<RouterReply & { channelIds?: string[] }> => ({ ok: true }),
+        ),
         endSession: vi.fn(async () => {}),
     };
     let updateLinkReply: ReturnType<typeof vi.fn<ClusterRequestHandlerDeps["updateLinkReply"]>>;
     let events: { emit: ReturnType<typeof vi.fn<(e: GuildEvent) => void>> };
+    let db: Database;
+    let links: LinkRepository;
 
-    beforeEach(() => {
+    beforeEach(async () => {
+        db = await createTestDatabase();
+        links = db.links;
         vi.spyOn(logger, "warn").mockImplementation(() => {});
         vi.spyOn(logger, "error").mockImplementation(() => {});
         updateLinkReply = vi.fn<ClusterRequestHandlerDeps["updateLinkReply"]>(async () => true);
         events = { emit: vi.fn<(e: GuildEvent) => void>() };
     });
 
-    afterEach(() => {
+    afterEach(async () => {
         vi.clearAllMocks();
         vi.restoreAllMocks();
+        await db.close();
     });
 
     function handler(isReady = () => true, overrides: Partial<ClusterRequestHandlerDeps> = {}) {
-        return createClusterRequestHandler({ mute, updateLinkReply, isReady, events, ...overrides });
+        return createClusterRequestHandler({
+            mute,
+            updateLinkReply,
+            isReady,
+            events,
+            links,
+            settings: { get: async () => DEFAULT_SETTINGS },
+            ...overrides,
+        });
     }
 
     const gameEvent = {
@@ -151,6 +170,56 @@ describe("createClusterRequestHandler", () => {
             accountName: "Red",
         });
         expect(logger.error).toHaveBeenCalled();
+    });
+
+    describe("auto-relink", () => {
+        const crimson = { name: "Crimson", friendCode: "abc#1", dead: false, disconnected: false };
+        const gameStart = { ...gameEvent, players: ["Crimson"], roster: [crimson] };
+
+        beforeEach(async () => {
+            await links.upsert("g", "u1", "Red");
+            await links.setFriendCode("g", "u1", "abc#1");
+        });
+
+        it("renames the link before the mute update so the same event mutes the member", async () => {
+            const mutedIds: string[] = [];
+            mute.handleGameEvent.mockImplementationOnce(async (req: { players: string[] }) => {
+                for (const name of req.players) {
+                    mutedIds.push(...(await links.findByAccountName("g", name)).map((l) => l.discordId));
+                }
+                return { ok: true };
+            });
+
+            expect(await handler()(gameStart)).toEqual({ ok: true });
+
+            expect(mutedIds).toEqual(["u1"]);
+            expect(events.emit).toHaveBeenCalledWith(
+                expect.objectContaining({ type: "link-changed", change: "relinked", previousName: "Red" }),
+            );
+        });
+
+        it("writes nothing when autoRelink is off", async () => {
+            const writes = vi.spyOn(links, "rename");
+            const stores = vi.spyOn(links, "setFriendCode");
+
+            await handler(undefined, { settings: { get: async () => ({ ...DEFAULT_SETTINGS, autoRelink: false }) } })(
+                gameStart,
+            );
+
+            expect(writes).not.toHaveBeenCalled();
+            expect(stores).not.toHaveBeenCalled();
+            expect((await links.get("g", "u1"))?.accountName).toBe("Red");
+            expect(mute.handleGameEvent).toHaveBeenCalled();
+        });
+
+        it("still mutes when relinking fails", async () => {
+            vi.spyOn(links, "listByGuild").mockRejectedValueOnce(new Error("db down"));
+
+            expect(await handler()(gameStart)).toEqual({ ok: true });
+
+            expect(mute.handleGameEvent).toHaveBeenCalledWith(gameStart);
+            expect(logger.error).toHaveBeenCalled();
+        });
     });
 
     it("keeps the reply when a bus handler throws", async () => {

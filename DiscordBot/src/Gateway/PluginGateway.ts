@@ -320,7 +320,7 @@ export class PluginGateway {
     private async onLinkChat(conn: Connection, message: LinkChatMessage): Promise<void> {
         let confirmed: Awaited<ReturnType<LinkingService["confirmLink"]>>;
         try {
-            confirmed = await this.deps.linking.confirmLink(message.code, message.accountName);
+            confirmed = await this.deps.linking.confirmLink(message.code, message.accountName, message.friendCode);
         } catch (error) {
             logger.error(logModules.WebServer, `Could not confirm link code "${message.code}"`, error);
             this.send(conn, { type: "link-result", status: "not-found", accountName: message.accountName });

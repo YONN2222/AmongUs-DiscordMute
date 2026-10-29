@@ -92,6 +92,7 @@ describe("openDatabase (sqlite specifics)", () => {
             discordId: "u1",
             accountName: "Crew",
             linkedAt: "2026-01-01T00:00:00.000Z",
+            friendCode: null,
         });
     });
 
