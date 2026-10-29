@@ -29,7 +29,7 @@ export const FAQ: readonly FaqEntry[] = [
     id: 'permissions',
     question: 'What permissions does the bot need?',
     answer:
-      'Mute Members, so it can server-mute and unmute players, and access to the voice channel you play in. Add it to your server with the bot and applications.commands scopes so the slash commands show up.',
+      'Mute Members and Deafen Members, so it can server-mute, server-deafen (ghost chat) and unmute players, and Manage Nicknames if you use nickname sync. It must be able to see the voice channel you play in, and needs View Channel and Send Messages in the channel where you want the log or link overview. Add it to your server with the bot and applications.commands scopes so the slash commands show up.',
   },
   {
     id: 'telemetry',

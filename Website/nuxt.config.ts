@@ -1,5 +1,6 @@
 import { fileURLToPath } from 'node:url'
 import type { Nitro } from 'nitropack'
+import { SECURITY_HEADERS } from './server/security/csp'
 
 const workerEntry = fileURLToPath(new URL('./server/cloudflare-entry.ts', import.meta.url))
 
@@ -28,13 +29,7 @@ export default defineNuxtConfig({
   },
   routeRules: {
     '/**': {
-      headers: {
-        'X-Content-Type-Options': 'nosniff',
-        'Referrer-Policy': 'strict-origin-when-cross-origin',
-        'X-Frame-Options': 'DENY',
-        'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
-        'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
-      },
+      headers: { ...SECURITY_HEADERS },
     },
   },
   nitro: {
