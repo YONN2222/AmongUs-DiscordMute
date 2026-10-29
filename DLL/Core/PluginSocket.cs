@@ -26,7 +26,7 @@ internal static class PluginSocket
 
     private const string BlockedMessage = "This server or its host is blocked from the hosted DiscordMute bot.";
     private const string BotLeftMessage =
-        "The hosted DiscordMute bot left this Discord server. Add it again, run /setup for a new secret and restart the game.";
+        "The hosted DiscordMute bot left this Discord server. Add it again and restart the game. After 7 days the data is gone and you need a new secret from /setup.";
 
     /// <summary>Tells this game apart from other games of the same Discord server; one key per plugin load.</summary>
     internal static readonly string ConnectionKey = Guid.NewGuid().ToString("N");

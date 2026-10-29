@@ -37,6 +37,9 @@ internal sealed class BotLogListener : ILogListener
 
     private static bool ShouldForward(LogEventArgs e)
     {
+        if (DiscordMutePlugin.Cfg.IsHosted)
+            return false;
+
         var isOwnLog = ReferenceEquals(e.Source, DiscordMutePlugin.PluginLog);
         var isOwnWarningOrError = isOwnLog && (e.Level == LogLevel.Warning || e.Level == LogLevel.Error);
         var isBridgeFailure = isOwnLog && e.Data?.ToString()?.StartsWith("Failed to forward plugin log to bot:") == true;
