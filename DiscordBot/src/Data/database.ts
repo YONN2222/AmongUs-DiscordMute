@@ -10,6 +10,7 @@ import { trackedMessagesMigration } from "./migrations/0004-tracked-messages";
 import { voiceLedgerMigration } from "./migrations/0005-voice-ledger";
 import { linkFriendCodeMigration } from "./migrations/0006-link-friend-code";
 import { nicknameLedgerMigration } from "./migrations/0007-nickname-ledger";
+import { botMetaMigration } from "./migrations/0010-bot-meta";
 import { initGuildSettingsModel } from "./models/GuildSettingsModel";
 import { initLinkModel } from "./models/LinkModel";
 import { initMuteLedgerModel } from "./models/MuteLedgerModel";
@@ -21,6 +22,7 @@ import { createLinkRepository, type LinkRepository } from "./repositories/LinkRe
 import { createMuteLedgerRepository, type MuteLedgerRepository } from "./repositories/MuteLedgerRepository";
 import { createNicknameLedgerRepository, type NicknameLedgerRepository } from "./repositories/NicknameLedgerRepository";
 import { createPendingLinkRepository, type PendingLinkRepository } from "./repositories/PendingLinkRepository";
+import { createTelemetryRepository, type TelemetryRepository } from "./repositories/TelemetryRepository";
 import { createTrackedMessageRepository, type TrackedMessageRepository } from "./repositories/TrackedMessageRepository";
 
 export interface Database {
@@ -31,6 +33,7 @@ export interface Database {
     nicknameLedger: NicknameLedgerRepository;
     settings: GuildSettingsRepository;
     trackedMessages: TrackedMessageRepository;
+    telemetry: TelemetryRepository;
     close(): Promise<void>;
 }
 
@@ -69,6 +72,7 @@ async function runMigrations(sequelize: Sequelize): Promise<void> {
             voiceLedgerMigration,
             linkFriendCodeMigration,
             nicknameLedgerMigration,
+            botMetaMigration,
         ],
         context: sequelize.getQueryInterface(),
         storage: new SequelizeStorage({ sequelize, tableName: "schema_migrations" }),
@@ -109,6 +113,7 @@ export async function openDatabase(
         nicknameLedger: createNicknameLedgerRepository(nicknameLedgerModel),
         settings: createGuildSettingsRepository(guildSettingsModel),
         trackedMessages: createTrackedMessageRepository(trackedMessageModel),
+        telemetry: createTelemetryRepository(sequelize),
         close: () => sequelize.close(),
     };
 }
