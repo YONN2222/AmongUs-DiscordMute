@@ -112,21 +112,22 @@ export class NicknameSync {
 
     /** The guild removed the bot: forgets its games and keeps the ledger, which recover puts back later. */
     forgetGuild(guildId: string): void {
-        for (const sessionId of this.activeSessions.of(guildId)) {
-            this.reportedGames.delete(sessionId);
-            this.activeSessions.delete(guildId, sessionId);
-        }
+        this.forgetSessionsOf(guildId);
     }
 
     /** Forgets every game running in the guild and puts back every nickname on record there. */
     private restoreGuild(guildId: string): Promise<void> {
         return this.queue.run(guildId, async () => {
-            for (const sessionId of this.activeSessions.of(guildId)) {
-                this.reportedGames.delete(sessionId);
-                this.activeSessions.delete(guildId, sessionId);
-            }
+            this.forgetSessionsOf(guildId);
             for (const entry of await this.deps.ledger.listByGuild(guildId)) await this.restoreOne(entry);
         });
+    }
+
+    private forgetSessionsOf(guildId: string): void {
+        for (const sessionId of this.activeSessions.of(guildId)) {
+            this.reportedGames.delete(sessionId);
+            this.activeSessions.delete(guildId, sessionId);
+        }
     }
 
     private async applyNames(
