@@ -28,6 +28,10 @@ describe('FAQ', () => {
     expect(FAQ.find((entry) => entry.id === 'telemetry')?.answer).toContain('disableTelemetry: true')
   })
 
+  it('permissions answer names Manage Messages for the link overview', () => {
+    expect(FAQ.find((entry) => entry.id === 'permissions')?.answer).toContain('Manage Messages')
+  })
+
   it('no FAQ text contains characters from the Unicode arrows, dingbats or geometric shapes blocks', () => {
     expect(String.fromCodePoint(0x2192)).toMatch(SYMBOLS)
     for (const entry of FAQ) {
