@@ -2,12 +2,13 @@ import { DiscordAPIError, MessageFlags, type REST, Routes } from "discord.js";
 import { type Locale, t } from "../I18n/Index";
 import { logger, logModules } from "../Logging/Logger";
 import { ContainerBuilder } from "../Utils/ContainerBuilder";
+import { errorMessage } from "../Utils/ErrorMessage";
 import type { ConfirmedLinkReply } from "./ClusterRequestHandler";
 
 /** The webhook URL of a failed call carries the interaction token, so only status, code and message are logged. */
 function describeRestError(error: unknown): string {
     if (error instanceof DiscordAPIError) return `${error.status} ${error.code} ${error.message}`;
-    return error instanceof Error ? error.message : String(error);
+    return errorMessage(error);
 }
 
 /** The language of the user who ran /link self, else the server language, else english. */

@@ -17,6 +17,7 @@ import { readInstanceId } from "../Telemetry/ReadInstanceId";
 import { TelemetryBuilder } from "../Telemetry/TelemetryBuilder";
 import { TelemetryService, telemetryTarget } from "../Telemetry/TelemetryService";
 import { startUpdateChecks } from "../Updates/UpdateChecker";
+import { errorMessage } from "../Utils/ErrorMessage";
 import { BOT_VERSION } from "../Version";
 import { createGatewayRequestHandler } from "./GatewayRequestHandler";
 import { createHostedGateway, readHostedAdminTokenOrThrow, startHourlyCleanup } from "./HostedGateway";
@@ -123,7 +124,7 @@ async function createTelemetryService(
         (error) =>
             logger.warn(
                 logModules.Telemetry,
-                `Telemetry is off because the instance id could not be read: ${error instanceof Error ? error.message : String(error)}`,
+                `Telemetry is off because the instance id could not be read: ${errorMessage(error)}`,
             ),
     );
     if (!instanceId) return undefined;
@@ -262,7 +263,7 @@ export async function runGateway(
     try {
         mode = readStartupMode(config, deps.env);
     } catch (error) {
-        logger.error(logModules.Bot, error instanceof Error ? error.message : String(error));
+        logger.error(logModules.Bot, errorMessage(error));
         deps.exit(EXIT_CONFIG);
         return undefined;
     }

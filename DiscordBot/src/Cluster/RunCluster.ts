@@ -18,6 +18,7 @@ import { loginFailureExitCode } from "../Process/ProcessRole";
 import { GalacticGatewayLink } from "../Routing/ClusterRouter";
 import type { RouterReply } from "../Routing/Messages";
 import type { SettingsService } from "../Settings/SettingsService";
+import { errorMessage } from "../Utils/ErrorMessage";
 import { cachedGuildIds } from "./CachedGuildIds";
 import { createClusterRequestHandler } from "./ClusterRequestHandler";
 import { type ClusterServices, createClusterServices } from "./ClusterServices";
@@ -32,7 +33,7 @@ const LOGIN_RETRY_DELAY_MS = 5000;
 const IDLE_SWEEP_INTERVAL_MS = 60_000;
 
 function failure(error: unknown): RouterReply {
-    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    return { ok: false, error: errorMessage(error) };
 }
 
 function createCommandContext(

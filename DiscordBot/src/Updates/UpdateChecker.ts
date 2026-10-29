@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { logger, logModules } from "../Logging/Logger";
+import { errorMessage } from "../Utils/ErrorMessage";
 import { isNewer } from "./VersionCompare";
 
 export const RELEASES_LATEST_URL = "https://api.github.com/repos/YONN2222/AmongUs-DiscordMute/releases/latest";
@@ -49,7 +50,7 @@ export function startUpdateChecks(deps: UpdateCheckDeps): { stop(): void } {
             const latest = await fetchLatestRelease(deps.fetch, `DiscordMute-Bot/${deps.currentVersion}`);
             if (latest && isNewer(latest.version, deps.currentVersion)) deps.notify(latest);
         } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
+            const message = errorMessage(error);
             logger.debug(logModules.Updates, `Update check failed: ${message}`);
         }
     };

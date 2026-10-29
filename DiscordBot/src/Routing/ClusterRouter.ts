@@ -1,3 +1,4 @@
+import { errorMessage } from "../Utils/ErrorMessage";
 import { type ClusterRequest, type GatewayRequest, type RouterReply, toRouterReply } from "./Messages";
 
 const REQUEST_TIMEOUT_MS = 10000;
@@ -21,7 +22,7 @@ export interface GalacticClusterLike {
 function failure(error: unknown): RouterReply {
     return {
         ok: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage(error),
     };
 }
 

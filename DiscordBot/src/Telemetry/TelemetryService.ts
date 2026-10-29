@@ -1,5 +1,6 @@
 import { logger, logModules } from "../Logging/Logger";
 import type { ProcessSnapshot } from "../Metrics/MetricsCollector";
+import { errorMessage } from "../Utils/ErrorMessage";
 import { BOT_VERSION } from "../Version";
 import { HOSTED_AUTH_HEADER, RETRYABLE, TELEMETRY_PATH } from "./Contract/contract";
 import type { TelemetryMode, TelemetryPacket } from "./Contract/schema";
@@ -194,5 +195,3 @@ export class TelemetryService {
         }
     }
 }
-
-const errorMessage = (error: unknown): string => (error instanceof Error ? error.message : String(error));
