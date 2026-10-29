@@ -2,10 +2,12 @@
 
 Thanks for your interest in contributing to DiscordMute.
 
-DiscordMute is a small monorepo with two main parts:
+DiscordMute is a small monorepo with four parts:
 
 - `DLL` - the Among Us plugin written in C#
 - `DiscordBot` - the companion Discord bot written in TypeScript
+- `Website` - the project website and telemetry endpoint (Nuxt on Cloudflare Workers)
+- `docs` - the documentation site (Docus)
 
 ## Requirements
 
@@ -25,7 +27,9 @@ DiscordMute is a small monorepo with two main parts:
 
 ```text
 ├── DLL/         # C# Among Us plugin
-└── DiscordBot/  # TypeScript Discord bot
+├── DiscordBot/  # TypeScript Discord bot
+├── Website/     # Nuxt website and telemetry endpoint
+└── docs/        # Docus documentation site
 ```
 
 ## Local setup
@@ -69,7 +73,7 @@ cp config.example.json config.json
 
 Then fill in the required Discord bot values.
 
-The bot currently depends on a locally built `galactic.ts` (a `file:` dependency). `galactic.ts` must be checked out next to this repo and built before you run `bun install`. This is temporary until a release is available.
+`galactic.ts` comes from npm (version 2.1.7). `bun install` applies `patches/galactic.ts@2.1.7.patch` automatically, so there is nothing to check out or build.
 
 ### Build the bot executable
 
@@ -101,6 +105,16 @@ bun run typecheck
 
 Tests run with Vitest under Bun. Discord-facing tests use `probe.ts` instead of hand-written discord.js mocks.
 
+If you change the website, run these from the `Website` folder:
+
+```bash
+bun run test
+bun run typecheck
+bun run build
+```
+
+If you change the docs, run `bun run build` in the `docs` folder.
+
 ## Development notes
 
 ### C# plugin
@@ -108,7 +122,7 @@ Tests run with Vitest under Bun. Discord-facing tests use `probe.ts` instead of 
 - Keep compatibility with the supported Among Us / BepInEx environment.
 - Prefer graceful fallbacks when optional host mods such as TOHE or EHR are not installed.
 - Avoid silent exception handling. If something fails, log a useful warning or error.
-- The plugin is stateless and doesn't run its own HTTP server anymore — it connects out to the bot over a WebSocket (`DLL/Core/PluginSocket.cs`). Treat that connection (protocol v2, handshake with version check) as security-sensitive and keep secret validation intact.
+- The plugin is stateless and doesn't run its own HTTP server anymore — it connects out to the bot over a WebSocket (`DLL/Core/PluginSocket.cs`). Treat that connection (protocol v3, handshake with version check; it connects to your own bot or to the hosted gateway) as security-sensitive and keep secret validation intact.
 
 ### TypeScript bot
 
@@ -125,6 +139,7 @@ Please make sure that:
 - the bot tests pass
 - the bot passes linting
 - the bot passes type checking
+- the website tests, type check and build pass, and the docs build, if you touched them
 - no secrets or local config files are included
 - your change is focused and easy to review
 
