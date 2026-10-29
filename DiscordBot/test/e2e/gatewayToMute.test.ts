@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WebSocket } from "ws";
 import { createClusterRequestHandler } from "../../src/Cluster/clusterRequestHandler";
 import type { Database } from "../../src/Data/database";
+import { type GuildEvent, GuildEventBus } from "../../src/Events/GuildEvents";
 import { createGatewayHttpServer } from "../../src/Gateway/httpServer";
 import { PluginGateway } from "../../src/Gateway/PluginGateway";
 import { SelfHostSecretResolver } from "../../src/Gateway/SecretResolver";
@@ -47,6 +48,7 @@ describe("gateway to mute", () => {
     let gateway: PluginGateway;
     let voice: FakeVoice;
     let baseUrl: string;
+    let events: GuildEvent[];
     const sockets: WebSocket[] = [];
 
     beforeEach(async () => {
@@ -58,8 +60,14 @@ describe("gateway to mute", () => {
         await db.links.upsert(GUILD, "u-crew", "Blue");
         voice = new FakeVoice();
         voice.inChannel.add("u-host").add("u-crew");
+        events = [];
+        const bus = new GuildEventBus();
+        bus.on((e) => {
+            events.push(e);
+        });
 
         const mute = new MuteService({
+            events: bus,
             voice,
             links: db.links,
             ledger: db.muteLedger,
@@ -73,7 +81,7 @@ describe("gateway to mute", () => {
         const router = new InMemoryClusterRouter();
         router.register(
             GUILD,
-            createClusterRequestHandler({ mute, updateLinkReply: async () => true, isReady: () => true }),
+            createClusterRequestHandler({ mute, updateLinkReply: async () => true, isReady: () => true, events: bus }),
         );
 
         gateway = new PluginGateway({
@@ -133,6 +141,30 @@ describe("gateway to mute", () => {
         ws.close();
         await vi.waitFor(() => expect(voice.muted.size).toBe(0));
         expect(await db.muteLedger.listByGuild(GUILD)).toEqual([]);
+    });
+
+    it("keeps the alive player muted when a player dies during tasks", async () => {
+        const ws = await connectPlugin();
+        const send = (event: string, deadPlayers: string[]) =>
+            ws.send(
+                JSON.stringify({
+                    type: "game-event",
+                    event,
+                    hostAccountName: "Red",
+                    players: ["Red", "Blue"],
+                    deadPlayers,
+                }),
+            );
+        send("game-start", []);
+        send("player-died", ["Blue"]);
+
+        await vi.waitFor(() =>
+            expect(events).toContainEqual(
+                expect.objectContaining({ type: "game-event", event: "player-died", channelIds: [CHANNEL] }),
+            ),
+        );
+        expect([...voice.muted].sort()).toEqual(["u-crew", "u-host"]);
+        expect(ws.readyState).toBe(WebSocket.OPEN);
     });
 
     it("answers /health without the secret and 404 elsewhere", async () => {

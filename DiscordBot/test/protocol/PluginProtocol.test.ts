@@ -81,6 +81,65 @@ describe("parsePluginMessage", () => {
     });
 });
 
+describe("protocol v3 messages", () => {
+    const v2GameEvent = {
+        type: "game-event",
+        event: "meeting-end",
+        hostAccountName: "Host",
+        players: ["Host", "Crew"],
+        deadPlayers: [],
+    };
+    const roster = [
+        { name: "Host", friendCode: "host#1234", dead: false, disconnected: false },
+        { name: "Crew", dead: true, disconnected: false },
+    ];
+
+    it("still parses a v2 game-event without roster", () => {
+        expect(parsePluginMessage(json(v2GameEvent))).toEqual(v2GameEvent);
+    });
+
+    it("parses a v3 game-event with roster and lobby code", () => {
+        const msg = { ...v2GameEvent, roster, lobbyCode: "ABCDEF" };
+        expect(parsePluginMessage(json(msg))).toEqual(msg);
+    });
+
+    it("drops a lobby code that is not 4 to 8 upper-case letters but keeps the event", () => {
+        for (const lobbyCode of ["abc<", "ABCDEFGHI", 42]) {
+            const parsed = parsePluginMessage(json({ ...v2GameEvent, lobbyCode }));
+            expect(parsed).toMatchObject(v2GameEvent);
+            expect(parsed).toHaveProperty("lobbyCode", undefined);
+        }
+    });
+
+    it("parses player-died", () => {
+        const msg = { ...v2GameEvent, event: "player-died", deadPlayers: ["Crew"] };
+        expect(parsePluginMessage(json(msg))).toEqual(msg);
+    });
+
+    it("parses game-end and rejects more than 128 roster entries", () => {
+        const gameEnd = { type: "game-end", reason: "HumansByVote", winners: ["Host"], roster };
+        expect(parsePluginMessage(json(gameEnd))).toEqual(gameEnd);
+        const tooMany = Array.from({ length: 129 }, (_, i) => ({ name: `p${i}`, dead: false, disconnected: false }));
+        expect(parsePluginMessage(json({ ...gameEnd, roster: tooMany }))).toBeNull();
+    });
+
+    it("accepts an optional friend code on link-chat", () => {
+        const msg = { type: "link-chat", code: "abc", accountName: "Host", friendCode: "host#1234" };
+        expect(parsePluginMessage(json(msg))).toEqual(msg);
+        expect(parsePluginMessage(json({ ...msg, friendCode: "x".repeat(33) }))).toMatchObject({
+            code: "abc",
+            accountName: "Host",
+            friendCode: undefined,
+        });
+    });
+
+    it("drops an invalid roster friend code but keeps the roster entry", () => {
+        const bad = [{ name: "Host", friendCode: "x".repeat(33), dead: false, disconnected: false }];
+        const parsed = parsePluginMessage(json({ ...v2GameEvent, roster: bad }));
+        expect(parsed).toMatchObject({ roster: [{ name: "Host", dead: false, disconnected: false }] });
+    });
+});
+
 describe("serialize and constants", () => {
     it("serializes gateway messages", () => {
         expect(JSON.parse(serialize({ type: "welcome", protocolVersion: 2 }))).toEqual({
@@ -98,7 +157,7 @@ describe("serialize and constants", () => {
     });
 
     it("exposes versions and close codes", () => {
-        expect(PROTOCOL_VERSION).toBe(2);
+        expect(PROTOCOL_VERSION).toBe(3);
         expect(MIN_PROTOCOL_VERSION).toBe(2);
         expect([
             CLOSE_HELLO_TIMEOUT,

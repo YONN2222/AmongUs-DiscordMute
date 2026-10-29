@@ -1,7 +1,9 @@
 import type { LinkRepository } from "../Data/repositories/LinkRepository";
 import type { MuteLedgerRepository } from "../Data/repositories/MuteLedgerRepository";
+import type { GuildEventBus } from "../Events/GuildEvents";
 import { logger, logModules } from "../Logging/logger";
 import type { ClusterRequest, RouterReply } from "../Routing/messages";
+import { GuildQueue } from "../Util/GuildQueue";
 import { computeDesiredState, type DesiredState } from "./desiredState";
 import type { VoiceTarget } from "./VoiceTarget";
 
@@ -22,17 +24,26 @@ export interface MuteServiceDeps {
     links: LinkRepository;
     ledger: MuteLedgerRepository;
     resolveTarget: (guildId: string, hostAccountName: string) => Promise<VoiceTarget>;
+    events?: Pick<GuildEventBus, "emit">;
 }
 
 export type GameEventRequest = Extract<ClusterRequest, { kind: "game-event" }>;
 
+export type GameEventReply = RouterReply & { channelIds?: string[] };
+
+const DISCORD_MISSING_PERMISSIONS = 50013;
+
+function isMissingPermission(err: unknown): boolean {
+    return typeof err === "object" && err !== null && "code" in err && err.code === DISCORD_MISSING_PERMISSIONS;
+}
+
 export class MuteService {
-    private readonly queues = new Map<string, Promise<void>>();
+    private readonly queue = new GuildQueue();
     private readonly activeSessions = new Map<string, string>();
 
     constructor(private readonly deps: MuteServiceDeps) {}
 
-    handleGameEvent(req: GameEventRequest): Promise<RouterReply> {
+    handleGameEvent(req: GameEventRequest): Promise<GameEventReply> {
         return this.enqueue(req.guildId, async () => {
             try {
                 return await this.applyGameEvent(req);
@@ -84,20 +95,10 @@ export class MuteService {
     }
 
     private enqueue<T>(guildId: string, task: () => Promise<T>): Promise<T> {
-        const previous = this.queues.get(guildId) ?? Promise.resolve();
-        const run = previous.then(task);
-        const tail = run.then(
-            () => {},
-            () => {},
-        );
-        this.queues.set(guildId, tail);
-        void tail.then(() => {
-            if (this.queues.get(guildId) === tail) this.queues.delete(guildId);
-        });
-        return run;
+        return this.queue.run(guildId, task);
     }
 
-    private async applyGameEvent(req: GameEventRequest): Promise<RouterReply> {
+    private async applyGameEvent(req: GameEventRequest): Promise<GameEventReply> {
         if (req.event === "lobby") {
             this.activeSessions.delete(req.guildId);
             await this.releaseGuild(req.guildId);
@@ -121,7 +122,7 @@ export class MuteService {
             );
         }
         await this.applyState(req.guildId, target.channelIds, state);
-        return { ok: true };
+        return { ok: true, channelIds: target.channelIds };
     }
 
     private async applyState(guildId: string, channelIds: string[], state: DesiredState): Promise<void> {
@@ -196,6 +197,9 @@ export class MuteService {
             await action();
         } catch (err) {
             logger.error(logModules.Mute, `Guild ${guildId}, member ${discordId}: voice update failed`, err);
+            if (isMissingPermission(err)) {
+                this.deps.events?.emit({ type: "voice-error", guildId, code: "missing-permission", discordId });
+            }
         }
     }
 }

@@ -126,7 +126,7 @@ describe("DiscordVoiceAdapter", () => {
     });
 
     it("server-mutes through PATCH /guilds/{id}/members/{id}", async () => {
-        expect(await mute.handleGameEvent(gameStart(["Red", "Blue"]))).toEqual({ ok: true });
+        expect(await mute.handleGameEvent(gameStart(["Red", "Blue"]))).toEqual({ ok: true, channelIds: [VOICE] });
 
         expect(memberPatches()).toHaveLength(1);
         expect(memberPatches()[0].url).toContain(`/guilds/${GUILD}/members/${HOST}`);
@@ -136,7 +136,7 @@ describe("DiscordVoiceAdapter", () => {
     it("logs a 403 from Discord instead of throwing", async () => {
         probe.respond("PATCH", MEMBER_ROUTE, () => restError(403, { code: 50013, message: "Missing Permissions" }));
 
-        expect(await mute.handleGameEvent(gameStart(["Red"]))).toEqual({ ok: true });
+        expect(await mute.handleGameEvent(gameStart(["Red"]))).toEqual({ ok: true, channelIds: [VOICE] });
 
         expect(memberPatches()[0].status).toBe(403);
         expect(logger.error).toHaveBeenCalledWith(

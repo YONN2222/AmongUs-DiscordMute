@@ -8,7 +8,7 @@ import { SelfHostSecretResolver } from "../../src/Gateway/SecretResolver";
 import { logger } from "../../src/Logging/logger";
 import { MIN_PROTOCOL_VERSION, PROTOCOL_VERSION } from "../../src/Protocol/PluginProtocol";
 import { InMemoryClusterRouter } from "../../src/Routing/ClusterRouter";
-import type { ClusterRequest } from "../../src/Routing/messages";
+import type { ClusterRequest, RouterReply } from "../../src/Routing/messages";
 import { LinkingService } from "../../src/Utils/LinkingService";
 import { createTestDatabase } from "../helpers/testDatabase";
 
@@ -188,6 +188,70 @@ describe("PluginGateway", () => {
             players: ["Host", "Crew"],
             deadPlayers: [],
         });
+    });
+
+    it("accepts a protocol 2 plugin and tells the cluster which protocol it speaks", async () => {
+        const ws = await connect();
+        const welcome = nextMessage(ws);
+        ws.send(hello({ protocolVersion: 2, pluginVersion: "3.0.0" }));
+        expect(await welcome).toEqual({ type: "welcome", protocolVersion: 3 });
+        expect(gateway.isConnected(GUILD)).toBe(true);
+
+        await vi.waitFor(() => expect(sentOfKind("session-started")).toHaveLength(1));
+        expect(sentOfKind("session-started")[0]).toEqual({
+            kind: "session-started",
+            guildId: GUILD,
+            sessionId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+            pluginVersion: "3.0.0",
+            gameVersion: "2026.9.1",
+            protocolVersion: 2,
+        });
+    });
+
+    it("stays active when session-started is not answered", async () => {
+        await restart({ routeTimeoutMs: 50 });
+        router.register(GUILD, (req) =>
+            req.kind === "session-started" ? new Promise<RouterReply>(() => {}) : Promise.resolve({ ok: true }),
+        );
+        const ws = await authenticate();
+        ws.send(gameEvent());
+        await vi.waitFor(() => expect(sentOfKind("game-event")).toHaveLength(1));
+        await vi.waitFor(() =>
+            expect(logger.warn).toHaveBeenCalledWith(expect.anything(), expect.stringContaining("session-started")),
+        );
+        expect(gateway.isConnected(GUILD)).toBe(true);
+    });
+
+    it("forwards roster and lobby code of a v3 game-event", async () => {
+        const ws = await authenticate();
+        const roster = [{ name: "Host", friendCode: "host#1", dead: false, disconnected: false }];
+        ws.send(JSON.stringify({ ...JSON.parse(gameEvent()), roster, lobbyCode: "ABCDEF" }));
+        await vi.waitFor(() => expect(sentOfKind("game-event")).toHaveLength(1));
+        expect(sentOfKind("game-event")[0]).toMatchObject({ roster, lobbyCode: "ABCDEF" });
+    });
+
+    it("routes game-end as game-ended in the same session as the game events", async () => {
+        const ws = await authenticate();
+        const roster = [{ name: "Crew", dead: true, disconnected: false }];
+        ws.send(gameEvent());
+        ws.send(JSON.stringify({ type: "game-end", reason: "ImpostorByKill", winners: ["Host"], roster }));
+        await vi.waitFor(() => expect(sentOfKind("game-ended")).toHaveLength(1));
+        expect(sentOfKind("game-ended")[0]).toEqual({
+            kind: "game-ended",
+            guildId: GUILD,
+            sessionId: sentOfKind("game-event")[0]?.sessionId,
+            reason: "ImpostorByKill",
+            winners: ["Host"],
+            roster,
+        });
+    });
+
+    it("passes the friend code of link-chat on to link-confirmed", async () => {
+        const codes = await linking.createPendingLink(GUILD, "user-1");
+        const ws = await authenticate();
+        ws.send(JSON.stringify({ type: "link-chat", code: codes.phrase, accountName: "Crew", friendCode: "crew#42" }));
+        await vi.waitFor(() => expect(sentOfKind("link-confirmed")).toHaveLength(1));
+        expect(sentOfKind("link-confirmed")[0]).toMatchObject({ discordId: "user-1", friendCode: "crew#42" });
     });
 
     it("forwards router notice to plugin", async () => {
@@ -521,12 +585,11 @@ describe("PluginGateway", () => {
             ws.send(gameEvent("first"));
             ws.send(gameEvent("second"));
 
-            await vi.waitFor(() => expect(router.sent).toHaveLength(3));
-            expect(router.sent.map(({ req }) => (req.kind === "game-event" ? req.hostAccountName : req.kind))).toEqual([
-                "link-confirmed",
-                "first",
-                "second",
-            ]);
+            const fromPlugin = () => router.sent.filter(({ req }) => req.kind !== "session-started");
+            await vi.waitFor(() => expect(fromPlugin()).toHaveLength(3));
+            expect(fromPlugin().map(({ req }) => (req.kind === "game-event" ? req.hostAccountName : req.kind))).toEqual(
+                ["link-confirmed", "first", "second"],
+            );
         });
     });
 

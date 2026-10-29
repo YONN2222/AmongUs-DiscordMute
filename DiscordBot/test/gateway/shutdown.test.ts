@@ -34,6 +34,7 @@ describe("shutdownGateway", () => {
         const order: string[] = [];
         const router = new InMemoryClusterRouter();
         router.register(GUILD, async (req) => {
+            if (req.kind === "session-started") return { ok: true };
             await new Promise((resolve) => setTimeout(resolve, 20));
             order.push(`cluster applied ${req.kind}`);
             return { ok: true };

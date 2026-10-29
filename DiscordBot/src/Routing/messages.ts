@@ -1,5 +1,11 @@
 import { z } from "zod";
-import { GAME_EVENT_NAMES, type GameEventName, type GatewayNotice, NOTICE_CODES } from "../Protocol/PluginProtocol";
+import {
+    GAME_EVENT_NAMES,
+    type GameEventName,
+    type GatewayNotice,
+    NOTICE_CODES,
+    type RosterEntry,
+} from "../Protocol/PluginProtocol";
 
 export type ClusterRequest =
     | {
@@ -10,13 +16,32 @@ export type ClusterRequest =
           event: GameEventName;
           players: string[];
           deadPlayers: string[];
+          roster?: RosterEntry[];
+          lobbyCode?: string;
+      }
+    | {
+          kind: "session-started";
+          guildId: string;
+          sessionId: string;
+          pluginVersion: string;
+          gameVersion: string;
+          protocolVersion: number;
       }
     | { kind: "session-ended"; guildId: string; sessionId: string }
+    | {
+          kind: "game-ended";
+          guildId: string;
+          sessionId: string;
+          reason: string;
+          winners: string[];
+          roster: RosterEntry[];
+      }
     | {
           kind: "link-confirmed";
           guildId: string;
           discordId: string;
           accountName: string;
+          friendCode?: string;
           applicationId?: string;
           interactionToken?: string;
           locale?: "en" | "de";
@@ -52,6 +77,15 @@ export function toRouterReply(value: unknown): RouterReply {
     return result.success ? result.data : { ok: false, error: "invalid reply" };
 }
 
+const rosterSchema = z.array(
+    z.object({
+        name: z.string(),
+        friendCode: z.string().optional(),
+        dead: z.boolean(),
+        disconnected: z.boolean(),
+    }),
+);
+
 const clusterRequestSchema: z.ZodType<ClusterRequest> = z.discriminatedUnion("kind", [
     z.object({
         kind: z.literal("game-event"),
@@ -61,13 +95,32 @@ const clusterRequestSchema: z.ZodType<ClusterRequest> = z.discriminatedUnion("ki
         event: z.enum(GAME_EVENT_NAMES),
         players: z.array(z.string()),
         deadPlayers: z.array(z.string()),
+        roster: rosterSchema.optional(),
+        lobbyCode: z.string().optional(),
+    }),
+    z.object({
+        kind: z.literal("session-started"),
+        guildId: z.string(),
+        sessionId: z.string(),
+        pluginVersion: z.string(),
+        gameVersion: z.string(),
+        protocolVersion: z.number().int(),
     }),
     z.object({ kind: z.literal("session-ended"), guildId: z.string(), sessionId: z.string() }),
+    z.object({
+        kind: z.literal("game-ended"),
+        guildId: z.string(),
+        sessionId: z.string(),
+        reason: z.string(),
+        winners: z.array(z.string()),
+        roster: rosterSchema,
+    }),
     z.object({
         kind: z.literal("link-confirmed"),
         guildId: z.string(),
         discordId: z.string(),
         accountName: z.string(),
+        friendCode: z.string().optional(),
         applicationId: z.string().optional(),
         interactionToken: z.string().optional(),
         locale: z.enum(["en", "de"]).optional(),

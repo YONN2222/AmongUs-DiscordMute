@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Database } from "../../src/Data/database";
+import type { GuildEvent } from "../../src/Events/GuildEvents";
 import { logger } from "../../src/Logging/logger";
 import { MuteService, type VoiceAdapter, type VoiceMember } from "../../src/Mute/MuteService";
 import type { VoiceTarget } from "../../src/Mute/VoiceTarget";
@@ -124,7 +125,7 @@ describe("MuteService", () => {
         voice.channels.set("c2", ["u3"]);
         const reply = await createService().handleGameEvent(gameEvent("game-start", ["Red", "Blue", "Green"]));
 
-        expect(reply).toEqual({ ok: true });
+        expect(reply).toEqual({ ok: true, channelIds: ["c1"] });
         expect([...voice.muted].sort()).toEqual(["u1", "u2"]);
         expect(await ledgerIds()).toEqual(["u1", "u2"]);
     });
@@ -160,6 +161,27 @@ describe("MuteService", () => {
 
         expect(reply).toEqual({ ok: true, notice: target.notice });
         expect(voice.calls).toEqual([]);
+        expect(await ledgerIds()).toEqual([]);
+    });
+
+    it("reports a missing voice permission on the event bus", async () => {
+        voice.channels.set("c1", ["u1", "u2"]);
+        voice.beforeSetMute = async (discordId) => {
+            if (discordId === "u1") throw Object.assign(new Error("Missing Permissions"), { code: 50013 });
+            if (discordId === "u2") throw new Error("Unknown Member");
+        };
+        const emitted: GuildEvent[] = [];
+        const service = new MuteService({
+            voice,
+            links: db.links,
+            ledger: db.muteLedger,
+            resolveTarget: async () => target,
+            events: { emit: (e) => emitted.push(e) },
+        });
+
+        await service.handleGameEvent(gameEvent("game-start", ["Red", "Blue"]));
+
+        expect(emitted).toEqual([{ type: "voice-error", guildId: GUILD, code: "missing-permission", discordId: "u1" }]);
         expect(await ledgerIds()).toEqual([]);
     });
 
@@ -240,7 +262,7 @@ describe("MuteService", () => {
 
         const reply = await service.handleGameEvent(gameEvent("game-start", ["Red", "Blue", "Green"]));
 
-        expect(reply).toEqual({ ok: true });
+        expect(reply).toEqual({ ok: true, channelIds: ["c1"] });
         expect([...voice.muted].sort()).toEqual(["u1", "u3"]);
         expect(await ledgerIds()).toEqual(["u1", "u3"]);
         expect(logger.error).toHaveBeenCalledWith(
@@ -373,7 +395,7 @@ describe("MuteService", () => {
 
         const reply = await createService().handleGameEvent(gameEvent("game-start", ["Red"]));
 
-        expect(reply).toEqual({ ok: true });
+        expect(reply).toEqual({ ok: true, channelIds: ["bad", "c1"] });
         expect([...voice.muted]).toEqual(["u1"]);
         expect(logger.error).toHaveBeenCalledWith(expect.anything(), expect.stringContaining("bad"), expect.any(Error));
     });

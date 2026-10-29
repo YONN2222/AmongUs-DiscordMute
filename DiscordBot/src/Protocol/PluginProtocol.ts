@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 export const MIN_PROTOCOL_VERSION = 2;
 
 export const CLOSE_HELLO_TIMEOUT = 4000;
@@ -9,11 +9,23 @@ export const CLOSE_PROTOCOL_TOO_OLD = 4002;
 export const CLOSE_INVALID_MESSAGE = 4003;
 export const CLOSE_REPLACED = 4004;
 
-export const GAME_EVENT_NAMES = ["lobby", "game-start", "meeting-start", "meeting-end"] as const;
+export const GAME_EVENT_NAMES = ["lobby", "game-start", "meeting-start", "meeting-end", "player-died"] as const;
 export type GameEventName = (typeof GAME_EVENT_NAMES)[number];
 
 const name = z.string().max(64);
 const nameList = z.array(name).max(128);
+// A malformed optional value is dropped instead of failing the whole message and closing the socket.
+const friendCode = z.string().max(32).optional().catch(undefined);
+
+const rosterEntrySchema = z.object({
+    name,
+    friendCode,
+    dead: z.boolean(),
+    disconnected: z.boolean(),
+});
+const roster = z.array(rosterEntrySchema).max(128);
+
+export type RosterEntry = z.infer<typeof rosterEntrySchema>;
 
 const helloSchema = z.object({
     type: z.literal("hello"),
@@ -29,12 +41,27 @@ const gameEventSchema = z.object({
     hostAccountName: name,
     players: nameList,
     deadPlayers: nameList,
+    roster: roster.optional(),
+    lobbyCode: z
+        .string()
+        .max(8)
+        .regex(/^[A-Z]{4,8}$/)
+        .optional()
+        .catch(undefined),
+});
+
+const gameEndSchema = z.object({
+    type: z.literal("game-end"),
+    reason: name,
+    winners: nameList,
+    roster,
 });
 
 const linkChatSchema = z.object({
     type: z.literal("link-chat"),
     code: name,
     accountName: name,
+    friendCode,
 });
 
 const pluginLogSchema = z.object({
@@ -47,6 +74,7 @@ const pluginLogSchema = z.object({
 const pluginMessageSchema = z.discriminatedUnion("type", [
     helloSchema,
     gameEventSchema,
+    gameEndSchema,
     linkChatSchema,
     pluginLogSchema,
 ]);

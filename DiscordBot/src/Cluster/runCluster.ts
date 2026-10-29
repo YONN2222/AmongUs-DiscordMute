@@ -4,6 +4,7 @@ import type { CommandContext } from "../commands/Command";
 import { config, DISCORD_GUILD_ID } from "../config";
 import { databaseOptionsFrom, openDatabase } from "../Data/database";
 import { deployCommands } from "../deploy-commands";
+import { GuildEventBus } from "../Events/GuildEvents";
 import { SHUTDOWN_SIGNALS } from "../Gateway/shutdown";
 import { logger, logModules } from "../Logging/logger";
 import { MuteService } from "../Mute/MuteService";
@@ -74,10 +75,12 @@ export async function runCluster(): Promise<void> {
     cluster.client = client;
 
     const db = await openDatabase(databaseOptionsFrom(config), { migrate: false });
-    const settings = new SettingsService(db.settings);
+    const events = new GuildEventBus();
+    const settings = new SettingsService(db.settings, events);
     const guildLanguage = (guildId: string) => settings.get(guildId).then((s) => s.language);
     const voice = new DiscordVoiceAdapter(client);
     const mute = new MuteService({
+        events,
         voice,
         links: db.links,
         ledger: db.muteLedger,
@@ -95,6 +98,7 @@ export async function runCluster(): Promise<void> {
         updateLinkReply: async (link) =>
             updateOriginalLinkReply(client.rest, link, await resolveLinkReplyLocale(link, guildLanguage)),
         isReady: () => ready,
+        events,
     });
     cluster.on("request", (data, resolve) => {
         handleRequest(data).then(resolve, (error: unknown) => resolve(failure(error)));

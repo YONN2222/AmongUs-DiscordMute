@@ -34,6 +34,7 @@ const OUTDATED_REASON = "Plugin outdated, please update DiscordMute";
 const CLUSTER_UNAVAILABLE_MESSAGE = "The Discord bot could not handle this event, please try again shortly";
 
 type GameEventMessage = Extract<PluginMessage, { type: "game-event" }>;
+type GameEndMessage = Extract<PluginMessage, { type: "game-end" }>;
 type LinkChatMessage = Extract<PluginMessage, { type: "link-chat" }>;
 type PluginLogMessage = Extract<PluginMessage, { type: "plugin-log" }>;
 
@@ -229,10 +230,11 @@ export class PluginGateway {
             return;
         }
 
-        this.activate(conn, resolved.guildId, hello.pluginVersion, hello.gameVersion);
+        this.activate(conn, resolved.guildId, hello);
     }
 
-    private activate(conn: Connection, guildId: string, pluginVersion: string, gameVersion: string): void {
+    private activate(conn: Connection, guildId: string, hello: Extract<PluginMessage, { type: "hello" }>): void {
+        const { pluginVersion, gameVersion, protocolVersion } = hello;
         const previous = this.sessions.get(guildId);
         const sessionId = previous?.session?.sessionId;
         if (previous) {
@@ -242,7 +244,7 @@ export class PluginGateway {
         }
 
         clearTimeout(conn.helloTimer);
-        conn.session = createGameSession(guildId, pluginVersion, gameVersion, sessionId);
+        conn.session = createGameSession(guildId, pluginVersion, gameVersion, protocolVersion, sessionId);
         conn.state = "active";
         this.sessions.set(guildId, conn);
         this.startHeartbeat(conn);
@@ -251,6 +253,15 @@ export class PluginGateway {
             logModules.WebServer,
             `Plugin ${pluginVersion} (game ${gameVersion}) connected for guild ${guildId}${previous ? ", replacing the previous connection" : ""}`,
         );
+        // Not awaited, so a slow cluster never holds back the messages queued behind hello.
+        void this.routeLogged(conn.session.guildId, {
+            kind: "session-started",
+            guildId,
+            sessionId: conn.session.sessionId,
+            pluginVersion,
+            gameVersion,
+            protocolVersion,
+        });
     }
 
     private async dispatch(conn: Connection, message: PluginMessage): Promise<void> {
@@ -259,6 +270,9 @@ export class PluginGateway {
         switch (message.type) {
             case "game-event":
                 await this.onGameEvent(conn, session, message);
+                return;
+            case "game-end":
+                await this.onGameEnd(session, message);
                 return;
             case "link-chat":
                 await this.onLinkChat(conn, message);
@@ -281,6 +295,8 @@ export class PluginGateway {
             event: message.event,
             players: message.players,
             deadPlayers: message.deadPlayers,
+            ...(message.roster ? { roster: message.roster } : {}),
+            ...(message.lobbyCode ? { lobbyCode: message.lobbyCode } : {}),
         });
         if (!reply.ok) {
             logger.warn(logModules.WebServer, `Game event for guild ${session.guildId} failed: ${reply.error}`);
@@ -288,6 +304,17 @@ export class PluginGateway {
         } else if (reply.notice) {
             this.send(conn, { type: "notice", ...reply.notice });
         }
+    }
+
+    private async onGameEnd(session: GameSession, message: GameEndMessage): Promise<void> {
+        await this.routeLogged(session.guildId, {
+            kind: "game-ended",
+            guildId: session.guildId,
+            sessionId: session.sessionId,
+            reason: message.reason,
+            winners: message.winners,
+            roster: message.roster,
+        });
     }
 
     private async onLinkChat(conn: Connection, message: LinkChatMessage): Promise<void> {
@@ -308,7 +335,11 @@ export class PluginGateway {
             logger.warn(logModules.WebServer, `No pending link found for code "${message.code}"`);
             return;
         }
-        const reply = await this.route(confirmed.guildId, { kind: "link-confirmed", ...confirmed });
+        const reply = await this.route(confirmed.guildId, {
+            kind: "link-confirmed",
+            ...confirmed,
+            ...(message.friendCode ? { friendCode: message.friendCode } : {}),
+        });
         if (!reply.ok) {
             logger.warn(
                 logModules.WebServer,
@@ -351,14 +382,11 @@ export class PluginGateway {
 
         this.sessions.delete(session.guildId);
         logger.warn(logModules.WebServer, `Plugin disconnected for guild ${session.guildId}`);
-        const reply = await this.route(session.guildId, {
+        await this.routeLogged(session.guildId, {
             kind: "session-ended",
             guildId: session.guildId,
             sessionId: session.sessionId,
         });
-        if (!reply.ok) {
-            logger.warn(logModules.WebServer, `session-ended for guild ${session.guildId} failed: ${reply.error}`);
-        }
     }
 
     private startHeartbeat(conn: Connection): void {
@@ -387,6 +415,11 @@ export class PluginGateway {
         } finally {
             clearTimeout(timer);
         }
+    }
+
+    private async routeLogged(guildId: string, req: ClusterRequest): Promise<void> {
+        const reply = await this.route(guildId, req);
+        if (!reply.ok) logger.warn(logModules.WebServer, `${req.kind} for guild ${guildId} failed: ${reply.error}`);
     }
 
     private send(conn: Connection, message: GatewayMessage): void {
