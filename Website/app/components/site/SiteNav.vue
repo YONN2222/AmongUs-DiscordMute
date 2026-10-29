@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { NavigationMenuItem } from '@nuxt/ui'
-import { DOWNLOAD_URL, GITHUB_URL } from '#shared/site'
+import { DOCS_URL, DOWNLOAD_URL, GITHUB_URL } from '#shared/site'
 
 const SECTIONS = ['how', 'features', 'setup', 'faq'] as const
 const LABELS: Record<(typeof SECTIONS)[number], string> = {
@@ -18,6 +18,7 @@ const section = useActiveSection(SECTIONS)
 const items = computed<NavigationMenuItem[]>(() => [
   { label: 'Home', to: '/', active: onHome.value && section.value === null },
   ...SECTIONS.map((id) => ({ label: LABELS[id], to: `/#${id}`, active: onHome.value && section.value === id })),
+  { label: 'Docs', icon: 'i-lucide-book-open', to: DOCS_URL, target: '_self', rel: 'noopener', active: false },
   { label: 'GitHub', icon: 'i-brand-github', to: GITHUB_URL, target: '_self', rel: 'noopener', active: false },
 ])
 </script>
