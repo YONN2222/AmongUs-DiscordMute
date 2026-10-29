@@ -23,9 +23,9 @@ bun run dev
 | `bun run schema:export`    | Regenerate `shared/telemetry/telemetry.schema.json`       |
 | `bun run check:entry`      | Dry-run bundle check that the Worker entry serves ingest  |
 | `bun run test`             | Vitest unit tests, then Worker tests against local D1     |
-| `bun run test:e2e`         | Build, start three `wrangler dev` servers, run Playwright |
+| `bun run test:e2e`         | Build, start five `wrangler dev` servers, run Playwright |
 
-For e2e, install the browser once with `bunx playwright install chromium`. The servers use local databases on ports 8799 (seeded), 8789 (seeded, for the ingest test) and 8788 (empty).
+For e2e, install the browser once with `bunx playwright install chromium`. The servers use local databases on ports 8799 (seeded), 8789 (seeded, for the ingest test), 8788 (empty), 8790 (hosted bot available) and 8791 (hosted bot unavailable).
 
 ## Telemetry API
 
@@ -42,10 +42,11 @@ For e2e, install the browser once with `bunx playwright install chromium`. The s
 
 ## Deployment
 
-1. Create the database and commit its id to `wrangler.jsonc` (`d1_databases[0].database_id`), since Workers Builds reads the repository:
+1. **Create the D1 database and paste its id into `wrangler.jsonc`.** `database_id` is a placeholder (`0000...`) until you do, and the first deploy fails with it:
    ```sh
    bunx wrangler d1 create discordmute-website
    ```
+   Copy the printed `database_id` into `d1_databases[0].database_id` in `wrangler.jsonc` and commit it. Workers Builds reads the repository, so the id must be in the committed file.
 2. Set the telemetry secret. Deploys fail until `HOSTED_TELEMETRY_TOKEN` exists:
    ```sh
    bunx wrangler secret put HOSTED_TELEMETRY_TOKEN
