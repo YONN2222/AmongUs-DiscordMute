@@ -20,10 +20,14 @@ export interface LinkRepository {
     remove(guildId: string, discordId: string): Promise<boolean>;
     listByGuild(guildId: string): Promise<LinkEntry[]>;
     countByGuild(guildId: string): Promise<number>;
+    /** Link counts of the given guilds; guilds without links are left out. */
+    countByGuilds(guildIds: string[]): Promise<Map<string, number>>;
     /** One page ordered by account name (case-insensitive), then Discord id; sorted and cut in SQL. */
     listPage(guildId: string, offset: number, limit: number): Promise<LinkEntry[]>;
     findByAccountName(guildId: string, accountName: string): Promise<LinkEntry[]>;
 }
+
+const COUNT_BATCH_SIZE = 500;
 
 function toEntry(row: LinkModel): LinkEntry {
     return {
@@ -70,6 +74,19 @@ export function createLinkRepository(model: typeof LinkModel): LinkRepository {
         },
         async countByGuild(guildId) {
             return model.count({ where: { guildId } });
+        },
+        async countByGuilds(guildIds) {
+            const counts = new Map<string, number>();
+            for (let start = 0; start < guildIds.length; start += COUNT_BATCH_SIZE) {
+                const rows = (await model.findAll({
+                    attributes: ["guildId", [fn("COUNT", col("discord_id")), "total"]],
+                    where: { guildId: guildIds.slice(start, start + COUNT_BATCH_SIZE) },
+                    group: ["guildId"],
+                    raw: true,
+                })) as unknown as { guildId: string; total: number | string }[];
+                for (const row of rows) counts.set(row.guildId, Number(row.total));
+            }
+            return counts;
         },
         async listPage(guildId, offset, limit) {
             const rows = await model.findAll({

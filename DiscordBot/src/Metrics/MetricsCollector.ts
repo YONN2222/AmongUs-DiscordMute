@@ -9,15 +9,15 @@ export interface ClusterSnapshotSource {
     snapshots(timeoutMs: number): Promise<ProcessSnapshot[]>;
 }
 
-interface SnapshotInstance<TCluster> {
+export interface SnapshotInstance<TCluster> {
     clusters: Map<number, TCluster>;
     sendRequestToCluster(cluster: TCluster, message: unknown, timeout: number): Promise<unknown>;
 }
 
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+export function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new Error("snapshot timed out")), timeoutMs);
+        timer = setTimeout(() => reject(new Error("request timed out")), timeoutMs);
     });
     return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }

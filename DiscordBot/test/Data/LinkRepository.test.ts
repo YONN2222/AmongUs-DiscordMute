@@ -110,6 +110,30 @@ describe.each(backends)("LinkRepository (%s)", (backend) => {
             expect(await db.links.get(g1, "u1")).toMatchObject({ accountName: "Crimson", friendCode: "x#1" });
         });
 
+        it("countByGuilds counts per guild and leaves out guilds without links", async () => {
+            const empty = uniqueId("empty");
+            await db.links.upsert(g1, "u1", "A");
+            await db.links.upsert(g1, "u2", "B");
+            await db.links.upsert(g2, "u3", "C");
+
+            const counts = await db.links.countByGuilds([g1, g2, empty]);
+
+            expect(counts.get(g1)).toBe(2);
+            expect(counts.get(g2)).toBe(1);
+            expect(counts.has(empty)).toBe(false);
+            expect((await db.links.countByGuilds([])).size).toBe(0);
+        });
+
+        it("countByGuilds handles more guilds than one query batch", async () => {
+            await db.links.upsert(g1, "u1", "A");
+            const ids = Array.from({ length: 1200 }, (_, index) => `test-batch-${index}`);
+
+            const counts = await db.links.countByGuilds([...ids, g1]);
+
+            expect(counts.get(g1)).toBe(1);
+            expect(counts.size).toBe(1);
+        });
+
         it("listByGuild is guild-scoped", async () => {
             await db.links.upsert(g1, "u1", "A");
             await db.links.upsert(g2, "u2", "B");
