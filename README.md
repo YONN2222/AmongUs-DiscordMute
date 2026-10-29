@@ -27,20 +27,20 @@ I built it because my friend group kept talking during live rounds and didn't wa
 4. Host a lobby (online or LAN), join a Discord voice channel and run `/link self`.
 5. Send the phrase the bot gives you in Among Us Free Chat.
 
-The full walkthrough is in [docs/content/1.getting-started/2.self-host-setup.md](docs/content/1.getting-started/2.self-host-setup.md).
+The full walkthrough is in [self-host setup guide](https://docs.mute.yonn2222.com/getting-started/self-host-setup).
 
 ## Documentation
 
-The website is [mute.yonn2222.com](https://mute.yonn2222.com) (source in `Website/`, see [Website/README.md](Website/README.md)). The docs are a Docus site in `docs/`; run it with `cd docs && bun install && bun run dev`.
+The website is [mute.yonn2222.com](https://mute.yonn2222.com) (source in `Website/`, see [Website/README.md](Website/README.md)). The documentation lives at [docs.mute.yonn2222.com](https://docs.mute.yonn2222.com) (source in `docs/`, see [docs/README.md](docs/README.md)).
 
-- [Self-host setup](docs/content/1.getting-started/2.self-host-setup.md)
-- [Hosted setup](docs/content/1.getting-started/3.hosted-setup.md)
-- [Bot configuration](docs/content/2.configuration/1.bot-config.md) and [plugin configuration](docs/content/2.configuration/2.plugin-config.md)
-- [Commands](docs/content/3.commands/1.slash-commands.md)
-- [Metrics](docs/content/4.monitoring/1.metrics.md) and [JSON logs](docs/content/4.monitoring/2.json-logs.md)
-- [Telemetry](docs/content/5.privacy/1.telemetry.md) and [update check](docs/content/5.privacy/2.update-check.md)
-- [Server setup](docs/content/6.server-setup/1.setup-panel.md) and [game features](docs/content/6.server-setup/2.game-features.md)
-- [FAQ](docs/content/7.faq/1.faq.md)
+- [Self-host setup](https://docs.mute.yonn2222.com/getting-started/self-host-setup)
+- [Hosted setup](https://docs.mute.yonn2222.com/getting-started/hosted-setup)
+- [Bot configuration](https://docs.mute.yonn2222.com/configuration/bot-config) and [plugin configuration](https://docs.mute.yonn2222.com/configuration/plugin-config)
+- [Commands](https://docs.mute.yonn2222.com/commands/slash-commands)
+- [Metrics](https://docs.mute.yonn2222.com/monitoring/metrics) and [JSON logs](https://docs.mute.yonn2222.com/monitoring/json-logs)
+- [Telemetry](https://docs.mute.yonn2222.com/privacy/telemetry) and [update check](https://docs.mute.yonn2222.com/privacy/update-check)
+- [Server setup](https://docs.mute.yonn2222.com/server-setup/setup-panel) and [game features](https://docs.mute.yonn2222.com/server-setup/game-features)
+- [FAQ](https://docs.mute.yonn2222.com/faq/faq)
 
 ## Linking players
 
@@ -90,7 +90,7 @@ The bot needs **Mute Members**, **Deafen Members** and **Manage Nicknames**, plu
 
 Update the bot and the plugin together. An older plugin still works, with fewer features.
 
-Details: [setup panel](docs/content/6.server-setup/1.setup-panel.md), [game features](docs/content/6.server-setup/2.game-features.md).
+Details: [setup panel](https://docs.mute.yonn2222.com/server-setup/setup-panel), [game features](https://docs.mute.yonn2222.com/server-setup/game-features).
 
 ## Telemetry
 
@@ -115,7 +115,7 @@ Telemetry runs only in the compiled `bot.exe` from a release. From source (`bun 
 "disableTelemetry": true
 ```
 
-See [bot configuration](docs/content/2.configuration/1.bot-config.md).
+See [bot configuration](https://docs.mute.yonn2222.com/configuration/bot-config).
 
 ## Update check
 

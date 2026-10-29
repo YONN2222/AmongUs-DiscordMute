@@ -1,0 +1,23 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "discordmute-docs",
+  "account_id": "91729e714438236004dcbd6c9fbc0423",
+  "main": "./.output/server/index.mjs",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "keep_vars": true,
+  "observability": { "enabled": true },
+  "assets": {
+    "directory": "./.output/public",
+    "binding": "ASSETS"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "discordmute-docs-content",
+      "database_id": "468d6d28-8b27-46d9-8c52-e8bfa1b92496"
+    }
+  ],
+  "routes": [{ "pattern": "docs.mute.yonn2222.com", "custom_domain": true }]
+}
