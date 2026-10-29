@@ -1,7 +1,7 @@
 import { DiscordAPIError, MessageFlags, type REST, Routes } from "discord.js";
 import { type Locale, t } from "../I18n/Index";
 import { logger, logModules } from "../Logging/Logger";
-import { ContainerBuilder } from "../Utils/ContainerBuilder";
+import { ContainerBuilder, TITLE_ICON } from "../Utils/ContainerBuilder";
 import { errorMessage } from "../Utils/ErrorMessage";
 import type { ConfirmedLinkReply } from "./ClusterRequestHandler";
 
@@ -36,7 +36,7 @@ export async function updateOriginalLinkReply(rest: REST, link: ConfirmedLinkRep
     }
 
     const container = new ContainerBuilder()
-        .title(t(locale, "link.complete.title"), "✅")
+        .title(t(locale, "link.complete.title"), TITLE_ICON.success)
         .divider()
         .text(t(locale, "link.complete.body", { discordId: link.discordId, accountName: link.accountName }))
         .success();

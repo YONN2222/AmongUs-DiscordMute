@@ -1,4 +1,5 @@
 import {
+    ApplicationCommandOptionType,
     type ChatInputCommandInteraction,
     type Client,
     Events,
@@ -12,13 +13,16 @@ import { LINK_SELF_UNLINK_BUTTON_ID, unlinkSelf } from "../Linking/SelfUnlink";
 import { registerLinkOverviewComponents } from "../LinkOverview/LinkOverviewComponents";
 import { logger, logModules } from "../Logging/Logger";
 import { registerSetupComponents } from "../Setup/SetupComponents";
-import { ContainerBuilder } from "../Utils/ContainerBuilder";
+import { ContainerBuilder, TITLE_ICON } from "../Utils/ContainerBuilder";
 import { isComponentInteraction, registerComponent, routeComponent } from "./ComponentRouter";
 
 function describeOptions(interaction: ChatInputCommandInteraction): string {
     return interaction.options.data
         .map((o) => {
-            if (o.type === 1 || o.type === 2) {
+            if (
+                o.type === ApplicationCommandOptionType.Subcommand ||
+                o.type === ApplicationCommandOptionType.SubcommandGroup
+            ) {
                 const subOptions = o.options ? o.options.map((so) => `${so.name}:${so.value}`).join(" ") : "";
                 return subOptions ? `${o.name} ${subOptions}` : o.name;
             }
@@ -32,7 +36,7 @@ async function replyCommandFailed(interaction: RepliableInteraction): Promise<vo
     try {
         const locale = localeFrom(interaction.locale);
         const container = new ContainerBuilder()
-            .title(t(locale, "error.title"), "❌")
+            .title(t(locale, "error.title"), TITLE_ICON.error)
             .text(t(locale, "error.generic"))
             .error();
         await interaction.reply({

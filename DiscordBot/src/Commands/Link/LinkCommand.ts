@@ -3,7 +3,7 @@ import { type Locale, localeFrom, localized, type MessageKey, t } from "../../I1
 import { BlockedUserError } from "../../Linking/LinkingService";
 import { startSelfLink } from "../../Linking/StartSelfLink";
 import { logger, logModules } from "../../Logging/Logger";
-import { ContainerBuilder } from "../../Utils/ContainerBuilder";
+import { ContainerBuilder, TITLE_ICON } from "../../Utils/ContainerBuilder";
 import type { Command, CommandContext } from "../Command";
 
 async function replyEphemeral(interaction: ChatInputCommandInteraction, container: ContainerBuilder) {
@@ -39,7 +39,7 @@ export class LinkCommand implements Command {
             await replyEphemeral(
                 interaction,
                 new ContainerBuilder()
-                    .title(t(locale, "link.failed.title"), "⚠️")
+                    .title(t(locale, "link.failed.title"), TITLE_ICON.warning)
                     .text(t(locale, "link.guildOnly"))
                     .warning(),
             );
@@ -77,7 +77,7 @@ export class LinkCommand implements Command {
             await replyEphemeral(
                 interaction,
                 new ContainerBuilder()
-                    .title(t(locale, "link.force.title"), "✅")
+                    .title(t(locale, "link.force.title"), TITLE_ICON.success)
                     .divider()
                     .text(t(locale, "link.force.body", { user: user.toString(), name: displayName }))
                     .success(),
@@ -109,12 +109,12 @@ export class LinkCommand implements Command {
 
             const container = removed
                 ? new ContainerBuilder()
-                      .title(t(locale, "link.reset.title"), "✅")
+                      .title(t(locale, "link.reset.title"), TITLE_ICON.success)
                       .divider()
                       .text(t(locale, "link.reset.userDone", params))
                       .success()
                 : new ContainerBuilder()
-                      .title(t(locale, "link.reset.noneTitle"), "⚠️")
+                      .title(t(locale, "link.reset.noneTitle"), TITLE_ICON.warning)
                       .text(t(locale, "link.reset.userNone", params))
                       .warning();
 
@@ -128,7 +128,7 @@ export class LinkCommand implements Command {
     private async replyError(interaction: ChatInputCommandInteraction, locale: Locale, key: MessageKey) {
         await replyEphemeral(
             interaction,
-            new ContainerBuilder().title(t(locale, "link.error.title"), "❌").text(t(locale, key)).error(),
+            new ContainerBuilder().title(t(locale, "link.error.title"), TITLE_ICON.error).text(t(locale, key)).error(),
         );
     }
 
@@ -145,7 +145,7 @@ export class LinkCommand implements Command {
         await replyEphemeral(
             interaction,
             new ContainerBuilder()
-                .title(t(locale, "link.permission.title"), "⚠️")
+                .title(t(locale, "link.permission.title"), TITLE_ICON.warning)
                 .text(t(locale, "link.permission.body"))
                 .warning(),
         );

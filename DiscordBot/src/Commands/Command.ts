@@ -5,6 +5,7 @@ import type { GuildEventBus } from "../Events/GuildEvents";
 import type { BlockChecker } from "../Hosted/BlockChecker";
 import type { LinkingService } from "../Linking/LinkingService";
 import { logger, logModules } from "../Logging/Logger";
+import type { CLOSE_BLOCKED, CLOSE_UNAUTHORIZED } from "../Protocol/PluginProtocol";
 import type { SettingsService } from "../Settings/SettingsService";
 import { commandConstructors } from "./Generated";
 
@@ -13,7 +14,11 @@ export interface HostedCommandContext {
     audit: Pick<AuditLogRepository, "record">;
     blocks: BlockChecker;
     /** Closes the plugin connections of a guild; resolves to false when none was open. */
-    disconnectGuild(guildId: string, code: 4001 | 4005, reason: string): Promise<boolean>;
+    disconnectGuild(
+        guildId: string,
+        code: typeof CLOSE_UNAUTHORIZED | typeof CLOSE_BLOCKED,
+        reason: string,
+    ): Promise<boolean>;
 }
 
 export interface CommandContext {

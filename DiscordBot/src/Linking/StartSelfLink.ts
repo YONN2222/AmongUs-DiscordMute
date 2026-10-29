@@ -9,7 +9,7 @@ import {
 import type { CommandContext } from "../Commands/Command";
 import { localeFrom, t } from "../I18n/Index";
 import { logger, logModules } from "../Logging/Logger";
-import { ContainerBuilder } from "../Utils/ContainerBuilder";
+import { ContainerBuilder, TITLE_ICON } from "../Utils/ContainerBuilder";
 import { LINK_SELF_UNLINK_BUTTON_ID } from "./SelfUnlink";
 
 type SelfLinkInteraction = ChatInputCommandInteraction | ButtonInteraction;
@@ -59,7 +59,7 @@ export async function startSelfLink(interaction: SelfLinkInteraction, ctx: Comma
         await replyEphemeral(
             interaction,
             new ContainerBuilder()
-                .title(t(locale, "link.failed.title"), "⚠️")
+                .title(t(locale, "link.failed.title"), TITLE_ICON.warning)
                 .divider()
                 .text(t(locale, "link.pluginNotReady"))
                 .warning(),

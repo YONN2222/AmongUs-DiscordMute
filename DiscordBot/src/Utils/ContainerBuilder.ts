@@ -20,6 +20,8 @@ function hexToNumber(color: number | string): number {
     return Number.parseInt(color.replace(/^#/, ""), 16);
 }
 
+export const TITLE_ICON = { success: "✅", warning: "⚠️", error: "❌" } as const;
+
 export class ContainerBuilder extends DiscordContainerBuilder {
     title(label: string, icon?: string | null, depth = 2): this {
         const prefix = headingMarks[normalizeHeadingDepth(depth)];

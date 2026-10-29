@@ -1,6 +1,6 @@
 import { type ChatInputCommandInteraction, MessageFlags, SlashCommandBuilder } from "discord.js";
 import { localeFrom, localized, t } from "../../I18n/Index";
-import { ContainerBuilder } from "../../Utils/ContainerBuilder";
+import { ContainerBuilder, TITLE_ICON } from "../../Utils/ContainerBuilder";
 import type { Command, CommandContext } from "../Command";
 
 export class TestConnectionCommand implements Command {
@@ -14,12 +14,12 @@ export class TestConnectionCommand implements Command {
 
         const container = connected
             ? new ContainerBuilder()
-                  .title(t(locale, "testConnection.ok.title"), "✅")
+                  .title(t(locale, "testConnection.ok.title"), TITLE_ICON.success)
                   .divider()
                   .text(t(locale, "testConnection.ok.body"))
                   .success()
             : new ContainerBuilder()
-                  .title(t(locale, "testConnection.fail.title"), "❌")
+                  .title(t(locale, "testConnection.fail.title"), TITLE_ICON.error)
                   .divider()
                   .text(t(locale, "testConnection.fail.body"))
                   .error();
