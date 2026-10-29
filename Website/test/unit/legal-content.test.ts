@@ -21,6 +21,19 @@ describe('legal content', () => {
     expect(section(PRIVACY_SECTIONS, 'telemetry')).toContain('disableTelemetry: true')
   })
 
+  it('privacy mentions the audit log retention of 180 days', () => {
+    expect(section(PRIVACY_SECTIONS, 'hosted-bot')).toMatch(/audit log/i)
+    expect(section(PRIVACY_SECTIONS, 'hosted-bot')).toContain('180 days')
+    expect(section(PRIVACY_SECTIONS, 'retention')).toContain('180 days')
+  })
+
+  it('privacy mentions owner id storage', () => {
+    const hosted = section(PRIVACY_SECTIONS, 'hosted-bot')
+    expect(hosted).toMatch(/owner/i)
+    expect(hosted).toMatch(/server name/i)
+    expect(hosted).toMatch(/member count/i)
+  })
+
   it('privacy states IPs are not stored', () => {
     expect(section(PRIVACY_SECTIONS, 'website')).toMatch(/never (stored|written)/i)
   })
