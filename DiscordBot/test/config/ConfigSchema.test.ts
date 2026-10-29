@@ -45,4 +45,47 @@ describe("parseConfig", () => {
     it("defaults channelIds to []", () => {
         expect(parseConfig(base).channelIds).toEqual([]);
     });
+
+    it("example config enables telemetry and update checks and keeps metrics off", () => {
+        const raw = JSON.parse(readFileSync(resolve(__dirname, "../../config.example.json"), "utf-8"));
+        const config = parseConfig(raw);
+        expect(config.disableTelemetry).toBe(false);
+        expect(config.disableUpdateCheck).toBe(false);
+        expect(config.metrics.enabled).toBe(false);
+        expect(config.logFormat).toBe("pretty");
+    });
+
+    it("example config does not mention the opt-out keys", () => {
+        const text = readFileSync(resolve(__dirname, "../../config.example.json"), "utf-8");
+        for (const key of ["disableTelemetry", "disableUpdateCheck", "metrics", "logFormat"]) {
+            expect(text).not.toContain(key);
+        }
+    });
+
+    it("defaults the metrics block", () => {
+        expect(parseConfig(base).metrics).toEqual({ enabled: false, host: "127.0.0.1", port: 9464 });
+    });
+
+    it("partial metrics object keeps defaults", () => {
+        expect(parseConfig({ ...base, metrics: { enabled: true } }).metrics).toEqual({
+            enabled: true,
+            host: "127.0.0.1",
+            port: 9464,
+        });
+    });
+
+    it("rejects a metrics token shorter than 16 chars", () => {
+        expect(Config.safeParse({ ...base, metrics: { token: "short" } }).success).toBe(false);
+        expect(Config.safeParse({ ...base, metrics: { token: "a".repeat(16) } }).success).toBe(true);
+    });
+
+    it("rejects an out of range metrics port", () => {
+        expect(Config.safeParse({ ...base, metrics: { port: 0 } }).success).toBe(false);
+        expect(Config.safeParse({ ...base, metrics: { port: 65536 } }).success).toBe(false);
+    });
+
+    it('rejects logFormat "xml"', () => {
+        expect(Config.safeParse({ ...base, logFormat: "xml" }).success).toBe(false);
+        expect(parseConfig({ ...base, logFormat: "json" }).logFormat).toBe("json");
+    });
 });

@@ -18,6 +18,17 @@ export const Config = z
                 shardsPerCluster: z.number().int().positive().default(1),
             })
             .default({ total: 1, shardsPerCluster: 1 }),
+        disableTelemetry: z.boolean().default(false),
+        disableUpdateCheck: z.boolean().default(false),
+        logFormat: z.enum(["pretty", "json"]).default("pretty"),
+        metrics: z
+            .object({
+                enabled: z.boolean().default(false),
+                host: z.string().default("127.0.0.1"),
+                port: z.number().int().min(1).max(65535).default(9464),
+                token: z.string().min(16).optional(),
+            })
+            .default({ enabled: false, host: "127.0.0.1", port: 9464 }),
     })
     .refine((c) => c.databaseDialect !== "postgres" || c.databaseUrl !== undefined, {
         message: 'databaseUrl is required when databaseDialect is "postgres"',
