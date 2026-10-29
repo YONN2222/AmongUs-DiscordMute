@@ -15,6 +15,17 @@ export default defineNuxtConfig({
   modules: ['@nuxt/ui', '@nuxtjs/seo'],
   css: ['~/assets/css/main.css'],
   ogImage: false,
+  routeRules: {
+    '/**': {
+      headers: {
+        'X-Content-Type-Options': 'nosniff',
+        'Referrer-Policy': 'strict-origin-when-cross-origin',
+        'X-Frame-Options': 'DENY',
+        'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+        'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+      },
+    },
+  },
   nitro: {
     preset: 'cloudflare_module',
     modules: [useWorkerEntry],
