@@ -3,6 +3,7 @@ import { type Locale, localeFrom, localized, type MessageKey, t } from "../../I1
 import { startSelfLink } from "../../Linking/StartSelfLink";
 import { logger, logModules } from "../../Logging/Logger";
 import { ContainerBuilder } from "../../Utils/ContainerBuilder";
+import { BlockedUserError } from "../../Utils/LinkingService";
 import type { Command, CommandContext } from "../Command";
 
 async function replyEphemeral(interaction: ChatInputCommandInteraction, container: ContainerBuilder) {
@@ -82,6 +83,11 @@ export class LinkCommand implements Command {
                     .success(),
             );
         } catch (error) {
+            if (error instanceof BlockedUserError) {
+                logger.info(logModules.Command, `Refused to force-link blocked user ${user.id}`);
+                await this.replyError(interaction, locale, "link.force.blocked");
+                return;
+            }
             logger.error(logModules.Command, `Failed to force-link ${user.id} to ${displayName}`, error);
             await this.replyError(interaction, locale, "link.force.error");
         }

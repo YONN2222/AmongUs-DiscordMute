@@ -31,6 +31,7 @@ export const en = {
         "Your Discord account is now linked.\n\n**Discord ID:** `{discordId}`\n**Among Us Account:** `{accountName}`",
     "link.force.title": "Force Link Complete",
     "link.force.body": "**Discord User:** {user}\n**Among Us Name:** `{name}`",
+    "link.force.blocked": "This user is blocked from using this bot and cannot be linked.",
     "link.force.error": "An error occurred while manually linking the account.",
     "link.error.title": "Link Error",
     "link.reset.title": "Link Reset",

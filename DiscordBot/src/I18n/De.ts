@@ -33,6 +33,7 @@ export const de: Record<MessageKey, string> = {
         "Dein Discord-Konto ist jetzt verknüpft.\n\n**Discord-ID:** `{discordId}`\n**Among-Us-Konto:** `{accountName}`",
     "link.force.title": "Verknüpfung erzwungen",
     "link.force.body": "**Discord-Nutzer:** {user}\n**Among-Us-Name:** `{name}`",
+    "link.force.blocked": "Dieser Nutzer ist für die Nutzung dieses Bots gesperrt und kann nicht verknüpft werden.",
     "link.force.error": "Beim manuellen Verknüpfen des Kontos ist ein Fehler aufgetreten.",
     "link.error.title": "Verknüpfungsfehler",
     "link.reset.title": "Verknüpfung gelöst",

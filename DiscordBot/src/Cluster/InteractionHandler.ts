@@ -27,7 +27,7 @@ function describeOptions(interaction: ChatInputCommandInteraction): string {
         .join(", ");
 }
 
-async function replyCommandFailed(interaction: ChatInputCommandInteraction): Promise<void> {
+async function replyCommandFailed(interaction: RepliableInteraction): Promise<void> {
     if (interaction.replied || interaction.deferred) return;
     try {
         const locale = localeFrom(interaction.locale);
@@ -42,7 +42,7 @@ async function replyCommandFailed(interaction: ChatInputCommandInteraction): Pro
     } catch (replyError) {
         logger.error(
             logModules.Command,
-            `Failed to send error message to user for /${interaction.commandName}`,
+            `Failed to send error message to ${interaction.user.tag} for interaction ${interaction.id}`,
             replyError,
         );
     }
@@ -90,12 +90,13 @@ function registerComponents(): void {
     registerSetupComponents();
 }
 
-/** Fails closed: when the block list cannot be read, the interaction is not served. */
+/** Fails closed: when the block list cannot be read, the user gets the generic error and the interaction is not served. */
 async function isRefusedAsBlocked(interaction: RepliableInteraction, ctx: CommandContext): Promise<boolean> {
     try {
         return await rejectBlockedUser(interaction, ctx.hosted?.blocks);
     } catch (error) {
         logger.error(logModules.Command, `Block check failed for ${interaction.user.tag}`, error);
+        await replyCommandFailed(interaction);
         return true;
     }
 }
