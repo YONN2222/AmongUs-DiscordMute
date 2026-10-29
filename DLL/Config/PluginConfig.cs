@@ -17,4 +17,8 @@ internal sealed class PluginConfig
 
     [JsonPropertyName("bridgeLogsToBotConsole")]
     public bool BridgeLogsToBotConsole { get; set; } = false;
+
+    [JsonPropertyName("disableUpdateCheck")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool DisableUpdateCheck { get; set; }
 }

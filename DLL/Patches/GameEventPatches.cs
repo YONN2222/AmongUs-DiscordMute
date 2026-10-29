@@ -22,9 +22,12 @@ internal static class HudManagerUpdatePatch
             HostGate.Refresh();
         }
 
-        if (!HostGate.IsActive || LocalChatQueue.Pending.IsEmpty) return;
+        if (!HostGate.IsActive) return;
         var player = PlayerControl.LocalPlayer;
         if (player == null || __instance.Chat == null) return;
+
+        if (LobbyBehaviour.Instance != null && UpdateChecker.TryTakeLobbyNotice(out var notice))
+            __instance.Chat.AddChat(player, notice);
 
         while (LocalChatQueue.Pending.TryDequeue(out var message))
             __instance.Chat.AddChat(player, message);

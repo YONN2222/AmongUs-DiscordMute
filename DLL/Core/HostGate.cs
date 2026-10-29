@@ -52,6 +52,7 @@ internal static class HostGate
     {
         DiscordMutePlugin.PluginLog.LogInfo("Host detected, connecting to bot");
         PluginSocket.Activate(Application.version);
+        UpdateChecker.StartOnce();
         _ = Task.Run(BotClient.EnsureBotRunningAsync);
     }
 
