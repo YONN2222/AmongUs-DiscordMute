@@ -30,20 +30,8 @@ function acceptableOverride(raw: string | undefined): string | undefined {
     }
 }
 
-export function telemetryTarget(opts: {
-    disabled: boolean;
-    compiled: boolean;
-    mode: TelemetryMode;
-    env: Record<string, string | undefined>;
-}): TelemetryTarget | null {
-    if (opts.disabled) return null;
-    const optedIn = opts.env.DISCORDMUTE_TELEMETRY === "1";
-    if (!opts.compiled && !optedIn) return null;
-
-    const url = (optedIn ? acceptableOverride(opts.env.DISCORDMUTE_TELEMETRY_URL) : undefined) ?? TELEMETRY_URL;
-    if (opts.mode !== "hosted") return { url };
-
-    const token = opts.env.HOSTED_TELEMETRY_TOKEN;
+function hostedTarget(url: string, env: Record<string, string | undefined>): TelemetryTarget | null {
+    const token = env.HOSTED_TELEMETRY_TOKEN;
     if (!token) {
         logger.warn(
             logModules.Telemetry,
@@ -52,6 +40,20 @@ export function telemetryTarget(opts: {
         return null;
     }
     return { url, authorization: `Bearer ${token}` };
+}
+
+/** Self-host sends only from the compiled bot or with the env opt-in; the hosted bot sends whenever its token is set. */
+export function telemetryTarget(opts: {
+    disabled: boolean;
+    compiled: boolean;
+    mode: TelemetryMode;
+    env: Record<string, string | undefined>;
+}): TelemetryTarget | null {
+    if (opts.disabled) return null;
+    const optedIn = opts.env.DISCORDMUTE_TELEMETRY === "1";
+    const url = (optedIn ? acceptableOverride(opts.env.DISCORDMUTE_TELEMETRY_URL) : undefined) ?? TELEMETRY_URL;
+    if (opts.mode === "hosted") return hostedTarget(url, opts.env);
+    return opts.compiled || optedIn ? { url } : null;
 }
 
 interface ServiceDeps {

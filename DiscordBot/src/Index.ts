@@ -16,8 +16,9 @@ async function main(): Promise<void> {
         const { runCluster } = await import("./Cluster/RunCluster");
         await runCluster();
     } else {
+        const { config } = await import("./Config");
         const { runGateway } = await import("./Gateway/RunGateway");
-        await runGateway();
+        await runGateway(config);
     }
 }
 

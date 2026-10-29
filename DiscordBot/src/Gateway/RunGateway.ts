@@ -2,8 +2,11 @@ import type { Server } from "node:http";
 import { type ClusterProcess, StandaloneInstance } from "galactic.ts";
 import { Registry } from "prom-client";
 import { DISCORD_INTENTS } from "../Cluster/CreateDiscordClient";
-import { config, DISCORD_TOKEN } from "../Config";
-import { databaseOptionsFrom, openDatabase } from "../Data/Database";
+import { type Database, databaseOptionsFrom, openDatabase } from "../Data/Database";
+import { BlockChecker } from "../Hosted/BlockChecker";
+import { assertHostedDatabase, isHosted, readAdminApiToken } from "../Hosted/HostedMode";
+import { HostedSecretResolver } from "../Hosted/HostedSecretResolver";
+import type { Config } from "../Infrastructure/ConfigSchema";
 import { configureLogger, logger, logModules } from "../Logging/Logger";
 import { createGatewayMetrics, createGatewayMetricsObserver } from "../Metrics/GatewayMetrics";
 import { GalacticSnapshotSource, MetricsCollector } from "../Metrics/MetricsCollector";
@@ -17,12 +20,36 @@ import { startUpdateChecks } from "../Updates/UpdateChecker";
 import { LinkingService } from "../Utils/LinkingService";
 import { BOT_VERSION } from "../Version";
 import { createGatewayRequestHandler } from "./GatewayRequestHandler";
+import { createAdminApi, startAuditPrune } from "./HostedGateway";
 import { createGatewayHttpServer } from "./HttpServer";
 import { PluginGateway } from "./PluginGateway";
-import { SelfHostSecretResolver } from "./SecretResolver";
+import { type SecretResolver, SelfHostSecretResolver } from "./SecretResolver";
 import { createClusterExitHandler, onShutdownSignal, shutdownGateway } from "./Shutdown";
 
-const SHUTDOWN_TIMEOUT_MS = 20000;
+/**
+ * Closing the plugin sessions alone can take about 20 s (queued messages drained, session ends routed); the
+ * clusters and the database still need time after that, so the forced exit comes well later.
+ */
+const SHUTDOWN_TIMEOUT_MS = 45_000;
+/** sysexits EX_CONFIG: the configuration cannot work, so a restart would fail the same way. */
+const EXIT_CONFIG_INVALID = 78;
+
+/** The parts of the galactic instance the gateway uses, so a test can start the gateway without clusters. */
+export type GatewayInstance = Pick<
+    StandaloneInstance,
+    "on" | "start" | "stopRespawning" | "shutdown" | "clusters" | "sendRequestToCluster" | "sendRequestToClusterOfGuild"
+>;
+
+export interface GatewayDeps {
+    env: Record<string, string | undefined>;
+    exit: (code: number) => void;
+    createInstance: (config: Config) => GatewayInstance;
+    onShutdownSignal: (handler: (signal: NodeJS.Signals) => void) => void;
+}
+
+export interface RunningGateway {
+    shutdown(exitCode: number): Promise<void>;
+}
 
 function listen(server: Server, port: number, host: string): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -39,22 +66,26 @@ function closeServer(server: Server): Promise<void> {
     return new Promise((resolve) => server.close(() => resolve()));
 }
 
-function createInstance(): StandaloneInstance {
+function createInstance(config: Config): GatewayInstance {
     return new StandaloneInstance(
         Bun.main,
         config.clusters.shardsPerCluster,
         config.clusters.total,
-        DISCORD_TOKEN,
+        config.token,
         [...DISCORD_INTENTS],
         [],
         clusterSpawnOptions(Bun.main, process.execPath),
     );
 }
 
-function logClusterEvents(
-    instance: StandaloneInstance,
-    onClusterExit: (id: number, code: number | null) => void,
-): void {
+export const defaultGatewayDeps: GatewayDeps = {
+    env: process.env,
+    exit: (code) => process.exit(code),
+    createInstance,
+    onShutdownSignal,
+};
+
+function logClusterEvents(instance: GatewayInstance, onClusterExit: (id: number, code: number | null) => void): void {
     instance.on("PROCESS_SPAWNED", (cluster: ClusterProcess) => {
         logger.info(logModules.Bot, `Cluster ${cluster.id} started (shards ${cluster.shardList.join(", ")})`);
         cluster.child.once("exit", (code) => onClusterExit(cluster.id, code));
@@ -74,14 +105,16 @@ function logClusterEvents(
 }
 
 async function createTelemetryService(
-    db: Awaited<ReturnType<typeof openDatabase>>,
+    config: Config,
+    env: GatewayDeps["env"],
+    db: Database,
     collector: MetricsCollector,
 ): Promise<TelemetryService | undefined> {
     const target = telemetryTarget({
         disabled: config.disableTelemetry,
         compiled: isCompiledExecutable(Bun.main, process.execPath),
-        mode: "self-host",
-        env: process.env,
+        mode: config.mode,
+        env,
     });
     if (!target) {
         if (config.disableTelemetry)
@@ -99,7 +132,7 @@ async function createTelemetryService(
     if (!instanceId) return undefined;
     const builder = new TelemetryBuilder({
         instanceId,
-        mode: "self-host",
+        mode: config.mode,
         botVersion: BOT_VERSION,
         countLinkedUsers: () => db.telemetry.countLinkedUsers(),
     });
@@ -107,36 +140,68 @@ async function createTelemetryService(
     return new TelemetryService({ target, fetch, collect: () => collector.snapshots(), builder });
 }
 
-function selfHostResolver(cfg: Pick<typeof config, "guildId" | "secret">): SelfHostSecretResolver {
+function selfHostResolver(cfg: Pick<Config, "guildId" | "secret">): SelfHostSecretResolver {
     if (cfg.guildId === undefined || cfg.secret === undefined) {
         throw new Error('guildId and secret are required when mode is "self-host"');
     }
     return new SelfHostSecretResolver({ guildId: cfg.guildId, secret: cfg.secret });
 }
 
-/** The gateway owns the plugin connections and the database migrations; Discord itself runs in the clusters. */
-export async function runGateway(): Promise<void> {
+/** The admin API token in hosted mode, undefined in self-host; throws a message for the operator when hosted cannot start. */
+function readHostedStartup(config: Config, env: GatewayDeps["env"]): string | undefined {
+    if (!isHosted(config)) return undefined;
+    const token = readAdminApiToken(env);
+    assertHostedDatabase(config);
+    return token;
+}
+
+/**
+ * The gateway owns the plugin connections and the database migrations; Discord itself runs in the clusters.
+ * Resolves to undefined when the configuration cannot start, after `deps.exit` was called.
+ */
+export async function runGateway(
+    config: Config,
+    deps: GatewayDeps = defaultGatewayDeps,
+): Promise<RunningGateway | undefined> {
     configureLogger({ format: config.logFormat, processName: "gateway" });
+    let adminToken: string | undefined;
+    try {
+        adminToken = readHostedStartup(config, deps.env);
+    } catch (error) {
+        logger.error(logModules.Bot, error instanceof Error ? error.message : String(error));
+        deps.exit(EXIT_CONFIG_INVALID);
+        return undefined;
+    }
+
     const db = await openDatabase(databaseOptionsFrom(config));
     logger.success(logModules.Database, "Database is ready!");
 
-    const instance = createInstance();
+    const instance = deps.createInstance(config);
     const gatewayRegistry = new Registry();
     const gatewayMetrics = createGatewayMetrics(gatewayRegistry);
     const collector = new MetricsCollector({
         gatewayRegistry,
         clusters: new GalacticSnapshotSource(instance, () => gatewayMetrics.clusterSnapshotFailures.inc()),
     });
+    const blocks = isHosted(config)
+        ? new BlockChecker({ blocks: db.blocks, hostedGuilds: db.hostedGuilds })
+        : undefined;
+    const resolver: SecretResolver = blocks
+        ? new HostedSecretResolver({ secrets: db.guildSecrets, blocks })
+        : selfHostResolver(config);
     const pluginGateway = new PluginGateway({
-        resolver: selfHostResolver(config),
+        resolver,
         router: new GalacticClusterRouter(instance),
-        linking: new LinkingService(db),
+        linking: new LinkingService(db, undefined, blocks),
         observer: createGatewayMetricsObserver(gatewayMetrics),
     });
     const metricsServer = config.metrics.enabled
         ? createMetricsServer({ collector, token: config.metrics.token })
         : undefined;
-    const telemetry = await createTelemetryService(db, collector);
+    const adminServer = adminToken
+        ? createAdminApi({ token: adminToken, db, plugins: pluginGateway, metrics: gatewayMetrics, instance })
+        : undefined;
+    const telemetry = await createTelemetryService(config, deps.env, db, collector);
     const updateChecks = config.disableUpdateCheck
         ? undefined
         : startUpdateChecks({
@@ -154,26 +219,31 @@ export async function runGateway(): Promise<void> {
     const handleRequest = createGatewayRequestHandler(pluginGateway);
     instance.on("request", (_cluster, data, resolve) => resolve(handleRequest(data)));
 
+    let stopAuditPrune: (() => void) | undefined;
     let stopping = false;
     const shutdown = async (exitCode: number): Promise<void> => {
         if (stopping) return;
         stopping = true;
         telemetry?.stop();
         updateChecks?.stop();
-        setTimeout(() => process.exit(exitCode), SHUTDOWN_TIMEOUT_MS).unref();
+        stopAuditPrune?.();
+        const forcedExit = setTimeout(() => deps.exit(exitCode), SHUTDOWN_TIMEOUT_MS);
+        forcedExit.unref();
         await shutdownGateway({
             stopRespawning: () => instance.stopRespawning(),
             closePluginSessions: () => pluginGateway.close(),
             stopClusters: () => instance.shutdown(),
             closeHttpServer: async () => {
-                await Promise.all([closeServer(server), metricsServer ? closeServer(metricsServer) : undefined]);
+                const open = [server, metricsServer, adminServer].filter((s): s is Server => s !== undefined);
+                await Promise.all(open.map(closeServer));
             },
             closeDatabase: () => db.close(),
         });
-        process.exit(exitCode);
+        clearTimeout(forcedExit);
+        deps.exit(exitCode);
     };
 
-    onShutdownSignal((signal) => {
+    deps.onShutdownSignal((signal) => {
         logger.warn(logModules.Bot, `${signal} received, shutting down...`);
         void shutdown(0);
     });
@@ -195,6 +265,12 @@ export async function runGateway(): Promise<void> {
             `Metrics endpoint listening on ${config.metrics.host}:${config.metrics.port}`,
         );
     }
+    if (adminServer) {
+        await listen(adminServer, config.adminApi.port, config.adminApi.host);
+        logger.success(logModules.WebServer, `Admin API listening on ${config.adminApi.host}:${config.adminApi.port}`);
+        stopAuditPrune = startAuditPrune(db.audit);
+    }
     instance.start();
     telemetry?.start();
+    return { shutdown };
 }

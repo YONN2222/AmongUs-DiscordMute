@@ -1,6 +1,7 @@
 import { type Client, Events } from "discord.js";
 import { Cluster, ShardingUtil } from "galactic.ts";
 import { Registry } from "prom-client";
+import { isClusterInfoRequest } from "../Admin/ClusterInfo";
 import type { CommandContext } from "../Commands/Command";
 import { config, DISCORD_GUILD_ID } from "../Config";
 import { databaseOptionsFrom, openDatabase } from "../Data/Database";
@@ -11,6 +12,8 @@ import { NicknameSync } from "../Game/NicknameSync";
 import { StatusMessage } from "../Game/StatusMessage";
 import { sweepTrackedMessages } from "../Game/TrackedMessageSweeper";
 import { SHUTDOWN_SIGNALS } from "../Gateway/Shutdown";
+import type { GuildLifecycle } from "../Hosted/GuildLifecycle";
+import { isHosted } from "../Hosted/HostedMode";
 import { LinkOverviewPublisher } from "../LinkOverview/LinkOverviewPublisher";
 import { LogChannelWriter } from "../LogChannel/LogChannelWriter";
 import { configureLogger, logger, logModules } from "../Logging/Logger";
@@ -27,6 +30,7 @@ import { createClusterRequestHandler } from "./ClusterRequestHandler";
 import { createDiscordClient } from "./CreateDiscordClient";
 import { DiscordVoiceAdapter } from "./DiscordVoiceAdapter";
 import { onFatalGatewayClose } from "./FatalGatewayClose";
+import { bindGuildLifecycle, createHostedCluster, type HostedCluster } from "./HostedCluster";
 import { registerInteractionHandlers } from "./InteractionHandler";
 import { resolveLinkReplyLocale, updateOriginalLinkReply } from "./LinkReply";
 import { createDiscordMessagePort } from "./MessagePort";
@@ -44,15 +48,30 @@ function createCommandContext(
     linking: LinkingService,
     events: GuildEventBus,
     settings: SettingsService,
+    hosted: HostedCluster | undefined,
 ): CommandContext {
     return {
         linking,
         events,
         settings,
+        hosted: hosted?.commands,
         pushLinkPending: async (guildId, phrase, quickChatCode, discordId) =>
             (await gateway.send({ kind: "push-link-pending", guildId, phrase, quickChatCode, discordId })).ok,
         isPluginConnected: async (guildId) => (await gateway.send({ kind: "is-plugin-connected", guildId })).ok,
     };
+}
+
+/**
+ * Hosted publishes the commands globally from cluster 0; self-host deploys to the configured guild from the
+ * cluster that owns it. Either way a single cluster deploys, so clusters never race on it.
+ */
+function startupDeployTarget(cluster: Cluster<Client>): { guildId: string } | "global" | null {
+    if (isHosted(config)) return cluster.clusterID === 0 ? "global" : null;
+    const guildId = DISCORD_GUILD_ID;
+    if (!guildId) return null;
+    return cluster.shardList.includes(ShardingUtil.getShardIDForGuild(guildId, cluster.totalShards))
+        ? { guildId }
+        : null;
 }
 
 async function onReady(
@@ -62,14 +81,14 @@ async function onReady(
     nicknameSync: NicknameSync,
     overview: LinkOverviewPublisher,
     status: StatusMessage,
+    lifecycle: GuildLifecycle | undefined,
     markReady: () => void,
 ): Promise<void> {
     logger.success(logModules.Discord, `Cluster ${cluster.clusterID} logged in as ${client.user.tag}`);
-    // Only the cluster that owns the configured guild deploys, so several clusters never race on it.
-    const guildId = DISCORD_GUILD_ID;
-    if (guildId && cluster.shardList.includes(ShardingUtil.getShardIDForGuild(guildId, cluster.totalShards))) {
+    const target = startupDeployTarget(cluster);
+    if (target) {
         try {
-            await deployCommands({ target: { guildId }, rest: client.rest });
+            await deployCommands({ target, rest: client.rest });
         } catch (error) {
             logger.error(logModules.Command, "Failed to deploy commands during startup", error);
         }
@@ -77,6 +96,9 @@ async function onReady(
     // A respawned cluster has no active sessions in memory: recovery lifts every ledger mute and the next
     // game event of a running game mutes again.
     await mute.recover([...client.guilds.cache.keys()]);
+    lifecycle?.reconcile().catch((error: unknown) => {
+        logger.error(logModules.Bot, `Cluster ${cluster.clusterID} could not reconcile the hosted guild list`, error);
+    });
     await nicknameSync.recover([...client.guilds.cache.keys()]).catch((error: unknown) => {
         logger.error(logModules.Bot, `Cluster ${cluster.clusterID} could not restore nicknames`, error);
     });
@@ -107,6 +129,8 @@ export async function runCluster(): Promise<void> {
     cluster.client = client;
 
     const db = await openDatabase(databaseOptionsFrom(config), { migrate: false });
+    const gateway = new GalacticGatewayLink(cluster);
+    const hosted = isHosted(config) ? createHostedCluster({ db, client, cluster, gateway }) : undefined;
     const registry = new Registry();
     const metrics = createClusterMetrics(registry, cluster.clusterID);
     registerDiscordMetrics(client, metrics);
@@ -160,7 +184,11 @@ export async function runCluster(): Promise<void> {
         resolveTarget: createVoiceTargetResolver({
             links: db.links,
             memberVoiceChannel: (guildId, discordId) => voice.voiceChannelOf(guildId, discordId),
-            fallbackChannelIds: async () => config.channelIds,
+            // Hosted servers pick their fallback channels in /setup; self-host keeps them in config.json.
+            fallbackChannelIds: hosted
+                ? async (guildId) => (await settings.get(guildId)).voiceChannelIds
+                : async () => config.channelIds,
+            isUserBlocked: hosted ? (userId) => hosted.blocks.isUserBlocked(userId) : undefined,
             localeOf: guildLanguage,
         }),
     });
@@ -189,8 +217,13 @@ export async function runCluster(): Promise<void> {
         links: db.links,
         settings,
         nicknames: nicknameSync,
+        lifecycle: hosted?.lifecycle,
     });
     cluster.on("request", (data, resolve) => {
+        if (isClusterInfoRequest(data)) {
+            resolve({ ok: true, id: cluster.clusterID, guilds: client.guilds.cache.size, wsPingMs: client.ws.ping });
+            return;
+        }
         if (isMetricsSnapshotRequest(data)) {
             registry.getMetricsAsJSON().then(
                 (m) => resolve({ ok: true, source: `cluster-${cluster.clusterID}`, metrics: m }),
@@ -203,11 +236,12 @@ export async function runCluster(): Promise<void> {
 
     registerInteractionHandlers(
         client,
-        createCommandContext(new GalacticGatewayLink(cluster), new LinkingService(db, events), events, settings),
+        createCommandContext(gateway, new LinkingService(db, events, hosted?.blocks), events, settings, hosted),
     );
     registerVoiceRejoin(client, mute);
+    if (hosted) bindGuildLifecycle(client, hosted.lifecycle);
     client.once(Events.ClientReady, (readyClient) => {
-        onReady(readyClient, cluster, mute, nicknameSync, overview, status, () => {
+        onReady(readyClient, cluster, mute, nicknameSync, overview, status, hosted?.lifecycle, () => {
             ready = true;
         }).catch((error: unknown) =>
             logger.error(logModules.Bot, `Cluster ${cluster.clusterID} failed to finish starting`, error),

@@ -143,6 +143,30 @@ describe("telemetryTarget", () => {
         expect(target).not.toBeNull();
         expect(target).not.toHaveProperty("authorization");
     });
+
+    it("hosted target is used from source when the token is set", () => {
+        const target = telemetryTarget({
+            ...baseTarget,
+            compiled: false,
+            mode: "hosted",
+            env: { HOSTED_TELEMETRY_TOKEN: "test-hosted-token" },
+        });
+        expect(target).toEqual({ url: TELEMETRY_URL, authorization: "Bearer test-hosted-token" });
+    });
+
+    it("hosted without token stays off", () => {
+        expect(telemetryTarget({ ...baseTarget, compiled: false, mode: "hosted" })).toBeNull();
+    });
+
+    it("hosted stays off when telemetry is disabled", () => {
+        const env = { HOSTED_TELEMETRY_TOKEN: "test-hosted-token" };
+        expect(telemetryTarget({ ...baseTarget, disabled: true, compiled: false, mode: "hosted", env })).toBeNull();
+    });
+
+    it("self-host from source stays off", () => {
+        const env = { HOSTED_TELEMETRY_TOKEN: "test-hosted-token" };
+        expect(telemetryTarget({ ...baseTarget, compiled: false, mode: "self-host", env })).toBeNull();
+    });
 });
 
 describe("TelemetryService", () => {
