@@ -37,6 +37,7 @@ export type GuildEvent = GuildScoped<
     | { type: "pending-changed"; discordId: string }
     | { type: "settings-changed"; actorId: string; paths: string[]; before: GuildSettings; after: GuildSettings }
     | { type: "voice-error"; code: "missing-permission" | "member-not-editable"; discordId?: string }
+    | { type: "secret-changed"; actorId: string; created: boolean }
 >;
 
 export type GuildEventHandler = (event: GuildEvent) => void | Promise<void>;

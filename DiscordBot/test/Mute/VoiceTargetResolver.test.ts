@@ -24,7 +24,7 @@ describe("VoiceTargetResolver", () => {
         const resolve = createVoiceTargetResolver({
             links: db.links,
             memberVoiceChannel,
-            fallbackChannelIds,
+            fallbackChannelIds: async () => fallbackChannelIds,
             localeOf: async () => locale,
         });
         return { resolve, memberVoiceChannel };
@@ -42,6 +42,20 @@ describe("VoiceTargetResolver", () => {
         expect(await resolve(guildId, "Nobody")).toEqual({ channelIds: ["c1", "c2"] });
         await db.links.upsert(guildId, "u1", "Crew");
         expect(await resolve(guildId, "Crew")).toEqual({ channelIds: ["c1", "c2"] });
+    });
+
+    it("hosted fallback uses the guild voice channels", async () => {
+        const otherGuild = uniqueId("other");
+        const voiceChannelIds: Record<string, string[]> = { [guildId]: ["v1", "v2"], [otherGuild]: [] };
+        const resolve = createVoiceTargetResolver({
+            links: db.links,
+            memberVoiceChannel: async () => null,
+            fallbackChannelIds: async (id) => voiceChannelIds[id] ?? [],
+            localeOf: async () => "en",
+        });
+
+        expect(await resolve(guildId, "Nobody")).toEqual({ channelIds: ["v1", "v2"] });
+        expect(await resolve(otherGuild, "Nobody")).toMatchObject({ notice: { code: "host-not-linked" } });
     });
 
     it("returns a host-not-linked notice", async () => {
@@ -68,7 +82,7 @@ describe("VoiceTargetResolver", () => {
         const resolve = createVoiceTargetResolver({
             links: db.links,
             memberVoiceChannel: async () => null,
-            fallbackChannelIds: [],
+            fallbackChannelIds: async () => [],
             localeOf: async () => {
                 throw error;
             },
@@ -86,7 +100,7 @@ describe("VoiceTargetResolver", () => {
         const resolve = createVoiceTargetResolver({
             links: db.links,
             memberVoiceChannel,
-            fallbackChannelIds: ["fallback"],
+            fallbackChannelIds: async () => ["fallback"],
             localeOf: async () => "de",
             isUserBlocked: async (userId) => userId === "u1",
         });
@@ -102,7 +116,7 @@ describe("VoiceTargetResolver", () => {
         const resolve = createVoiceTargetResolver({
             links: db.links,
             memberVoiceChannel: async () => "vc-1",
-            fallbackChannelIds: [],
+            fallbackChannelIds: async () => [],
             localeOf: async () => "en",
             isUserBlocked: async () => false,
         });
@@ -130,7 +144,7 @@ describe("VoiceTargetResolver", () => {
                 memberVoiceChannel: async () => {
                     throw error;
                 },
-                fallbackChannelIds,
+                fallbackChannelIds: async () => fallbackChannelIds,
                 localeOf: async () => "en",
             });
             return { resolve, log, error };

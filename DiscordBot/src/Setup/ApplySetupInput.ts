@@ -1,5 +1,10 @@
 import type { MessageKey } from "../I18n/Index";
-import type { GuildSettings, SettingsPatch, VoiceAction } from "../Settings/GuildSettings";
+import {
+    type GuildSettings,
+    MAX_VOICE_CHANNELS,
+    type SettingsPatch,
+    type VoiceAction,
+} from "../Settings/GuildSettings";
 import type { SetupPage } from "./RenderSetupPanel";
 
 export const DELAY_FIELDS = ["gameStart", "meetingStart", "meetingEnd", "lobby"] as const;
@@ -9,6 +14,7 @@ export const NON_PLAYER_MODES = ["ignore", "mute", "as-dead"] as const;
 export const LOBBY_CODE_MODES = ["always", "spoiler", "never"] as const;
 export const LANGUAGES = ["en", "de"] as const;
 
+export const VOICE_CHANNELS_FIELD = "voiceChannelIds";
 export const DELAYS_MODAL_FIELD = "delays-modal";
 const MAX_DELAY_SECONDS = 5;
 const CHANNEL_ID = /^\d{17,20}$/;
@@ -27,7 +33,7 @@ export function setupPageOf(field: string): SetupPage {
     if (field === "language" || field === "logChannelId") return "general";
     if (field.startsWith("linkOverview.") || field === "autoRelink") return "links";
     if (field.startsWith("voiceRules.") || field === "ghostChat" || field === "nonPlayers") return "voice";
-    if (field === DELAYS_MODAL_FIELD) return "voice";
+    if (field === DELAYS_MODAL_FIELD || field === VOICE_CHANNELS_FIELD) return "voice";
     return "game";
 }
 
@@ -65,6 +71,11 @@ function channelPatch(path: string, values: string[]): SetupResult {
     return values.length === 1 && CHANNEL_ID.test(values[0]) ? { patch: patchAt(path, values[0]) } : INVALID;
 }
 
+function channelListPatch(path: string, values: string[]): SetupResult {
+    const valid = values.length <= MAX_VOICE_CHANNELS && values.every((id) => CHANNEL_ID.test(id));
+    return valid ? { patch: patchAt(path, values) } : INVALID;
+}
+
 function parseDelaySeconds(text: string): number | null {
     const normalized = text.trim().replace(",", ".");
     if (!DECIMAL.test(normalized)) return null;
@@ -89,6 +100,8 @@ export function applySetupInput(field: string, values: string[], current: GuildS
     if (TOGGLE_FIELDS.has(field)) return togglePatch(field, values, current);
     if (VOICE_RULE_FIELD.test(field)) return enumPatch(field, VOICE_ACTIONS, values);
     switch (field) {
+        case VOICE_CHANNELS_FIELD:
+            return channelListPatch(field, values);
         case "language":
             return enumPatch(field, LANGUAGES, values);
         case "nonPlayers":

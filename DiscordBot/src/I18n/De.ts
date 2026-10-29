@@ -72,6 +72,8 @@ export const de: Record<MessageKey, string> = {
         "Sprachänderung fehlgeschlagen{member}: Der Bot braucht die Berechtigungen Mitglieder stummschalten und Mitglieder taub schalten (und Spitznamen verwalten für den Namensabgleich).",
     "log.voiceNotEditable":
         "Sprachänderung fehlgeschlagen{member}: Die Rolle des Bots muss über der höchsten Rolle dieses Mitglieds stehen (Rollenreihenfolge), sonst lehnt Discord die Änderung ab.",
+    "log.secretChanged": "{actor} hat ein neues Plugin-Secret erstellt",
+    "log.secretRegenerated": "{actor} hat ein neues Plugin-Secret erzeugt, laufende Spiele wurden getrennt",
     "log.more": "und {count} weitere",
 
     "error.missingPermission": "Dafür brauchst du die Berechtigung **Server verwalten**.",
@@ -128,6 +130,15 @@ export const de: Record<MessageKey, string> = {
     "setup.general.logChannel": "Log-Kanal",
     "setup.plugin.connected": "Among-Us-Plugin: verbunden",
     "setup.plugin.disconnected": "Among-Us-Plugin: nicht verbunden",
+    "setup.secret.status": "Plugin-Secret: erstellt {time}",
+    "setup.secret.none": "Noch kein Plugin-Secret. Erstelle eines und trage es in die Plugin-Konfiguration ein.",
+    "setup.secret.create": "Secret erstellen",
+    "setup.secret.regenerate": "Neues Secret erzeugen",
+    "setup.secret.confirm":
+        "Ein neues Secret trennt alle laufenden Spiele auf diesem Server, bis die Plugin-Konfiguration angepasst ist.",
+    "setup.secret.title": "Plugin-Secret",
+    "setup.secret.shownOnce": "Kopiere dieses Secret jetzt. Es wird nur einmal angezeigt.",
+    "setup.secret.configHint": "Trage das in die Plugin-Konfiguration ein:",
     "setup.links.overview": "Kanal der Verknüpfungsübersicht",
     "setup.links.showPending": "Wartende Verknüpfungen anzeigen",
     "setup.links.autoRelink": "Rückkehrende Spieler neu verknüpfen",
@@ -147,6 +158,7 @@ export const de: Record<MessageKey, string> = {
     "setup.voice.nonPlayers.as-dead": "Wie Tote behandeln",
     "setup.voice.delays":
         "Verzögerungen: Spielstart {gameStart} s, Meetingstart {meetingStart} s, Meetingende {meetingEnd} s, Lobby {lobby} s",
+    "setup.voice.channels": "Ausweich-Sprachkanäle (genutzt, wenn der Host in keinem Sprachkanal ist)",
     "setup.voice.editDelays": "Verzögerungen ändern",
     "setup.delays.title": "Verzögerungen in Sekunden",
     "setup.delays.gameStart": "Spielstart (0-5)",
@@ -170,6 +182,9 @@ export const de: Record<MessageKey, string> = {
     "setup.error.noAccess": "Der Bot braucht in diesem Kanal Kanal ansehen und Nachrichten senden.",
     "setup.error.noManageMessages": "Der Bot braucht in diesem Kanal zusätzlich Nachrichten verwalten.",
     "setup.error.unknownChannel": "Dieser Kanal wurde nicht gefunden.",
+    "setup.error.notVoice": "Wähle einen Sprach- oder Stage-Kanal.",
+    "setup.error.voicePermissions":
+        "Der Bot braucht in diesem Kanal Kanal ansehen, Mitglieder stummschalten und Mitglieder taub schalten.",
     "gameOver.HumansByVote": "Crew gewinnt: alle Impostoren wurden abgewählt",
     "gameOver.HumansByTask": "Crew gewinnt: alle Aufgaben wurden erledigt",
     "gameOver.ImpostorByVote": "Impostoren gewinnen: eine Abstimmung ließ zu wenige Crewmitglieder übrig",

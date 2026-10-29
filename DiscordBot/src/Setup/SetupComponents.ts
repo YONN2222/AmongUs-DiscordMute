@@ -14,12 +14,26 @@ import type { CommandContext } from "../Commands/Command";
 import { type Locale, localeFrom, type MessageKey, t } from "../I18n/Index";
 import { ContainerBuilder } from "../Utils/ContainerBuilder";
 import { canManageServer } from "../Utils/Permissions";
-import { applySetupInput, DELAY_FIELDS, DELAYS_MODAL_FIELD, setupPageOf } from "./ApplySetupInput";
-import { checkChannelAccess } from "./ChannelAccess";
+import {
+    applySetupInput,
+    DELAY_FIELDS,
+    DELAYS_MODAL_FIELD,
+    setupPageOf,
+    VOICE_CHANNELS_FIELD,
+} from "./ApplySetupInput";
+import { checkChannelAccess, checkVoiceChannelAccess } from "./ChannelAccess";
 import { renderSetupPanel, SETUP_PAGES, SETUP_PREFIX, type SetupPage } from "./RenderSetupPanel";
+import {
+    type HostedSetupContext,
+    handleSecretButton,
+    handleSecretConfirmButton,
+    SECRET_CONFIRM_FIELD,
+    SECRET_FIELD,
+} from "./SecretPanel";
 
 const EPHEMERAL = MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral;
 const MANAGE_MESSAGES_FIELDS = new Set(["linkOverview.channelId", "status.channelId"]);
+const HOSTED_ONLY_FIELDS = new Set([SECRET_FIELD, SECRET_CONFIRM_FIELD, VOICE_CHANNELS_FIELD]);
 
 const topLevel = (components: unknown[]) => components as APIMessageTopLevelComponent[];
 
@@ -29,8 +43,13 @@ export async function buildSetupPanel(
     page: SetupPage,
     locale: Locale,
 ): Promise<APIMessageTopLevelComponent[]> {
-    const [settings, connected] = await Promise.all([ctx.settings.get(guildId), ctx.isPluginConnected(guildId)]);
-    return topLevel(renderSetupPanel(settings, page, locale, connected));
+    const [settings, connected, secret] = await Promise.all([
+        ctx.settings.get(guildId),
+        ctx.isPluginConnected(guildId),
+        ctx.hosted?.secrets.get(guildId),
+    ]);
+    const hosted = ctx.hosted ? { secretCreatedAt: secret?.createdAt ?? null } : undefined;
+    return topLevel(renderSetupPanel(settings, page, locale, connected, hosted));
 }
 
 export async function replyEphemeralText(
@@ -90,7 +109,11 @@ async function channelProblem(
     for (const id of channelIds) {
         const channel = await resolveChannel(guild, id);
         if (!channel) return "setup.error.unknownChannel";
-        const problem = checkChannelAccess(channel.type, channel.permissionsFor(me), MANAGE_MESSAGES_FIELDS.has(field));
+        const permissions = channel.permissionsFor(me);
+        const problem =
+            field === VOICE_CHANNELS_FIELD
+                ? checkVoiceChannelAccess(channel.type, permissions)
+                : checkChannelAccess(channel.type, permissions, MANAGE_MESSAGES_FIELDS.has(field));
         if (problem) return problem;
     }
     return null;
@@ -103,6 +126,27 @@ function rawValues(interaction: ComponentInteraction): string[] {
     return interaction.isButton() ? [] : interaction.values;
 }
 
+/**
+ * Refuses the hosted-only fields in self-host and answers the secret buttons in hosted mode.
+ * Returns true when nothing is left to do for the interaction.
+ */
+async function handledAsHostedOnly(
+    interaction: ComponentInteraction,
+    ctx: CommandContext,
+    field: string,
+): Promise<boolean> {
+    if (!HOSTED_ONLY_FIELDS.has(field)) return false;
+    if (!ctx.hosted) {
+        await replyEphemeralText(interaction, localeFrom(interaction.locale), "setup.error.invalid");
+        return true;
+    }
+    if (!interaction.isButton()) return false;
+    if (field === SECRET_FIELD) await handleSecretButton(interaction, ctx as HostedSetupContext);
+    else if (field === SECRET_CONFIRM_FIELD) await handleSecretConfirmButton(interaction, ctx as HostedSetupContext);
+    else return false;
+    return true;
+}
+
 async function handleSetup(interaction: ComponentInteraction, ctx: CommandContext): Promise<void> {
     const guildId = interaction.guildId;
     if (!guildId) return;
@@ -112,6 +156,7 @@ async function handleSetup(interaction: ComponentInteraction, ctx: CommandContex
         return;
     }
     const field = interaction.customId.slice(SETUP_PREFIX.length + 1);
+    if (await handledAsHostedOnly(interaction, ctx, field)) return;
 
     if (field === "page" && interaction.isStringSelectMenu()) {
         const page = SETUP_PAGES.find((candidate) => candidate === interaction.values[0]);

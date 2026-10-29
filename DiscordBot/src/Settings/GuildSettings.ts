@@ -17,6 +17,8 @@ export interface GuildSettings {
     nicknameSync: boolean;
     status: { channelId: string | null; lobbyCode: "always" | "spoiler" | "never" };
     summary: { channelId: string | null; deleteAfterMinutes: number };
+    /** Hosted mode: voice channels used when the host is not in a voice channel. */
+    voiceChannelIds: string[];
 }
 
 type DeepPartial<T> = { [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K] };
@@ -24,12 +26,11 @@ export type SettingsPatch = DeepPartial<GuildSettings>;
 
 const MAX_DELAY_MS = 5000;
 const MAX_DELETE_AFTER_MINUTES = 1440;
+export const MAX_VOICE_CHANNELS = 10;
+const CHANNEL_ID_PATTERN = /^\d{17,20}$/;
 
-const channelId = z
-    .string()
-    .regex(/^\d{17,20}$/)
-    .nullable()
-    .catch(null);
+const channelId = z.string().regex(CHANNEL_ID_PATTERN).nullable().catch(null);
+const channelIds = z.array(z.string().regex(CHANNEL_ID_PATTERN)).max(MAX_VOICE_CHANNELS).catch([]);
 const bool = (fallback: boolean) => z.boolean().catch(fallback);
 const action = (fallback: VoiceAction) => z.enum(["free", "mute", "deafen"]).catch(fallback);
 const clampedInt = (max: number) =>
@@ -64,6 +65,7 @@ const settingsSchema = z.object({
     nicknameSync: bool(false),
     status: section({ channelId, lobbyCode: z.enum(["always", "spoiler", "never"]).catch("spoiler") }),
     summary: section({ channelId, deleteAfterMinutes: clampedInt(MAX_DELETE_AFTER_MINUTES) }),
+    voiceChannelIds: channelIds,
 });
 
 /** Never throws: every invalid or missing field falls back to its default. */
@@ -92,6 +94,11 @@ export function mergeSettings(base: GuildSettings, patch: SettingsPatch): GuildS
     return parseSettings(mergeValues(base, patch));
 }
 
+function sameValue(a: unknown, b: unknown): boolean {
+    if (Array.isArray(a) && Array.isArray(b)) return a.length === b.length && a.every((item, i) => item === b[i]);
+    return a === b;
+}
+
 function collectLeaves(value: unknown, prefix: string, out: Map<string, unknown>): Map<string, unknown> {
     if (isPlainObject(value)) {
         for (const [key, child] of Object.entries(value)) {
@@ -107,5 +114,5 @@ function collectLeaves(value: unknown, prefix: string, out: Map<string, unknown>
 export function diffSettings(before: GuildSettings, after: GuildSettings): string[] {
     const beforeLeaves = collectLeaves(before, "", new Map());
     const afterLeaves = collectLeaves(after, "", new Map());
-    return [...afterLeaves].filter(([path, value]) => beforeLeaves.get(path) !== value).map(([path]) => path);
+    return [...afterLeaves].filter(([path, value]) => !sameValue(beforeLeaves.get(path), value)).map(([path]) => path);
 }

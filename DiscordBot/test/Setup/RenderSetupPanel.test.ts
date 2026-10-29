@@ -1,3 +1,4 @@
+import { ChannelType } from "discord.js";
 import { describe, expect, it } from "vitest";
 import { DEFAULT_SETTINGS, mergeSettings } from "../../src/Settings/GuildSettings";
 import { renderSetupPanel, SETUP_PAGES } from "../../src/Setup/RenderSetupPanel";
@@ -64,6 +65,56 @@ describe("renderSetupPanel", () => {
             "setup:status.channelId",
             "setup:summary.channelId",
         ]);
+    });
+
+    it("self-host panel has no secret button and no voice channel select", () => {
+        const all = SETUP_PAGES.flatMap((page) => render(page));
+
+        expect(byId(all, "setup:secret")).toBeUndefined();
+        expect(byId(all, "setup:voiceChannelIds")).toBeUndefined();
+        expect(text(all)).not.toContain("Plugin secret");
+    });
+
+    describe("in hosted mode", () => {
+        const renderHosted = (
+            page: (typeof SETUP_PAGES)[number],
+            secretCreatedAt: number | null,
+            settings = DEFAULT_SETTINGS,
+        ) => flatten(renderSetupPanel(settings, page, "en", true, { secretCreatedAt }));
+
+        it("hosted panel shows create when no secret exists", () => {
+            const nodes = renderHosted("general", null);
+            const button = byId(nodes, "setup:secret") as (Node & { label?: string }) | undefined;
+
+            expect(text(nodes)).toContain("No plugin secret yet");
+            expect(button?.label).toBe("Create secret");
+        });
+
+        it("hosted panel shows regenerate with the created time", () => {
+            const createdAt = 1_700_000_000_000;
+            const nodes = renderHosted("general", createdAt);
+            const button = byId(nodes, "setup:secret") as (Node & { label?: string }) | undefined;
+
+            expect(text(nodes)).toContain(`Plugin secret: created <t:${createdAt / 1000}:R>`);
+            expect(button?.label).toBe("Generate new secret");
+        });
+
+        it("offers the voice channel select with the stored channels preselected", () => {
+            const settings = mergeSettings(DEFAULT_SETTINGS, { voiceChannelIds: [CHANNEL] });
+            const select = byId(renderHosted("voice", null, settings), "setup:voiceChannelIds") as
+                | (WithChildren & { min_values?: number; max_values?: number; channel_types?: number[] })
+                | undefined;
+
+            expect(select?.min_values).toBe(0);
+            expect(select?.max_values).toBe(10);
+            expect(select?.channel_types).toEqual([ChannelType.GuildVoice, ChannelType.GuildStageVoice]);
+            expect(select?.default_values).toEqual([{ id: CHANNEL, type: "channel" }]);
+            expect(text(renderHosted("voice", null))).toContain("Fallback voice channels");
+        });
+
+        it.each(SETUP_PAGES)("keeps the %s page within the component limit", (page) => {
+            expect(renderHosted(page, 1).length).toBeLessThanOrEqual(MAX_COMPONENTS);
+        });
     });
 
     it("renders in german and contains no unicode symbols", () => {

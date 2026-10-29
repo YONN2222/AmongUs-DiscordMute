@@ -1,8 +1,8 @@
 import { ChannelType, PermissionFlagsBits, PermissionsBitField } from "discord.js";
 import { describe, expect, it } from "vitest";
-import { checkChannelAccess } from "../../src/Setup/ChannelAccess";
+import { checkChannelAccess, checkVoiceChannelAccess } from "../../src/Setup/ChannelAccess";
 
-const { ViewChannel, SendMessages, ManageMessages } = PermissionFlagsBits;
+const { ViewChannel, SendMessages, ManageMessages, MuteMembers, DeafenMembers } = PermissionFlagsBits;
 const perms = (...flags: bigint[]) => new PermissionsBitField(flags);
 
 describe("checkChannelAccess", () => {
@@ -41,5 +41,30 @@ describe("checkChannelAccess", () => {
 
     it("reports the missing access before the missing Manage Messages", () => {
         expect(checkChannelAccess(ChannelType.GuildText, perms(ManageMessages), true)).toBe("setup.error.noAccess");
+    });
+});
+
+describe("checkVoiceChannelAccess", () => {
+    const full = perms(ViewChannel, MuteMembers, DeafenMembers);
+
+    it.each([ChannelType.GuildVoice, ChannelType.GuildStageVoice])("accepts voice channel type %i", (type) => {
+        expect(checkVoiceChannelAccess(type, full)).toBeNull();
+    });
+
+    it.each([ChannelType.GuildText, ChannelType.GuildCategory])("refuses channel type %i", (type) => {
+        expect(checkVoiceChannelAccess(type, full)).toBe("setup.error.notVoice");
+    });
+
+    it("voice channel without mute permission is rejected", () => {
+        expect(checkVoiceChannelAccess(ChannelType.GuildVoice, perms(ViewChannel, DeafenMembers))).toBe(
+            "setup.error.voicePermissions",
+        );
+        expect(checkVoiceChannelAccess(ChannelType.GuildVoice, perms(ViewChannel, MuteMembers))).toBe(
+            "setup.error.voicePermissions",
+        );
+        expect(checkVoiceChannelAccess(ChannelType.GuildVoice, perms(MuteMembers, DeafenMembers))).toBe(
+            "setup.error.voicePermissions",
+        );
+        expect(checkVoiceChannelAccess(ChannelType.GuildVoice, null)).toBe("setup.error.voicePermissions");
     });
 });

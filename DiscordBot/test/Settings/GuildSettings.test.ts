@@ -27,6 +27,7 @@ describe("parseSettings", () => {
             nicknameSync: false,
             status: { channelId: null, lobbyCode: "spoiler" },
             summary: { channelId: null, deleteAfterMinutes: 0 },
+            voiceChannelIds: [],
         });
     });
 
@@ -87,6 +88,30 @@ describe("mergeSettings", () => {
 
     it("re-parses the result so invalid patch values fall back", () => {
         expect(mergeSettings(DEFAULT_SETTINGS, { delaysMs: { gameStart: 1e9 } }).delaysMs.gameStart).toBe(5000);
+    });
+});
+
+describe("voiceChannelIds", () => {
+    const ids = (count: number) =>
+        Array.from({ length: count }, (_, i) => `13000000000000001${String(i).padStart(2, "0")}`);
+
+    it("keeps up to 10 snowflakes and falls back to none otherwise", () => {
+        expect(parseSettings({ voiceChannelIds: ids(10) }).voiceChannelIds).toEqual(ids(10));
+        expect(parseSettings({ voiceChannelIds: ids(11) }).voiceChannelIds).toEqual([]);
+        expect(parseSettings({ voiceChannelIds: ["abc"] }).voiceChannelIds).toEqual([]);
+        expect(parseSettings({ voiceChannelIds: "nope" }).voiceChannelIds).toEqual([]);
+    });
+
+    it("replaces the whole list when merged", () => {
+        const before = mergeSettings(DEFAULT_SETTINGS, { voiceChannelIds: ids(3) });
+        expect(mergeSettings(before, { voiceChannelIds: ids(1) }).voiceChannelIds).toEqual(ids(1));
+        expect(mergeSettings(before, { voiceChannelIds: [] }).voiceChannelIds).toEqual([]);
+    });
+
+    it("diffs lists by value", () => {
+        const before = mergeSettings(DEFAULT_SETTINGS, { voiceChannelIds: ids(2) });
+        expect(diffSettings(before, mergeSettings(before, { voiceChannelIds: ids(2) }))).toEqual([]);
+        expect(diffSettings(before, mergeSettings(before, { voiceChannelIds: ids(3) }))).toEqual(["voiceChannelIds"]);
     });
 });
 

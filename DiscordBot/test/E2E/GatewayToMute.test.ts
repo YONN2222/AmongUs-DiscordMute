@@ -99,7 +99,7 @@ describe("gateway to mute", () => {
             resolveTarget: createVoiceTargetResolver({
                 links: db.links,
                 memberVoiceChannel: async (_guildId, discordId) => voice.channelOf.get(discordId) ?? null,
-                fallbackChannelIds: [],
+                fallbackChannelIds: async () => [],
                 localeOf: async () => "en",
             }),
         });

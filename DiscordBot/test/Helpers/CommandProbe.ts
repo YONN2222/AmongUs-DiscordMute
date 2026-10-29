@@ -20,7 +20,9 @@ export interface CommandProbe {
 }
 
 /** A bot client with the real interaction handlers, a SQLite database and a silenced logger. */
-export async function createCommandProbe(overrides: Partial<CommandContext> = {}): Promise<CommandProbe> {
+export async function createCommandProbe(
+    overrides: Partial<CommandContext> | ((db: Database) => Partial<CommandContext>) = {},
+): Promise<CommandProbe> {
     for (const level of ["info", "warn", "error", "debug", "success"] as const) {
         vi.spyOn(logger, level).mockImplementation(() => {});
     }
@@ -38,7 +40,7 @@ export async function createCommandProbe(overrides: Partial<CommandContext> = {}
         settings: new SettingsService(db.settings),
         pushLinkPending,
         isPluginConnected: async () => true,
-        ...overrides,
+        ...(typeof overrides === "function" ? overrides(db) : overrides),
     });
     const probe = createTestProbe(client);
     await probe.setup();

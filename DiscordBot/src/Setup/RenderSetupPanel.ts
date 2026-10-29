@@ -8,7 +8,7 @@ import {
     StringSelectMenuOptionBuilder,
 } from "discord.js";
 import { type Locale, type MessageKey, t } from "../I18n/Index";
-import type { GuildSettings } from "../Settings/GuildSettings";
+import { type GuildSettings, MAX_VOICE_CHANNELS } from "../Settings/GuildSettings";
 import { ContainerBuilder } from "../Utils/ContainerBuilder";
 import {
     type DELAY_FIELDS,
@@ -17,12 +17,20 @@ import {
     LOBBY_CODE_MODES,
     NON_PLAYER_MODES,
     VOICE_ACTIONS,
+    VOICE_CHANNELS_FIELD,
 } from "./ApplySetupInput";
+import { SECRET_FIELD } from "./SecretPanel";
 
 export type SetupPage = "general" | "links" | "voice" | "game";
 
 export const SETUP_PAGES: readonly SetupPage[] = ["general", "links", "voice", "game"];
 export const SETUP_PREFIX = "setup";
+
+/** What the hosted panel shows on top of the self-host one. */
+export interface HostedPanelState {
+    /** When the guild's plugin secret was created, or null when it has none. */
+    secretCreatedAt: number | null;
+}
 
 interface Choice {
     value: string;
@@ -54,6 +62,17 @@ function channelSelect(field: string, locale: Locale, current: string | null): R
         .setMinValues(0)
         .setMaxValues(1);
     if (current) select.setDefaultChannels(current);
+    return new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(select) as Row;
+}
+
+function voiceChannelSelect(locale: Locale, current: string[]): Row {
+    const select = new ChannelSelectMenuBuilder()
+        .setCustomId(`${SETUP_PREFIX}:${VOICE_CHANNELS_FIELD}`)
+        .setPlaceholder(t(locale, "setup.channel.placeholder"))
+        .setChannelTypes(ChannelType.GuildVoice, ChannelType.GuildStageVoice)
+        .setMinValues(0)
+        .setMaxValues(MAX_VOICE_CHANNELS);
+    if (current.length > 0) select.setDefaultChannels(current);
     return new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(select) as Row;
 }
 
@@ -92,7 +111,22 @@ function pageSelect(page: SetupPage, locale: Locale): Row {
     );
 }
 
-function generalPage(container: ContainerBuilder, settings: GuildSettings, locale: Locale, connected: boolean): void {
+function secretSection(container: ContainerBuilder, locale: Locale, secretCreatedAt: number | null): void {
+    const status =
+        secretCreatedAt === null
+            ? t(locale, "setup.secret.none")
+            : t(locale, "setup.secret.status", { time: `<t:${Math.floor(secretCreatedAt / 1000)}:R>` });
+    const label = t(locale, secretCreatedAt === null ? "setup.secret.create" : "setup.secret.regenerate");
+    section(container.divider(), status, button(SECRET_FIELD, label, null));
+}
+
+function generalPage(
+    container: ContainerBuilder,
+    settings: GuildSettings,
+    locale: Locale,
+    connected: boolean,
+    hosted?: HostedPanelState,
+): void {
     section(
         container,
         t(locale, "setup.general.language"),
@@ -109,6 +143,7 @@ function generalPage(container: ContainerBuilder, settings: GuildSettings, local
         channelSelect("logChannelId", locale, settings.logChannelId),
     );
     container.divider().text(t(locale, connected ? "setup.plugin.connected" : "setup.plugin.disconnected"));
+    if (hosted) secretSection(container, locale, hosted.secretCreatedAt);
 }
 
 function linksPage(container: ContainerBuilder, settings: GuildSettings, locale: Locale): void {
@@ -158,7 +193,7 @@ function delaysSummary(settings: GuildSettings, locale: Locale): string {
     });
 }
 
-function voicePage(container: ContainerBuilder, settings: GuildSettings, locale: Locale): void {
+function voicePage(container: ContainerBuilder, settings: GuildSettings, locale: Locale, hosted: boolean): void {
     voiceRuleSelect(container, settings, locale, "tasks", "alive");
     voiceRuleSelect(container, settings, locale, "tasks", "dead");
     voiceRuleSelect(container, settings, locale, "meeting", "alive");
@@ -178,6 +213,9 @@ function voicePage(container: ContainerBuilder, settings: GuildSettings, locale:
         ),
     );
     section(container, delaysSummary(settings, locale), button("delays", t(locale, "setup.voice.editDelays"), null));
+    if (hosted) {
+        section(container, t(locale, "setup.voice.channels"), voiceChannelSelect(locale, settings.voiceChannelIds));
+    }
 }
 
 function gamePage(container: ContainerBuilder, settings: GuildSettings, locale: Locale): void {
@@ -222,18 +260,19 @@ export function renderSetupPanel(
     page: SetupPage,
     locale: Locale,
     pluginConnected: boolean,
+    hosted?: HostedPanelState,
 ): unknown[] {
     const container = new ContainerBuilder().title(t(locale, "setup.title"), null).info();
     container.addActionRowComponents(pageSelect(page, locale) as never).divider();
     switch (page) {
         case "general":
-            generalPage(container, settings, locale, pluginConnected);
+            generalPage(container, settings, locale, pluginConnected, hosted);
             break;
         case "links":
             linksPage(container, settings, locale);
             break;
         case "voice":
-            voicePage(container, settings, locale);
+            voicePage(container, settings, locale, hosted !== undefined);
             break;
         case "game":
             gamePage(container, settings, locale);

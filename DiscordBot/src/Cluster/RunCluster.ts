@@ -160,7 +160,7 @@ export async function runCluster(): Promise<void> {
         resolveTarget: createVoiceTargetResolver({
             links: db.links,
             memberVoiceChannel: (guildId, discordId) => voice.voiceChannelOf(guildId, discordId),
-            fallbackChannelIds: config.channelIds,
+            fallbackChannelIds: async () => config.channelIds,
             localeOf: guildLanguage,
         }),
     });

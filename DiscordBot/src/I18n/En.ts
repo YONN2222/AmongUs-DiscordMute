@@ -70,6 +70,8 @@ export const en = {
         "Voice update failed{member}: the bot needs the Mute Members and Deafen Members permission (and Manage Nicknames for nickname sync).",
     "log.voiceNotEditable":
         "Voice update failed{member}: the bot role must be above the highest role of that member (role order), otherwise Discord refuses the change.",
+    "log.secretChanged": "{actor} created a new plugin secret",
+    "log.secretRegenerated": "{actor} generated a new plugin secret, running games were disconnected",
     "log.more": "and {count} more",
 
     "error.missingPermission": "You need the **Manage Server** permission to do this.",
@@ -126,6 +128,15 @@ export const en = {
     "setup.general.logChannel": "Log channel",
     "setup.plugin.connected": "Among Us plugin: connected",
     "setup.plugin.disconnected": "Among Us plugin: not connected",
+    "setup.secret.status": "Plugin secret: created {time}",
+    "setup.secret.none": "No plugin secret yet. Create one and put it into the plugin config.",
+    "setup.secret.create": "Create secret",
+    "setup.secret.regenerate": "Generate new secret",
+    "setup.secret.confirm":
+        "A new secret disconnects every running game on this server until the plugin config is updated.",
+    "setup.secret.title": "Plugin secret",
+    "setup.secret.shownOnce": "Copy this secret now. It is shown only once.",
+    "setup.secret.configHint": "Put this into the plugin config:",
     "setup.links.overview": "Link overview channel",
     "setup.links.showPending": "Show pending links",
     "setup.links.autoRelink": "Relink returning players",
@@ -145,6 +156,7 @@ export const en = {
     "setup.voice.nonPlayers.as-dead": "Treat as dead",
     "setup.voice.delays":
         "Delays: game start {gameStart} s, meeting start {meetingStart} s, meeting end {meetingEnd} s, lobby {lobby} s",
+    "setup.voice.channels": "Fallback voice channels (used when the host is not in a voice channel)",
     "setup.voice.editDelays": "Edit delays",
     "setup.delays.title": "Delays in seconds",
     "setup.delays.gameStart": "Game start (0-5)",
@@ -168,6 +180,8 @@ export const en = {
     "setup.error.noAccess": "The bot needs View Channel and Send Messages in that channel.",
     "setup.error.noManageMessages": "The bot also needs Manage Messages in that channel.",
     "setup.error.unknownChannel": "That channel could not be found.",
+    "setup.error.notVoice": "Pick a voice or stage channel.",
+    "setup.error.voicePermissions": "The bot needs View Channel, Mute Members and Deafen Members in that channel.",
     "gameOver.HumansByVote": "Crewmates won: every impostor was voted out",
     "gameOver.HumansByTask": "Crewmates won: all tasks were completed",
     "gameOver.ImpostorByVote": "Impostors won: a vote left too few crewmates",

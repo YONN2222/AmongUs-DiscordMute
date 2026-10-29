@@ -1,6 +1,6 @@
 import { buildGuildCreateDispatch, buildUser, DEFAULT_IDS, extractText } from "probe.ts";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { CommandContext } from "../../src/Commands/Command";
+import type { CommandContext, HostedCommandContext } from "../../src/Commands/Command";
 import { BlockChecker } from "../../src/Hosted/BlockChecker";
 import { BlockedUserError } from "../../src/Utils/LinkingService";
 import { type CommandProbe, createCommandProbe } from "../Helpers/CommandProbe";
@@ -14,6 +14,13 @@ const blocksOf = (blockedUserIds: string[]) =>
         hostedGuilds: { get: async () => null },
     });
 
+const hostedOf = (blocks: BlockChecker): HostedCommandContext => ({
+    blocks,
+    secrets: { rotate: vi.fn(), get: async () => null },
+    audit: { record: vi.fn() },
+    disconnectGuild: async () => false,
+});
+
 describe("interaction gate", () => {
     let bot: CommandProbe;
 
@@ -24,7 +31,7 @@ describe("interaction gate", () => {
     const reply = () => bot.probe.lastReply() ?? {};
 
     it("blocked user gets the blocked reply for commands and buttons", async () => {
-        bot = await createCommandProbe({ hosted: { blocks: blocksOf([DEFAULT_IDS.user]) } });
+        bot = await createCommandProbe({ hosted: hostedOf(blocksOf([DEFAULT_IDS.user])) });
 
         await bot.probe.slashCommand("link self").invoke();
         await vi.waitFor(() => expect(extractText(reply())).toContain(BLOCKED_TEXT));
@@ -40,7 +47,7 @@ describe("interaction gate", () => {
     });
 
     it("lets other users through", async () => {
-        bot = await createCommandProbe({ hosted: { blocks: blocksOf(["someone-else"]) } });
+        bot = await createCommandProbe({ hosted: hostedOf(blocksOf(["someone-else"])) });
 
         await bot.probe.slashCommand("link self").invoke();
 
@@ -57,7 +64,7 @@ describe("interaction gate", () => {
             },
             hostedGuilds: { get: async () => null },
         });
-        bot = await createCommandProbe({ hosted: { blocks: failing } });
+        bot = await createCommandProbe({ hosted: hostedOf(failing) });
 
         await bot.probe.slashCommand("link self").invoke();
 

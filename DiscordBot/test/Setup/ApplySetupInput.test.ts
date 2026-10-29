@@ -6,6 +6,16 @@ const apply = (field: string, values: string[]) => applySetupInput(field, values
 const CHANNEL = "1300000000000000123";
 
 describe("applySetupInput", () => {
+    it("voiceChannelIds accepts 10 ids and rejects 11", () => {
+        const ids = (count: number) =>
+            Array.from({ length: count }, (_, i) => `13000000000000001${String(i).padStart(2, "0")}`);
+
+        expect(apply("voiceChannelIds", ids(10))).toEqual({ patch: { voiceChannelIds: ids(10) } });
+        expect(apply("voiceChannelIds", [])).toEqual({ patch: { voiceChannelIds: [] } });
+        expect(apply("voiceChannelIds", ids(11))).toEqual({ error: "setup.error.invalid" });
+        expect(apply("voiceChannelIds", ["abc"])).toEqual({ error: "setup.error.invalid" });
+    });
+
     it("patches one voice rule leaf", () => {
         expect(apply("voiceRules.tasks.dead", ["free"])).toEqual({
             patch: { voiceRules: { tasks: { dead: "free" } } },

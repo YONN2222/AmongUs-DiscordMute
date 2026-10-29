@@ -113,6 +113,28 @@ describe("formatLogLine", () => {
         expect(text).toContain(`status.channelId: none -> <#${CHANNEL}>`);
     });
 
+    it("secret change line names the actor and never pings", () => {
+        const created = line({ type: "secret-changed", guildId: GUILD, actorId: ACTOR, created: true });
+        const regenerated = line({ type: "secret-changed", guildId: GUILD, actorId: ACTOR, created: false });
+
+        expect(created).toBe(`<@${ACTOR}> created a new plugin secret`);
+        expect(regenerated).toBe(`<@${ACTOR}> generated a new plugin secret, running games were disconnected`);
+        expect(line({ type: "secret-changed", guildId: GUILD, actorId: ACTOR, created: true }, "de")).not.toBe(created);
+    });
+
+    it("lists voice fallback channels as channel mentions", () => {
+        const text = line({
+            type: "settings-changed",
+            guildId: GUILD,
+            actorId: ACTOR,
+            paths: ["voiceChannelIds"],
+            before: DEFAULT_SETTINGS,
+            after: { ...DEFAULT_SETTINGS, voiceChannelIds: ["1400000000000000001", "1400000000000000002"] },
+        });
+
+        expect(text).toContain("voiceChannelIds: none -> <#1400000000000000001>, <#1400000000000000002>");
+    });
+
     it("hints at the missing permission and the role order for voice errors", () => {
         const permission = line({ type: "voice-error", guildId: GUILD, code: "missing-permission" });
         expect(permission).toContain("Mute Members");

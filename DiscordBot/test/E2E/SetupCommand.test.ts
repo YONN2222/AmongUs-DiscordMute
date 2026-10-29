@@ -1,5 +1,7 @@
 import { buildGuildCreateDispatch, buildSlashCommandInteractionDispatch, DEFAULT_IDS, extractText } from "probe.ts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { BlockChecker } from "../../src/Hosted/BlockChecker";
+import { hashSecret } from "../../src/Hosted/GuildSecrets";
 import { type CommandProbe, createCommandProbe } from "../Helpers/CommandProbe";
 
 const GUILD = DEFAULT_IDS.guild;
@@ -105,5 +107,105 @@ describe("/setup", () => {
 
         await vi.waitFor(() => expect(bot.probe.lastReply()).toBeDefined());
         expect(extractText(reply())).toContain("Server-Einrichtung");
+    });
+});
+
+describe("/setup secret in hosted mode", () => {
+    const ACTOR = "1300000000000000099";
+    const adminAsActor = { member: { permissions: "32" }, user: { id: ACTOR } };
+    const SECRET_PATTERN = /dmh_[\w-]+/;
+    let bot: CommandProbe;
+    let disconnectGuild: ReturnType<
+        typeof vi.fn<(guildId: string, code: 4001 | 4005, reason: string) => Promise<boolean>>
+    >;
+
+    beforeEach(async () => {
+        disconnectGuild = vi.fn(async () => true);
+        bot = await createCommandProbe((db) => ({
+            hosted: {
+                secrets: db.guildSecrets,
+                audit: db.audit,
+                blocks: new BlockChecker({ blocks: db.blocks, hostedGuilds: db.hostedGuilds }),
+                disconnectGuild,
+            },
+        }));
+        bot.probe.injectDispatch(buildGuildCreateDispatch());
+    });
+
+    afterEach(async () => {
+        await bot.close();
+    });
+
+    const reply = () => bot.probe.lastReply() ?? {};
+    const secretIn = (text: string) => SECRET_PATTERN.exec(text)?.[0] ?? "";
+    const auditRows = async () => (await bot.db.audit.list({ offset: 0, limit: 10 })).rows;
+
+    it("create secret replies once with the secret and stores only its hash", async () => {
+        await bot.probe.button("setup:secret").withContext(adminAsActor).click();
+
+        const text = extractText(reply());
+        const secret = secretIn(text);
+        expect(Number(reply().flags) & EPHEMERAL).toBe(EPHEMERAL);
+        expect(text).toContain("Copy this secret now");
+        expect(text).toContain(`{ "mode": "hosted", "secret": "${secret}" }`);
+        expect(await bot.db.guildSecrets.findGuildByHash(hashSecret(secret))).toBe(GUILD);
+        expect(JSON.stringify(await auditRows())).not.toContain(secret);
+        expect(disconnectGuild).not.toHaveBeenCalled();
+        expect(bot.events).toContainEqual({ type: "secret-changed", guildId: GUILD, actorId: ACTOR, created: true });
+        expect((await auditRows()).map((row) => row.action)).toEqual(["secret.create"]);
+    });
+
+    it("regenerate asks for confirmation first", async () => {
+        await bot.db.guildSecrets.rotate(GUILD, ACTOR);
+        const before = await bot.db.guildSecrets.get(GUILD);
+
+        await bot.probe.button("setup:secret").withContext(adminAsActor).click();
+
+        expect(extractText(reply())).toContain("disconnects every running game");
+        expect(JSON.stringify(reply())).toContain("setup:secret-confirm");
+        expect(await bot.db.guildSecrets.get(GUILD)).toEqual(before);
+        expect(disconnectGuild).not.toHaveBeenCalled();
+        expect(await auditRows()).toEqual([]);
+    });
+
+    it("confirmed regenerate disconnects the guild and writes an audit row without the secret", async () => {
+        const first = await bot.db.guildSecrets.rotate(GUILD, ACTOR);
+
+        await bot.probe.button("setup:secret-confirm").withContext(adminAsActor).click();
+
+        const secret = secretIn(extractText(reply()));
+        expect(secret).not.toBe("");
+        expect(secret).not.toBe(first.secret);
+        expect(await bot.db.guildSecrets.findGuildByHash(hashSecret(first.secret))).toBeNull();
+        expect(await bot.db.guildSecrets.findGuildByHash(hashSecret(secret))).toBe(GUILD);
+        expect(disconnectGuild).toHaveBeenCalledWith(GUILD, 4001, "Secret changed");
+        const rows = await auditRows();
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({
+            actorId: ACTOR,
+            action: "secret.regenerate",
+            targetType: "guild",
+            targetId: GUILD,
+        });
+        expect(JSON.stringify(rows)).not.toContain(secret);
+        expect(bot.events).toContainEqual({ type: "secret-changed", guildId: GUILD, actorId: ACTOR, created: false });
+    });
+
+    it("non admin cannot press the secret button", async () => {
+        await bot.probe.button("setup:secret").click();
+        await bot.probe.button("setup:secret-confirm").click();
+
+        expect(extractText(reply())).toContain("Manage Server");
+        expect(await bot.db.guildSecrets.get(GUILD)).toBeNull();
+        expect(disconnectGuild).not.toHaveBeenCalled();
+    });
+
+    it("shows the secret state on the general page", async () => {
+        await bot.probe.slashCommand("setup").withContext(adminAsActor).invoke();
+        expect(extractText(reply())).toContain("No plugin secret yet");
+
+        await bot.db.guildSecrets.rotate(GUILD, ACTOR);
+        await bot.probe.slashCommand("setup").withContext(adminAsActor).invoke();
+        expect(extractText(reply())).toContain("Plugin secret: created");
     });
 });

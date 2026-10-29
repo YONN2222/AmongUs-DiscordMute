@@ -1,10 +1,20 @@
 import type { ChatInputCommandInteraction, SlashCommandBuilder } from "discord.js";
+import type { AuditLogRepository } from "../Data/Repositories/AuditLogRepository";
+import type { GuildSecretRepository } from "../Data/Repositories/GuildSecretRepository";
 import type { GuildEventBus } from "../Events/GuildEvents";
 import type { BlockChecker } from "../Hosted/BlockChecker";
 import { logger, logModules } from "../Logging/Logger";
 import type { SettingsService } from "../Settings/SettingsService";
 import type { LinkingService } from "../Utils/LinkingService";
 import { commandConstructors } from "./Generated";
+
+export interface HostedCommandContext {
+    secrets: Pick<GuildSecretRepository, "rotate" | "get">;
+    audit: Pick<AuditLogRepository, "record">;
+    blocks: BlockChecker;
+    /** Closes the plugin connections of a guild; resolves to false when none was open. */
+    disconnectGuild(guildId: string, code: 4001 | 4005, reason: string): Promise<boolean>;
+}
 
 export interface CommandContext {
     linking: LinkingService;
@@ -13,7 +23,7 @@ export interface CommandContext {
     pushLinkPending(guildId: string, phrase: string, quickChatCode: string, discordId: string): Promise<boolean>;
     isPluginConnected(guildId: string): Promise<boolean>;
     /** Set only in hosted mode. */
-    hosted?: { blocks: BlockChecker };
+    hosted?: HostedCommandContext;
 }
 
 export interface Command {

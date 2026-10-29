@@ -7,7 +7,8 @@ import type { VoiceTarget } from "./VoiceTarget";
 export interface VoiceTargetResolverDeps {
     links: Pick<LinkRepository, "findByAccountName">;
     memberVoiceChannel: (guildId: string, discordId: string) => Promise<string | null>;
-    fallbackChannelIds: string[];
+    /** Voice channels to control when the host is not in one: from the config in self-host, from the guild settings when hosted. */
+    fallbackChannelIds: (guildId: string) => Promise<string[]>;
     localeOf: (guildId: string) => Promise<Locale>;
     /** Hosted mode only: a game whose linked host is blocked is not controlled. */
     isUserBlocked?: (userId: string) => Promise<boolean>;
@@ -31,7 +32,8 @@ export function createVoiceTargetResolver(
         code: "host-not-linked" | "host-not-in-voice",
         key: MessageKey,
     ): Promise<VoiceTarget> => {
-        if (deps.fallbackChannelIds.length > 0) return { channelIds: [...deps.fallbackChannelIds] };
+        const fallbackChannelIds = await deps.fallbackChannelIds(guildId);
+        if (fallbackChannelIds.length > 0) return { channelIds: [...fallbackChannelIds] };
         return notice(guildId, code, key);
     };
 

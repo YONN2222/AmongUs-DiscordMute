@@ -22,6 +22,9 @@ function settingAt(settings: GuildSettings, path: string): unknown {
 
 function settingValue(path: string, value: unknown, locale: Locale): string {
     const isChannel = path === "logChannelId" || path.endsWith(".channelId");
+    if (Array.isArray(value)) {
+        return value.length === 0 ? t(locale, "log.none") : value.map((id) => `<#${String(id)}>`).join(", ");
+    }
     if (value === null || value === undefined) return t(locale, "log.none");
     return isChannel ? `<#${String(value)}>` : String(value);
 }
@@ -102,6 +105,10 @@ export function formatLogLine(event: GuildEvent, locale: Locale, names: (discord
             return settingsChanged(event, locale);
         case "voice-error":
             return voiceError(event, locale, names);
+        case "secret-changed":
+            return t(locale, event.created ? "log.secretChanged" : "log.secretRegenerated", {
+                actor: mention(event.actorId),
+            });
         case "pending-changed":
             return null;
     }
