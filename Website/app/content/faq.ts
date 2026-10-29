@@ -44,7 +44,7 @@ export const FAQ: readonly FaqEntry[] = [
     id: 'permissions',
     question: 'What permissions does the bot need?',
     answer:
-      'Mute Members and Deafen Members, so it can server-mute, server-deafen (ghost chat) and unmute players, and Manage Nicknames if you use nickname sync. It must be able to see the voice channel you play in, and needs View Channel and Send Messages in the channel where you want the log. The link overview is sent as a reply to your command, so it needs no extra permission. Add it to your server with the bot and applications.commands scopes so the slash commands show up.',
+      'Mute Members and Deafen Members, so it can server-mute, server-deafen (ghost chat) and unmute players, and Manage Nicknames if you use nickname sync. It must be able to see the voice channel you play in. In every channel you pick in /setup it needs View Channel and Send Messages, and for the link overview and status channels also Manage Messages. The hosted invite already asks for all of these. Add your own bot with the bot and applications.commands scopes so the slash commands show up.',
   },
   {
     id: 'telemetry',
