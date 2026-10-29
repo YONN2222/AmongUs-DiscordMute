@@ -327,10 +327,10 @@ export class PluginGateway {
         const session = conn.session;
         this.observe((observer) => observer.sessionStarted(session));
         // Not awaited, so a slow cluster never holds back the messages queued behind hello.
-        void this.routeLogged(conn.session.guildId, {
+        void this.routeLogged(session.guildId, {
             kind: "session-started",
             guildId,
-            sessionId: conn.session.sessionId,
+            sessionId: session.sessionId,
             pluginVersion,
             gameVersion,
             protocolVersion,
