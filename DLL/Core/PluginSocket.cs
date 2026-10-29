@@ -17,6 +17,17 @@ internal static class PluginSocket
     private static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(3);
     private static readonly TimeSpan ReplacedDelay = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan UnauthorizedDelay = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan TooManySessionsDelay = TimeSpan.FromSeconds(60);
+    /// <summary>
+    /// The hosted bot sits behind Cloudflare, which closes a WebSocket after about 100 s without traffic. The bot
+    /// pings every 15 s; this keep-alive makes the plugin send on its own as well.
+    /// </summary>
+    private static readonly TimeSpan KeepAliveInterval = TimeSpan.FromSeconds(20);
+
+    private const string BlockedMessage = "This server or its host is blocked from the hosted DiscordMute bot.";
+
+    /// <summary>Tells this game apart from other games of the same Discord server; one key per plugin load.</summary>
+    internal static readonly string ConnectionKey = Guid.NewGuid().ToString("N");
 
     private static readonly object QueueLock = new();
     private static readonly LinkedList<QueuedMessage> Queue = new();
@@ -27,11 +38,14 @@ internal static class PluginSocket
     private sealed record QueuedMessage(string Json, bool Droppable);
 
     private static volatile bool _terminal;
+    /// <summary>Set when the hosted bot refuses this server as blocked; stays set until the game restarts.</summary>
+    private static volatile bool _blocked;
     private static int _outdatedLogged;
     private static string _gameVersion = string.Empty;
 
     internal static bool IsReady => _ready;
     internal static bool IsTerminal => _terminal;
+    internal static bool IsBlocked => _blocked;
 
     private static volatile int _botProtocolVersion = 2;
 
@@ -53,6 +67,11 @@ internal static class PluginSocket
         lock (RunLock)
         {
             if (_runCts != null) return;
+            if (_blocked)
+            {
+                DiscordMutePlugin.PluginLog.LogError(BlockedMessage);
+                return;
+            }
             _gameVersion = gameVersion ?? string.Empty;
             _terminal = false;
             Interlocked.Exchange(ref _outdatedLogged, 0);
@@ -88,7 +107,7 @@ internal static class PluginSocket
     /// </summary>
     internal static bool Send(object message)
     {
-        if (!HostGate.IsActive) return false;
+        if (!HostGate.IsActive || _blocked) return false;
 
         var json = JsonSerializer.Serialize(message, message.GetType(), PluginProtocol.JsonOptions);
         lock (QueueLock)
@@ -133,9 +152,19 @@ internal static class PluginSocket
                         _terminal = true;
                         return;
                     case PluginProtocol.CloseUnauthorized:
-                        DiscordMutePlugin.PluginLog.LogError(
-                            "Bot rejected the secret. Check that \"secret\" in DiscordMute config matches the bot config.");
+                        DiscordMutePlugin.PluginLog.LogError(DiscordMutePlugin.Cfg.IsHosted
+                            ? "The hosted bot rejected the secret. Run /setup in your Discord server and copy the current secret into the DiscordMute config."
+                            : "Bot rejected the secret. Check that \"secret\" in DiscordMute config matches the bot config.");
                         delay = UnauthorizedDelay;
+                        break;
+                    case PluginProtocol.CloseBlocked:
+                        DiscordMutePlugin.PluginLog.LogError(BlockedMessage);
+                        _blocked = true;
+                        return;
+                    case PluginProtocol.CloseTooManySessions:
+                        DiscordMutePlugin.PluginLog.LogWarning(
+                            "Too many DiscordMute games are running on this Discord server, retrying in 60 seconds.");
+                        delay = TooManySessionsDelay;
                         break;
                     case PluginProtocol.CloseReplaced:
                         DiscordMutePlugin.PluginLog.LogInfo("Bot connection was replaced by a newer connection of this plugin.");
@@ -174,8 +203,9 @@ internal static class PluginSocket
     private static async Task<(int Code, string Reason)> ConnectAndListenAsync(CancellationToken token)
     {
         using var socket = new ClientWebSocket();
+        socket.Options.KeepAliveInterval = KeepAliveInterval;
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
-        var uri = new Uri($"ws://{DiscordMutePlugin.Cfg.Ip}:{DiscordMutePlugin.Cfg.BotPort}/ws");
+        var uri = GatewayUri();
 
         await socket.ConnectAsync(uri, token).ConfigureAwait(false);
         _botProtocolVersion = 2;
@@ -190,7 +220,8 @@ internal static class PluginSocket
                 ProtocolVersion = PluginProtocol.ProtocolVersion,
                 Secret = DiscordMutePlugin.Cfg.Secret,
                 PluginVersion = PluginProtocol.Truncate(PluginInfo.Version, PluginProtocol.MaxVersionLength),
-                GameVersion = PluginProtocol.Truncate(_gameVersion, PluginProtocol.MaxVersionLength)
+                GameVersion = PluginProtocol.Truncate(_gameVersion, PluginProtocol.MaxVersionLength),
+                ConnectionKey = ConnectionKey
             }, PluginProtocol.JsonOptions);
             await SendRawAsync(socket, hello, cts.Token).ConfigureAwait(false);
 
@@ -231,6 +262,14 @@ internal static class PluginSocket
                 catch (Exception) { }
             }
         }
+    }
+
+    private static Uri GatewayUri()
+    {
+        var cfg = DiscordMutePlugin.Cfg;
+        return cfg.IsHosted
+            ? new Uri(PluginProtocol.HostedGatewayUrl)
+            : new Uri($"ws://{cfg.Ip}:{cfg.BotPort}/ws");
     }
 
     private static async Task SendLoopAsync(ClientWebSocket socket, CancellationToken token)

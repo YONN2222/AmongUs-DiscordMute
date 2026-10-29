@@ -12,9 +12,10 @@ namespace DiscordMute.Core;
 
 internal static class BotClient
 {
+    /// <summary>Starts the self-hosted bot from "exe" when it does not answer; the hosted bot is never started locally.</summary>
     internal static async Task EnsureBotRunningAsync()
     {
-        if (string.IsNullOrWhiteSpace(DiscordMutePlugin.Cfg.ExePath)) return;
+        if (DiscordMutePlugin.Cfg.IsHosted || string.IsNullOrWhiteSpace(DiscordMutePlugin.Cfg.ExePath)) return;
         try
         {
             var response = await DiscordMutePlugin.HttpClient
@@ -73,7 +74,8 @@ internal static class BotClient
     private static async Task WaitForBotVersionAsync()
     {
         var deadline = DateTime.UtcNow + ReadyWait;
-        while (!PluginSocket.IsReady && !PluginSocket.IsTerminal && HostGate.IsActive && DateTime.UtcNow < deadline)
+        while (!PluginSocket.IsReady && !PluginSocket.IsTerminal && !PluginSocket.IsBlocked && HostGate.IsActive &&
+               DateTime.UtcNow < deadline)
             await Task.Delay(100);
     }
 
@@ -95,7 +97,7 @@ internal static class BotClient
 
         for (int i = 0; i < 5; i++)
         {
-            if (!HostGate.IsActive) return;
+            if (!HostGate.IsActive || PluginSocket.IsBlocked) return;
 
             if (PluginSocket.IsTerminal)
             {

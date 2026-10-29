@@ -14,6 +14,10 @@ internal static class PluginProtocol
     internal const int CloseProtocolTooOld = 4002;
     internal const int CloseInvalidMessage = 4003;
     internal const int CloseReplaced = 4004;
+    internal const int CloseBlocked = 4005;
+    internal const int CloseTooManySessions = 4006;
+
+    internal const string HostedGatewayUrl = "wss://gateway-mute.yonn2222.com/ws";
 
     internal const int MaxNameLength = 64;
     internal const int MaxVersionLength = 32;
@@ -44,6 +48,7 @@ internal sealed class HelloMessage
     [JsonPropertyName("secret")] public string Secret { get; set; }
     [JsonPropertyName("pluginVersion")] public string PluginVersion { get; set; }
     [JsonPropertyName("gameVersion")] public string GameVersion { get; set; }
+    [JsonPropertyName("connectionKey")] public string ConnectionKey { get; set; }
 }
 
 internal sealed class GameEventMessage
