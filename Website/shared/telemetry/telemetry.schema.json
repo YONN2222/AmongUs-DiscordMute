@@ -1,0 +1,208 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "packetId": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+    },
+    "instanceId": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$"
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "self-host",
+        "hosted"
+      ]
+    },
+    "versions": {
+      "type": "object",
+      "properties": {
+        "bot": {
+          "type": "string",
+          "maxLength": 32,
+          "pattern": "^[0-9]+(\\.[0-9]+){0,3}(-(alpha|beta|rc|dev)(\\.[0-9]{1,4})?)?$"
+        },
+        "plugins": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "maxLength": 32,
+            "pattern": "^[0-9]+(\\.[0-9]+){0,3}(-(alpha|beta|rc|dev)(\\.[0-9]{1,4})?)?$"
+          },
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "maxProperties": 16
+        },
+        "amongUs": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "maxLength": 32,
+            "pattern": "^[0-9]+(\\.[0-9]+){0,3}(-(alpha|beta|rc|dev)(\\.[0-9]{1,4})?)?$"
+          },
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "maxProperties": 16
+        }
+      },
+      "required": [
+        "bot",
+        "plugins",
+        "amongUs"
+      ],
+      "additionalProperties": false
+    },
+    "gauges": {
+      "type": "object",
+      "properties": {
+        "uniqueUsers": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "activeGames": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "guilds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "connectedPlugins": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "uniqueUsers",
+        "activeGames",
+        "guilds",
+        "connectedPlugins"
+      ],
+      "additionalProperties": false
+    },
+    "deltas": {
+      "type": "object",
+      "properties": {
+        "gamesMuted": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "mutes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "unmutes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "rateLimitHits": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "events": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "enum": [
+              "lobby",
+              "game-start",
+              "meeting-start",
+              "meeting-end"
+            ]
+          },
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        }
+      },
+      "required": [
+        "gamesMuted",
+        "mutes",
+        "unmutes",
+        "rateLimitHits",
+        "events"
+      ],
+      "additionalProperties": false
+    },
+    "latency": {
+      "type": "object",
+      "properties": {
+        "avgMs": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 30000
+        },
+        "samples": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "avgMs",
+        "samples"
+      ],
+      "additionalProperties": false
+    },
+    "features": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "enum": [
+          "linkOverview",
+          "serverLog",
+          "voiceRules",
+          "phaseDelays",
+          "ghostChat",
+          "autoRelink",
+          "liveStatus",
+          "spectatorHandling",
+          "nicknameSync",
+          "matchSummary"
+        ]
+      },
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 9007199254740991
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "packetId",
+    "instanceId",
+    "mode",
+    "versions",
+    "gauges",
+    "deltas",
+    "latency",
+    "features"
+  ],
+  "additionalProperties": false
+}

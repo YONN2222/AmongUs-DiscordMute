@@ -33,7 +33,7 @@ The full walkthrough, including the itch.io note and path escaping, is in [docs/
 
 ### Documentation
 
-The documentation is a Docus site in `docs/`. To read it as a website, run `cd docs && bun install && bun run dev`.
+The project website is [mute.yonn2222.com](https://mute.yonn2222.com) (source in `Website/`, deploy notes in [Website/README.md](Website/README.md)). The documentation is a Docus site in `docs/`. To read it as a website, run `cd docs && bun install && bun run dev`.
 
 - [Self-host setup](docs/content/1.getting-started/2.self-host-setup.md)
 - [Hosted setup](docs/content/1.getting-started/3.hosted-setup.md)
@@ -161,6 +161,8 @@ The bot is distributed as a compiled `bot.exe` (via `bun build --compile`), so e
 AmongUs-DiscordMute/
 ├── DLL/            # C# / BepInEx Among Us plugin
 ├── DiscordBot/     # Bun + TypeScript Discord bot
+├── Website/        # Nuxt website on Cloudflare Workers + D1
+├── docs/           # Docus documentation site
 ├── assets/         # Logos and images
 └── update.example.ps1
 ```
