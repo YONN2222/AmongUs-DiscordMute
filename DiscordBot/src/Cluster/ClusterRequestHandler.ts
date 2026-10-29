@@ -1,9 +1,11 @@
+import { type ClusterInfoReply, isClusterInfoRequest } from "../Admin/ClusterInfo";
 import type { LinkRepository } from "../Data/Repositories/LinkRepository";
 import type { GuildEventBus } from "../Events/GuildEvents";
 import { relinkFromRoster } from "../Game/AutoRelink";
 import type { NicknameSync } from "../Game/NicknameSync";
 import type { GuildLifecycle } from "../Hosted/GuildLifecycle";
 import { logger, logModules } from "../Logging/Logger";
+import { isMetricsSnapshotRequest, type MetricsSnapshotReply } from "../Metrics/SnapshotMessages";
 import type { MuteService } from "../Mute/MuteService";
 import { type ClusterRequest, parseClusterRequest, type RouterReply } from "../Routing/Messages";
 import type { SettingsService } from "../Settings/SettingsService";
@@ -32,7 +34,13 @@ export interface ClusterRequestHandlerDeps {
     onLinkConfirmed?: (link: ConfirmedLinkReply) => Promise<void>;
     /** Set only in hosted mode. */
     lifecycle?: Pick<GuildLifecycle, "leave">;
+    /** Guild count and ping of this cluster, for the admin API. */
+    clusterInfo: () => ClusterInfoReply;
+    /** This cluster's metrics, for the gateway's metrics endpoint. */
+    metricsSnapshot: () => Promise<MetricsSnapshotReply>;
 }
+
+export type ClusterReply = RouterReply | ClusterInfoReply | MetricsSnapshotReply;
 
 /** Runs ahead of the mute update so the same request already mutes by the renamed link; never blocks the mute. */
 async function relinkSafely(deps: ClusterRequestHandlerDeps, req: GameEventRequest): Promise<void> {
@@ -90,9 +98,12 @@ async function handleLeaveGuild(
     return (await deps.lifecycle.leave(req.guildId)) ? { ok: true } : { ok: false, error: "not-in-guild" };
 }
 
-/** Serves the requests the gateway routes to the cluster that owns a guild. */
-export function createClusterRequestHandler(deps: ClusterRequestHandlerDeps): (data: unknown) => Promise<RouterReply> {
+/** Answers every request the gateway sends to this cluster: cluster-wide queries and guild requests. */
+export function createClusterRequestHandler(deps: ClusterRequestHandlerDeps): (data: unknown) => Promise<ClusterReply> {
     return async (data) => {
+        // The gateway asks every cluster for these, also while it is still starting.
+        if (isClusterInfoRequest(data)) return deps.clusterInfo();
+        if (isMetricsSnapshotRequest(data)) return deps.metricsSnapshot();
         if (!deps.isReady()) return { ok: false, error: "cluster starting" };
         const req = parseClusterRequest(data);
         if (!req) {

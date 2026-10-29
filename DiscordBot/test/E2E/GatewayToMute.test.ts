@@ -15,6 +15,7 @@ import { createVoiceTargetResolver } from "../../src/Mute/VoiceTargetResolver";
 import { PROTOCOL_VERSION } from "../../src/Protocol/PluginProtocol";
 import { InMemoryClusterRouter } from "../../src/Routing/ClusterRouter";
 import { DEFAULT_SETTINGS } from "../../src/Settings/GuildSettings";
+import { clusterQueryStubs } from "../Helpers/ClusterQueryStubs";
 import { createTestDatabase } from "../Helpers/TestDatabase";
 
 const SECRET = "e2e-secret";
@@ -109,6 +110,7 @@ describe("gateway to mute", () => {
             isReady: () => true,
             events: bus,
             links: db.links,
+            ...clusterQueryStubs,
             settings: {
                 get: async () => {
                     await handlerSettingsGate?.promise;

@@ -1,7 +1,6 @@
 import { type Client, Events } from "discord.js";
 import { Cluster, ShardingUtil } from "galactic.ts";
 import { Registry } from "prom-client";
-import { isClusterInfoRequest } from "../Admin/ClusterInfo";
 import type { CommandContext } from "../Commands/Command";
 import { config } from "../Config/LoadedConfig";
 import { databaseOptionsFrom, openDatabase } from "../Data/Database";
@@ -19,7 +18,6 @@ import { LinkOverviewPublisher } from "../LinkOverview/LinkOverviewPublisher";
 import { LogChannelWriter } from "../LogChannel/LogChannelWriter";
 import { configureLogger, logger, logModules } from "../Logging/Logger";
 import { createClusterMetrics, instrumentVoiceAdapter, registerDiscordMetrics } from "../Metrics/ClusterMetrics";
-import { isMetricsSnapshotRequest } from "../Metrics/SnapshotMessages";
 import { MuteService } from "../Mute/MuteService";
 import { createVoiceTargetResolver } from "../Mute/VoiceTargetResolver";
 import { EXIT_CONFIG } from "../Process/ExitCodes";
@@ -248,19 +246,19 @@ export async function runCluster(): Promise<void> {
         settings,
         nicknames: nicknameSync,
         lifecycle: hosted?.lifecycle,
+        clusterInfo: () => ({
+            ok: true,
+            id: cluster.clusterID,
+            guilds: client.guilds.cache.size,
+            wsPingMs: client.ws.ping,
+        }),
+        metricsSnapshot: async () => ({
+            ok: true,
+            source: `cluster-${cluster.clusterID}`,
+            metrics: await registry.getMetricsAsJSON(),
+        }),
     });
     cluster.on("request", (data, resolve) => {
-        if (isClusterInfoRequest(data)) {
-            resolve({ ok: true, id: cluster.clusterID, guilds: client.guilds.cache.size, wsPingMs: client.ws.ping });
-            return;
-        }
-        if (isMetricsSnapshotRequest(data)) {
-            registry.getMetricsAsJSON().then(
-                (m) => resolve({ ok: true, source: `cluster-${cluster.clusterID}`, metrics: m }),
-                (e: unknown) => resolve(failure(e)),
-            );
-            return;
-        }
         handleRequest(data).then(resolve, (error: unknown) => resolve(failure(error)));
     });
 

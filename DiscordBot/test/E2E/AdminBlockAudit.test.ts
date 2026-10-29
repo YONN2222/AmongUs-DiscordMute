@@ -10,6 +10,7 @@ import { BlockChecker } from "../../src/Hosted/BlockChecker";
 import { GuildLifecycle, type GuildPort } from "../../src/Hosted/GuildLifecycle";
 import { InMemoryClusterRouter } from "../../src/Routing/ClusterRouter";
 import { DEFAULT_SETTINGS } from "../../src/Settings/GuildSettings";
+import { clusterQueryStubs } from "../Helpers/ClusterQueryStubs";
 import { backendAvailable, backends, openBackend } from "../Helpers/TestDatabase";
 
 const TOKEN = "e2e-admin-token-".repeat(3);
@@ -88,6 +89,7 @@ describe.each(backends)("admin API block through the cluster (%s)", (backend) =>
                     links: db.links,
                     settings: { get: async () => DEFAULT_SETTINGS },
                     lifecycle,
+                    ...clusterQueryStubs,
                 }),
             );
             const handlers = createAdminHandlers({

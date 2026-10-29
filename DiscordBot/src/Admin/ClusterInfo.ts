@@ -15,6 +15,8 @@ const replySchema = z.object({
     wsPingMs: z.number(),
 });
 
+export type ClusterInfoReply = z.infer<typeof replySchema>;
+
 export function isClusterInfoRequest(data: unknown): boolean {
     return requestSchema.safeParse(data).success;
 }

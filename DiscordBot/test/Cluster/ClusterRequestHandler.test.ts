@@ -6,6 +6,7 @@ import { type GuildEvent, GuildEventBus } from "../../src/Events/GuildEvents";
 import { logger } from "../../src/Logging/Logger";
 import type { RouterReply } from "../../src/Routing/Messages";
 import { DEFAULT_SETTINGS } from "../../src/Settings/GuildSettings";
+import { clusterQueryStubs } from "../Helpers/ClusterQueryStubs";
 import { createTestDatabase } from "../Helpers/TestDatabase";
 
 describe("createClusterRequestHandler", () => {
@@ -45,6 +46,7 @@ describe("createClusterRequestHandler", () => {
             events,
             links,
             settings: { get: async () => DEFAULT_SETTINGS },
+            ...clusterQueryStubs,
             ...overrides,
         });
     }
@@ -64,6 +66,18 @@ describe("createClusterRequestHandler", () => {
         expect(reply).toEqual({ ok: false, error: "cluster starting" });
         expect(mute.endSession).not.toHaveBeenCalled();
         expect(events.emit).not.toHaveBeenCalled();
+    });
+
+    it("answers cluster-info while the cluster is still starting", async () => {
+        const clusterInfo = () => ({ ok: true as const, id: 2, guilds: 5, wsPingMs: 42 });
+        const reply = await handler(() => false, { clusterInfo })({ kind: "cluster-info" });
+        expect(reply).toEqual({ ok: true, id: 2, guilds: 5, wsPingMs: 42 });
+    });
+
+    it("answers metrics-snapshot while the cluster is still starting", async () => {
+        const metricsSnapshot = async () => ({ ok: true as const, source: "cluster-2", metrics: [] });
+        const reply = await handler(() => false, { metricsSnapshot })({ kind: "metrics-snapshot" });
+        expect(reply).toEqual({ ok: true, source: "cluster-2", metrics: [] });
     });
 
     it("passes game events to the mute service", async () => {
