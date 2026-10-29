@@ -24,6 +24,7 @@ function fakeHandlers(overrides: Partial<AdminHandlers> = {}): AdminHandlers {
         listGuilds: async () => ({ rows: [], total: 0 }),
         getGuild: async () => null,
         leaveGuild: unused,
+        purgeGuild: unused,
         listBlocks: async () => ({ rows: [], total: 0 }),
         createBlock: unused,
         removeBlock: unused,
@@ -189,6 +190,42 @@ describe("admin server", () => {
         const response = await fetch(`${baseUrl}/guilds/${GUILD_ID}`, { headers: authorized });
 
         expect(response.status).toBe(404);
+    });
+
+    describe("purge", () => {
+        const purge = (body: unknown = { actorId: GUILD_ID }) =>
+            fetch(`${baseUrl}/guilds/${GUILD_ID}/purge`, {
+                method: "POST",
+                headers: { ...authorized, "Content-Type": "application/json" },
+                body: JSON.stringify(body),
+            });
+
+        it("passes the operator to the handler and reports the purge", async () => {
+            const purgeGuild = vi.fn(async () => "purged" as const);
+            await start(fakeHandlers({ purgeGuild }));
+
+            const response = await purge();
+
+            expect(purgeGuild).toHaveBeenCalledWith(GUILD_ID, { actorId: GUILD_ID });
+            expect(response.status).toBe(200);
+            expect(await response.json()).toEqual({ ok: true, data: { purged: true } });
+        });
+
+        it("is 409 while the bot is still in the server", async () => {
+            await start(fakeHandlers({ purgeGuild: async () => "in-guild" }));
+
+            const response = await purge();
+
+            expect(response.status).toBe(409);
+            expect(((await response.json()) as { error: { code: string } }).error.code).toBe("conflict");
+        });
+
+        it("is 404 for an unknown server and 400 without an operator", async () => {
+            await start(fakeHandlers({ purgeGuild: async () => null }));
+
+            expect((await purge()).status).toBe(404);
+            expect((await purge({})).status).toBe(400);
+        });
     });
 
     it("responses are no-store json", async () => {

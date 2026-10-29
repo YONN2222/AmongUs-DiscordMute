@@ -305,6 +305,39 @@ describe.each(backends)("admin handlers, actions (%s)", (backend) => {
             expect(await auditOf(guildId)).toEqual([]);
         });
 
+        describe("purge", () => {
+            const purgeAudits = async (guildId: string) =>
+                (await db.audit.list({ targetId: guildId, action: "guild.purge", offset: 0, limit: 10 })).rows;
+
+            it("is refused while the bot is still in the server and deletes nothing", async () => {
+                const guildId = uniqueId("guild");
+                await addGuild(guildId, uniqueId("owner"));
+
+                expect(await handlers().purgeGuild(guildId, { actorId: admin })).toBe("in-guild");
+                expect(await db.hostedGuilds.get(guildId)).not.toBeNull();
+                expect(await purgeAudits(guildId)).toEqual([]);
+            });
+
+            it("deletes a left server at once and audits the operator once", async () => {
+                const guildId = uniqueId("guild");
+                await addGuild(guildId, uniqueId("owner"));
+                await db.links.upsert(guildId, "u1", "Crew");
+                await db.hostedGuilds.markLeft(guildId, START);
+
+                expect(await handlers().purgeGuild(guildId, { actorId: admin })).toBe("purged");
+
+                expect(await db.hostedGuilds.get(guildId)).toBeNull();
+                expect(await db.links.findByAccountName(guildId, "Crew")).toEqual([]);
+                expect(await purgeAudits(guildId)).toMatchObject([
+                    { actorId: admin, action: "guild.purge", targetType: "guild", targetId: guildId },
+                ]);
+            });
+
+            it("an unknown server is null", async () => {
+                expect(await handlers().purgeGuild(uniqueId("unknown"), { actorId: admin })).toBeNull();
+            });
+        });
+
         it('guild block of a server the bot already left stores "Bot was not in the server"', async () => {
             const guildId = uniqueId("guild");
             await addGuild(guildId, uniqueId("owner"));

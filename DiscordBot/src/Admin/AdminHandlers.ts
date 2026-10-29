@@ -3,7 +3,7 @@ import type { BlockOutcome } from "../Data/Repositories/BlockRepository";
 import type { HostedGuildRow } from "../Data/Repositories/HostedGuildRepository";
 import type { PluginGateway } from "../Gateway/PluginGateway";
 import { LEAVE_DISCONNECTS } from "../Hosted/LeaveDisconnects";
-import { purgeAtOf } from "../Hosted/LeftGuildPurge";
+import { purgeAtOf, purgeGuildData } from "../Hosted/LeftGuildPurge";
 import type { ClusterRouter } from "../Routing/ClusterRouter";
 import type { GuildLeaveReason, RouterReply } from "../Routing/Messages";
 import type {
@@ -21,6 +21,7 @@ import type {
     LeaveGuildBody,
     Overview,
     PageQuery,
+    PurgeGuildBody,
     RemoveBlockBody,
 } from "./Contract";
 
@@ -40,6 +41,8 @@ export interface AdminHandlers {
     getGuild(guildId: string): Promise<GuildSummary | null>;
     /** Null when the guild is not in the hosted guild list. */
     leaveGuild(guildId: string, body: LeaveGuildBody): Promise<{ left: boolean } | null>;
+    /** Deletes the data of a server the bot left; null when the guild is not in the hosted guild list. */
+    purgeGuild(guildId: string, body: PurgeGuildBody): Promise<"purged" | "in-guild" | null>;
     listBlocks(query: BlockListQuery): Promise<Page<Block>>;
     createBlock(body: CreateBlockBody): Promise<Block | "conflict">;
     /** True when a block existed. */
@@ -179,6 +182,13 @@ export function createAdminHandlers(deps: AdminHandlerDeps): AdminHandlers {
                 now(),
             );
             return { left };
+        },
+        async purgeGuild(guildId, { actorId }) {
+            const guild = await db.hostedGuilds.get(guildId);
+            if (!guild) return null;
+            if (guild.leftAt === null) return "in-guild";
+            await purgeGuildData(db, guildId, actorId, now());
+            return "purged";
         },
         listBlocks(query) {
             return db.blocks.list({ type: query.type, targetId: query.q, offset: offsetOf(query), limit: query.limit });

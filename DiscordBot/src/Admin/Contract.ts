@@ -204,6 +204,9 @@ export type RemoveBlockBody = z.infer<typeof RemoveBlockBodySchema>;
 export const LeaveGuildBodySchema = z.strictObject({ actorId: SnowflakeSchema, reason: ReasonSchema });
 export type LeaveGuildBody = z.infer<typeof LeaveGuildBodySchema>;
 
+export const PurgeGuildBodySchema = z.strictObject({ actorId: SnowflakeSchema });
+export type PurgeGuildBody = z.infer<typeof PurgeGuildBodySchema>;
+
 export const CreateAuditBodySchema = z.strictObject({
     actorId: SnowflakeSchema,
     action: DashboardAuditActionSchema,

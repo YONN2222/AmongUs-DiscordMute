@@ -18,6 +18,7 @@ import {
     MAX_BODY_BYTES,
     type PageMeta,
     type PageQuery,
+    PurgeGuildBodySchema,
     RemoveBlockBodySchema,
     SnowflakeSchema,
 } from "./Contract";
@@ -155,6 +156,13 @@ function buildRoutes(handlers: AdminHandlers): Route[] {
             const result = await handlers.leaveGuild(guildId, parse(LeaveGuildBodySchema, await readBody()));
             if (!result) throw fail("not-found", "Server not found");
             return ok(result);
+        }),
+        route("POST", "/guilds/:guildId/purge", async ({ params, readBody }) => {
+            const { guildId } = parse(GuildParamsSchema, params);
+            const result = await handlers.purgeGuild(guildId, parse(PurgeGuildBodySchema, await readBody()));
+            if (!result) throw fail("not-found", "Server not found");
+            if (result === "in-guild") throw fail("conflict", "The bot is still in this server");
+            return ok({ purged: true });
         }),
         route("GET", "/blocks", async ({ query }) => {
             const parsed = parse(BlockListQuerySchema, query);
