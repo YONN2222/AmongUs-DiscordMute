@@ -27,16 +27,24 @@ function digest(value: string): Buffer {
     return createHash("sha256").update(value).digest();
 }
 
-/** The deprecated `secret` of config.json: one shared secret for the one server named by `guildId`. */
+/**
+ * The deprecated `secret` of config.json: one shared secret for the one server named by `guildId`.
+ * With `hasStoredSecret` it stops working once that server has a secret from /setup.
+ */
 export class SelfHostSecretResolver implements SecretResolver {
     private readonly expected: Buffer;
 
-    constructor(private readonly config: { secret: string; guildId: string }) {
+    constructor(
+        private readonly config: { secret: string; guildId: string },
+        private readonly hasStoredSecret: (guildId: string) => Promise<boolean> = async () => false,
+    ) {
         this.expected = digest(config.secret);
     }
 
     async resolve(secret: string): Promise<ResolvedSecret | null> {
         // Hashing both sides gives equal-length buffers, so the length of the secret does not leak.
-        return timingSafeEqual(digest(secret), this.expected) ? { guildId: this.config.guildId } : null;
+        if (!timingSafeEqual(digest(secret), this.expected)) return null;
+        if (await this.hasStoredSecret(this.config.guildId)) return null;
+        return { guildId: this.config.guildId };
     }
 }

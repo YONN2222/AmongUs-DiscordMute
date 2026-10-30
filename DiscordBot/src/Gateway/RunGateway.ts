@@ -140,11 +140,18 @@ async function createTelemetryService(
     return new TelemetryService({ target, fetch, collect: () => collector.snapshots(), builder });
 }
 
-/** Secrets created with /setup, plus the deprecated config.json secret so existing installs keep working. */
-function selfHostResolver(cfg: Pick<Config, "guildId" | "secret">, db: Pick<Database, "guildSecrets">): SecretResolver {
+/**
+ * Secrets created with /setup, plus the deprecated config.json secret so existing installs keep working.
+ * The config.json secret stops working for a server as soon as that server creates a secret in /setup.
+ */
+export function selfHostResolver(
+    cfg: Pick<Config, "guildId" | "secret">,
+    db: Pick<Database, "guildSecrets">,
+): SecretResolver {
     const resolvers: SecretResolver[] = [new GuildSecretResolver(db.guildSecrets)];
     if (cfg.guildId !== undefined && cfg.secret !== undefined) {
-        resolvers.push(new SelfHostSecretResolver({ guildId: cfg.guildId, secret: cfg.secret }));
+        const hasStoredSecret = async (guildId: string) => (await db.guildSecrets.get(guildId)) !== null;
+        resolvers.push(new SelfHostSecretResolver({ guildId: cfg.guildId, secret: cfg.secret }, hasStoredSecret));
     }
     return new ChainedSecretResolver(resolvers);
 }

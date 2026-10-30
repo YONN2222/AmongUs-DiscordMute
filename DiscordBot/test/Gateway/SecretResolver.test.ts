@@ -18,3 +18,14 @@ describe("SelfHostSecretResolver", () => {
         expect(await resolver.resolve("")).toBeNull();
     });
 });
+
+describe("SelfHostSecretResolver with a stored secret", () => {
+    it("stops resolving once the guild has a stored secret", async () => {
+        let stored = false;
+        const resolver = new SelfHostSecretResolver({ secret: "legacy-test-secret", guildId: "g" }, async () => stored);
+
+        expect(await resolver.resolve("legacy-test-secret")).toEqual({ guildId: "g" });
+        stored = true;
+        expect(await resolver.resolve("legacy-test-secret")).toBeNull();
+    });
+});
