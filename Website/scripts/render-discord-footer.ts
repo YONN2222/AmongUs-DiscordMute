@@ -5,16 +5,17 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-// A very wide, low strip: Discord scales it to the message width, so it stays a thin line under the content.
+// A very wide, low strip on a transparent background, so it sits on Discord's light and dark themes alike.
+// Discord scales it to the message width, so it stays a thin line under the content.
 const WIDTH = 5170
-const HEIGHT = 106
-const BACKGROUND = '#0a0a0f'
-const RULE_COLOR = '#9295ff'
-const RULE_OPACITY = 0.35
-const RULE_HEIGHT = 14
-const EDGE_PADDING = 60
-const WORDMARK_HEIGHT = 90
-const WORDMARK_GAP = 48
+const HEIGHT = 130
+// The website accent (--accent), the crewmate red of the logo.
+const RULE_COLOR = '#dc2f35'
+const RULE_OPACITY = 0.4
+const RULE_HEIGHT = 66
+const EDGE_PADDING = 54
+const WORDMARK_HEIGHT = 130
+const WORDMARK_GAP = 90
 const WORDMARK_SOURCE = { file: 'logo-wordmark-480.png', width: 480, height: 131 }
 
 const brandDir = fileURLToPath(new URL('../public/brand/', import.meta.url))
@@ -25,7 +26,6 @@ const ruleY = (HEIGHT - RULE_HEIGHT) / 2
 const ruleWidth = wordmarkX - WORDMARK_GAP - EDGE_PADDING
 
 const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}">
-  <rect width="${WIDTH}" height="${HEIGHT}" rx="${HEIGHT / 2}" fill="${BACKGROUND}"/>
   <rect x="${EDGE_PADDING}" y="${ruleY}" width="${ruleWidth}" height="${RULE_HEIGHT}" rx="${RULE_HEIGHT / 2}" fill="${RULE_COLOR}" fill-opacity="${RULE_OPACITY}"/>
   <rect x="${WIDTH - EDGE_PADDING - ruleWidth}" y="${ruleY}" width="${ruleWidth}" height="${RULE_HEIGHT}" rx="${RULE_HEIGHT / 2}" fill="${RULE_COLOR}" fill-opacity="${RULE_OPACITY}"/>
   <image x="${wordmarkX}" y="${(HEIGHT - WORDMARK_HEIGHT) / 2}" width="${wordmarkWidth}" height="${WORDMARK_HEIGHT}" href="data:image/png;base64,${wordmark}"/>
