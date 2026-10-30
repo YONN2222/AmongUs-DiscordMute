@@ -21,7 +21,7 @@ import type { SettingsService } from "../Settings/SettingsService";
 import { errorMessage } from "../Utils/ErrorMessage";
 import { cachedGuildIds } from "./CachedGuildIds";
 import { createClusterRequestHandler } from "./ClusterRequestHandler";
-import { type ClusterServices, createClusterServices } from "./ClusterServices";
+import { type ClusterServices, type ClusterServicesDeps, createClusterServices } from "./ClusterServices";
 import { createDiscordClient } from "./CreateDiscordClient";
 import { onFatalGatewayClose } from "./FatalGatewayClose";
 import { createGuildDisconnect } from "./GuildDisconnect";
@@ -69,6 +69,11 @@ function startupDeployTarget(cluster: Cluster<Client>): { guildId: string } | "g
     return cluster.shardList.includes(ShardingUtil.getShardIDForGuild(guildId, cluster.totalShards))
         ? { guildId }
         : null;
+}
+
+function legacyChannelsOf(cfg: typeof config): ClusterServicesDeps["legacyChannels"] {
+    if (isHosted(cfg) || !cfg.guildId || cfg.channelIds.length === 0) return undefined;
+    return { guildId: cfg.guildId, channelIds: cfg.channelIds };
 }
 
 interface ReadyDeps {
@@ -263,7 +268,7 @@ export async function runCluster(): Promise<void> {
     const registry = new Registry();
     const metrics = createClusterMetrics(registry, cluster.clusterID);
     registerDiscordMetrics(client, metrics);
-    const services = createClusterServices({ db, client, metrics, hosted, legacyChannelIds: config.channelIds });
+    const services = createClusterServices({ db, client, metrics, hosted, legacyChannels: legacyChannelsOf(config) });
     const { settings, events, logWriter, nicknameSync, mute } = services;
 
     // The hosted lifecycle calls these when the bot leaves, is removed from or is added to a guild.

@@ -9,7 +9,7 @@ import { LinkOverviewPublisher } from "../LinkOverview/LinkOverviewPublisher";
 import { LogChannelWriter } from "../LogChannel/LogChannelWriter";
 import { type ClusterMetrics, instrumentVoiceAdapter } from "../Metrics/ClusterMetrics";
 import { MuteService } from "../Mute/MuteService";
-import { chooseFallbackChannels, createVoiceTargetResolver } from "../Mute/VoiceTargetResolver";
+import { chooseFallbackChannels, createVoiceTargetResolver, type LegacyChannels } from "../Mute/VoiceTargetResolver";
 import { SettingsService } from "../Settings/SettingsService";
 import { cachedGuildIds } from "./CachedGuildIds";
 import { DiscordVoiceAdapter } from "./DiscordVoiceAdapter";
@@ -22,8 +22,8 @@ export interface ClusterServicesDeps {
     metrics: ClusterMetrics;
     /** Set only in hosted mode. */
     hosted: HostedCluster | undefined;
-    /** Deprecated `channelIds` of config.json, used for servers that chose no fallback voice channels in /setup. */
-    legacyChannelIds: string[];
+    /** Self-host only: the deprecated `channelIds` of config.json, used by `guildId` while it chose none in /setup. */
+    legacyChannels?: LegacyChannels;
 }
 
 /** The feature services of one cluster, wired to the guild event bus. */
@@ -45,7 +45,7 @@ export function createClusterServices({
     client,
     metrics,
     hosted,
-    legacyChannelIds,
+    legacyChannels,
 }: ClusterServicesDeps): ClusterServices {
     const events = new GuildEventBus();
     const settings = new SettingsService(db.settings, events);
@@ -98,7 +98,7 @@ export function createClusterServices({
             links: db.links,
             memberVoiceChannel: (guildId, discordId) => voice.voiceChannelOf(guildId, discordId),
             fallbackChannelIds: async (guildId) =>
-                chooseFallbackChannels((await settings.get(guildId)).voiceChannelIds, legacyChannelIds),
+                chooseFallbackChannels((await settings.get(guildId)).voiceChannelIds, legacyChannels, guildId),
             isUserBlocked: hosted ? (userId) => hosted.blocks.isUserBlocked(userId) : undefined,
             localeOf: guildLanguage,
         }),

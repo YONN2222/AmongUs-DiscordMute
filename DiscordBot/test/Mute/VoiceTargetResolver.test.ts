@@ -6,13 +6,22 @@ import { chooseFallbackChannels, createVoiceTargetResolver } from "../../src/Mut
 import { createTestDatabase, purgeTestRows, uniqueId } from "../Helpers/TestDatabase";
 
 describe("chooseFallbackChannels", () => {
+    const legacy = { guildId: "g1", channelIds: ["legacy"] };
+
     it("prefers the channels chosen in /setup", () => {
-        expect(chooseFallbackChannels(["a"], ["legacy"])).toEqual(["a"]);
+        expect(chooseFallbackChannels(["a"], legacy, "g1")).toEqual(["a"]);
     });
 
-    it("uses the deprecated config channels when none was chosen", () => {
-        expect(chooseFallbackChannels([], ["legacy"])).toEqual(["legacy"]);
-        expect(chooseFallbackChannels([], [])).toEqual([]);
+    it("uses the deprecated config channels for their server when none was chosen", () => {
+        expect(chooseFallbackChannels([], legacy, "g1")).toEqual(["legacy"]);
+    });
+
+    it("never uses the deprecated config channels for another server", () => {
+        expect(chooseFallbackChannels([], legacy, "g2")).toEqual([]);
+    });
+
+    it("has no fallback without deprecated channels", () => {
+        expect(chooseFallbackChannels([], undefined, "g1")).toEqual([]);
     });
 });
 

@@ -14,9 +14,22 @@ export interface VoiceTargetResolverDeps {
     isUserBlocked?: (userId: string) => Promise<boolean>;
 }
 
-/** The fallback channels a server chose in /setup, or the deprecated `channelIds` of config.json when it chose none. */
-export function chooseFallbackChannels(chosen: string[], legacy: string[]): string[] {
-    return chosen.length > 0 ? chosen : legacy;
+export interface LegacyChannels {
+    guildId: string;
+    channelIds: string[];
+}
+
+/**
+ * The fallback channels a server chose in /setup, or the deprecated `channelIds` of config.json when it chose none.
+ * The config.json list belongs to one server and is never used for another.
+ */
+export function chooseFallbackChannels(
+    chosen: string[],
+    legacy: LegacyChannels | undefined,
+    guildId: string,
+): string[] {
+    if (chosen.length > 0) return chosen;
+    return legacy?.guildId === guildId ? legacy.channelIds : [];
 }
 
 export function createVoiceTargetResolver(
