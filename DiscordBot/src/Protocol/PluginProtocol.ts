@@ -1,6 +1,10 @@
 import { z } from "zod";
 
 export const PROTOCOL_VERSION = 3;
+/**
+ * Protocol 2 is the hello of an unreleased 3.0 pre-release. Released 2.x plugins send the secret in the URL query
+ * instead and are refused as outdated in `PluginGateway.handleUpgrade`.
+ */
 export const MIN_PROTOCOL_VERSION = 2;
 
 export const CLOSE_HELLO_TIMEOUT = 4000;
