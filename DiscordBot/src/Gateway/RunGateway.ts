@@ -6,7 +6,7 @@ import { type Config, SELF_HOST_FIELDS_REQUIRED } from "../Config/ConfigSchema";
 import { type Database, databaseOptionsFrom, openDatabase } from "../Data/Database";
 import { isHosted } from "../Hosted/HostedMode";
 import { LinkingService } from "../Linking/LinkingService";
-import { configureLogger, logger, logModules } from "../Logging/Logger";
+import { configureLogger, logger, logModules, resolveLogLevel } from "../Logging/Logger";
 import { createGatewayMetrics, createGatewayMetricsObserver, type GatewayMetrics } from "../Metrics/GatewayMetrics";
 import { GalacticSnapshotSource, MetricsCollector } from "../Metrics/MetricsCollector";
 import { createMetricsServer } from "../Metrics/MetricsServer";
@@ -258,7 +258,8 @@ export async function runGateway(
     config: Config,
     deps: GatewayDeps = defaultGatewayDeps,
 ): Promise<RunningGateway | undefined> {
-    configureLogger({ format: config.logFormat, processName: "gateway" });
+    configureLogger({ format: config.logFormat, processName: "gateway", level: resolveLogLevel(config.logLevel) });
+    logger.success(logModules.Bot, `DiscordMute ${BOT_VERSION} starting (${config.mode})`);
     let mode: StartupMode;
     try {
         mode = readStartupMode(config, deps.env);
@@ -269,7 +270,7 @@ export async function runGateway(
     }
 
     const db = await openDatabase(databaseOptionsFrom(config));
-    logger.success(logModules.Database, "Database is ready!");
+    logger.success(logModules.Database, `Database ready (${config.databaseDialect})`);
 
     const instance = deps.createInstance(config);
     const { gatewayMetrics, collector } = createMetrics(instance);

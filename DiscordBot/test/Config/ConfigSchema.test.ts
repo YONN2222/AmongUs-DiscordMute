@@ -89,6 +89,12 @@ describe("parseConfig", () => {
         expect(parseConfig({ ...base, logFormat: "json" }).logFormat).toBe("json");
     });
 
+    it("defaults logLevel to info and rejects unknown levels", () => {
+        expect(parseConfig(base).logLevel).toBe("info");
+        expect(parseConfig({ ...base, logLevel: "debug" }).logLevel).toBe("debug");
+        expect(Config.safeParse({ ...base, logLevel: "verbose" }).success).toBe(false);
+    });
+
     it("example config is self-host and has no hosted keys", () => {
         const text = readFileSync(resolve(__dirname, "../../config.example.json"), "utf-8");
         const config = parseConfig(JSON.parse(text));

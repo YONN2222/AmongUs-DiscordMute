@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { LOG_LEVEL_SETTINGS } from "../Logging/Logger";
 
 export const SELF_HOST_FIELDS_REQUIRED = 'guildId and secret are required when mode is "self-host"';
 
@@ -23,6 +24,7 @@ export const Config = z
         disableTelemetry: z.boolean().default(false),
         disableUpdateCheck: z.boolean().default(false),
         logFormat: z.enum(["pretty", "json"]).default("pretty"),
+        logLevel: z.enum(LOG_LEVEL_SETTINGS).default("info"),
         metrics: z
             .object({
                 enabled: z.boolean().default(false),

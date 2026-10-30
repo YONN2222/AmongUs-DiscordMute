@@ -15,6 +15,8 @@ export const logTheme = {
     debug: "#bd42e6",
     bot: "#be2020",
     command: "#7418a3",
+    link: "#c084fc",
+    process: "#a1a1aa",
     discord: "#6270f0",
     webServer: "#08c48a",
     mute: "#efaa32",
@@ -36,6 +38,7 @@ export const logTheme = {
 export const logModules = {
     Bot: { name: "bot", tint: logTheme.bot } as LogModule,
     Command: { name: "command", tint: logTheme.command } as LogModule,
+    Link: { name: "link", tint: logTheme.link } as LogModule,
     Discord: { name: "discord", tint: logTheme.discord } as LogModule,
     WebServer: { name: "web-server", tint: logTheme.webServer } as LogModule,
     Mute: { name: "mute", tint: logTheme.mute } as LogModule,
@@ -54,8 +57,16 @@ const levelLabels: Record<LogLevel, string> = {
     debug: "DEBUG",
 };
 
+export const LOG_LEVEL_SETTINGS = ["debug", "info", "warn", "error"] as const;
+export type LogLevelSetting = (typeof LOG_LEVEL_SETTINGS)[number];
+
+const levelRank: Record<LogLevel, number> = { debug: 0, info: 1, success: 1, warn: 2, error: 3 };
+
 const labelWidth = 5;
 const moduleWidth = 10;
+const processWidth = 7;
+const MASK_VISIBLE_CHARS = 2;
+const MASK_MIN_LENGTH = 5;
 
 function getTimestamp(): string {
     const now = new Date();
@@ -64,27 +75,55 @@ function getTimestamp(): string {
     return `${now.getFullYear()}-${twoDigits(now.getMonth() + 1)}-${twoDigits(now.getDate())} ${twoDigits(now.getHours())}:${twoDigits(now.getMinutes())}:${twoDigits(now.getSeconds())}`;
 }
 
-function fit(value: string, width: number): string {
+function fitColumn(value: string, width: number): string {
     return value.length > width ? value.slice(0, width) : value.padEnd(width);
+}
+
+/** "cluster-3" becomes "c3" so the process column stays narrow; "gateway" stays as it is. */
+function shortProcessName(processName: string): string {
+    return processName.replace(/^cluster-/, "c");
 }
 
 function formatLine(level: LogLevel, module: LogModule, message: string): string {
     const time = chalk.hex(logTheme.timestamp)(getTimestamp());
-    const label = chalk.hex(logTheme[level])(fit(levelLabels[level], labelWidth));
-    const source = chalk.hex(module.tint)(fit(module.name, moduleWidth));
+    const label = chalk.hex(logTheme[level])(fitColumn(levelLabels[level], labelWidth));
+    const source = chalk.hex(module.tint)(fitColumn(module.name, moduleWidth));
+    const processLabel = chalk.hex(logTheme.process)(fitColumn(shortProcessName(activeProcess), processWidth));
     const divider = chalk.hex(logTheme.divider)("│");
 
-    return `${time} ${divider} ${label} ${divider} ${source} ${divider} ${message}`;
+    return `${time} ${divider} ${label} ${divider} ${source} ${divider} ${processLabel} ${divider} ${message}`;
 }
 
 export type LogFormat = "pretty" | "json";
 
-let activeFormat: LogFormat = "pretty";
-let activeProcess = "main";
+function isLogLevelSetting(value: string): value is LogLevelSetting {
+    return (LOG_LEVEL_SETTINGS as readonly string[]).includes(value);
+}
 
-export function configureLogger(opts: { format: LogFormat; processName: string }): void {
+/** The LOG_LEVEL environment variable wins over the config, so debug output needs no config change. */
+export function resolveLogLevel(
+    configured: LogLevelSetting,
+    env: Record<string, string | undefined> = process.env,
+): LogLevelSetting {
+    const fromEnv = env.LOG_LEVEL?.trim().toLowerCase();
+    return fromEnv && isLogLevelSetting(fromEnv) ? fromEnv : configured;
+}
+
+// Lines written before configureLogger runs (config loading, import-time failures) still name their process.
+let activeFormat: LogFormat = "pretty";
+let activeProcess = process.env.CLUSTER_ID === undefined ? "gateway" : `cluster-${process.env.CLUSTER_ID}`;
+let activeLevel: LogLevelSetting = resolveLogLevel("info");
+
+export function configureLogger(opts: { format: LogFormat; processName: string; level?: LogLevelSetting }): void {
     activeFormat = opts.format;
     activeProcess = opts.processName;
+    activeLevel = opts.level ?? "info";
+}
+
+/** Hides a link code or quick chat phrase in a log line; the first characters are enough to tell codes apart. */
+export function maskForLog(value: string): string {
+    if (value.length < MASK_MIN_LENGTH) return "*".repeat(value.length);
+    return value.slice(0, MASK_VISIBLE_CHARS) + "*".repeat(value.length - MASK_VISIBLE_CHARS);
 }
 
 const SENSITIVE_KEY = /token|secret|authorization|password|cookie/i;
@@ -155,6 +194,7 @@ function writeJson(level: LogLevel, module: LogModule, message: string, context?
 }
 
 function write(level: LogLevel, module: LogModule, message: string, context?: unknown): void {
+    if (levelRank[level] < levelRank[activeLevel]) return;
     if (activeFormat === "json") {
         writeJson(level, module, message, context);
         return;
