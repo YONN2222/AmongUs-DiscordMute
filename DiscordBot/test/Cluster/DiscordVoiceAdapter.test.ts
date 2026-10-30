@@ -199,11 +199,8 @@ describe("DiscordVoiceAdapter", () => {
         expect(await mute.handleGameEvent(gameStart(["Red"]))).toEqual({ ok: true, channelIds: [VOICE] });
 
         expect(memberPatches()[0].status).toBe(403);
-        expect(logger.error).toHaveBeenCalledWith(
-            expect.anything(),
-            expect.stringContaining(HOST),
-            expect.objectContaining({ status: 403 }),
-        );
+        expect(logger.warn).toHaveBeenCalledWith(expect.anything(), expect.stringContaining(GUILD));
+        expect(logger.debug).toHaveBeenCalledWith(expect.anything(), expect.stringContaining(HOST));
         expect(await db.muteLedger.listByGuild(GUILD)).toEqual([]);
     });
 

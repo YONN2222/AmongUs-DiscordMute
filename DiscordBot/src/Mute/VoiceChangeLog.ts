@@ -19,14 +19,21 @@ export function logVoiceChangesIfAny(guildId: string, cause: string, changes: Vo
     if (changes.some((change) => isAdd(change.patch) || isLift(change.patch))) logVoiceChanges(guildId, cause, changes);
 }
 
-/** One info line per batch of voice changes in a guild; the member ids only go to debug. */
+/**
+ * One info line per batch of voice changes in a guild; the member ids only go to debug. It counts the calls sent,
+ * not confirmed changes: an unmute is sent whenever the ledger says the bot muted, and the cached voice state that
+ * could tell a redundant one apart lags behind the bot's own calls.
+ */
 export function logVoiceChanges(guildId: string, cause: string, changes: VoiceChange[]): void {
     const muted = changes.filter((change) => isAdd(change.patch)).map((change) => change.discordId);
     const unmuted = changes.filter((change) => isLift(change.patch)).map((change) => change.discordId);
-    logger.info(logModules.Mute, `Guild ${guildId}: ${cause}, muted ${muted.length}, unmuted ${unmuted.length}`);
+    logger.info(
+        logModules.Mute,
+        `Guild ${guildId}: ${cause}, mute calls ${muted.length}, unmute calls ${unmuted.length}`,
+    );
     if (muted.length + unmuted.length === 0) return;
     logger.debug(
         logModules.Mute,
-        `Guild ${guildId}: ${cause}, muted [${muted.join(", ")}], unmuted [${unmuted.join(", ")}]`,
+        `Guild ${guildId}: ${cause}, mute calls [${muted.join(", ")}], unmute calls [${unmuted.join(", ")}]`,
     );
 }

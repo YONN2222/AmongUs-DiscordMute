@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { GuildEvent } from "../../src/Events/GuildEvents";
 import { logger } from "../../src/Logging/Logger";
 import { MuteService } from "../../src/Mute/MuteService";
-import { GUILD, gameEvent, useMuteServiceFixture } from "../Helpers/MuteServiceFixture";
+import { GUILD, gameEvent, missingPermission, useMuteServiceFixture } from "../Helpers/MuteServiceFixture";
 import { createTestDatabase } from "../Helpers/TestDatabase";
 
 describe("MuteService", () => {
@@ -55,8 +55,8 @@ describe("MuteService", () => {
     it("reports a missing voice permission on the event bus", async () => {
         fx.voice.channels.set("c1", ["u1", "u2"]);
         fx.voice.beforeSetMute = async (discordId) => {
-            if (discordId === "u1") throw Object.assign(new Error("Missing Permissions"), { code: 50013 });
-            if (discordId === "u2") throw new Error("Unknown Member");
+            if (discordId === "u1") throw missingPermission();
+            if (discordId === "u2") throw Object.assign(new Error("Unknown Member"), { code: 10007, status: 404 });
         };
         const emitted: GuildEvent[] = [];
         const service = new MuteService({
@@ -154,11 +154,9 @@ describe("MuteService", () => {
         expect(reply).toEqual({ ok: true, channelIds: ["c1"] });
         expect([...fx.voice.muted].sort()).toEqual(["u1", "u3"]);
         expect(await fx.ledgerIds()).toEqual(["u1", "u3"]);
-        expect(logger.error).toHaveBeenCalledWith(
-            expect.anything(),
-            expect.stringMatching(new RegExp(`${GUILD}.*u2`)),
-            expect.any(Error),
-        );
+        expect(logger.warn).toHaveBeenCalledWith(expect.anything(), expect.stringContaining(GUILD));
+        expect(logger.warn).not.toHaveBeenCalledWith(expect.anything(), expect.stringContaining("u2"));
+        expect(logger.debug).toHaveBeenCalledWith(expect.anything(), expect.stringMatching(new RegExp(`${GUILD}.*u2`)));
 
         fx.voice.failing.clear();
         fx.voice.failing.add("u1");
@@ -221,7 +219,7 @@ describe("MuteService", () => {
         expect(seen).toEqual([["u1"]]);
     });
 
-    it("a failing mute leaves no stale ledger row", async () => {
+    it("a mute Discord rejected leaves no stale ledger row", async () => {
         fx.voice.channels.set("c1", ["u1"]);
         fx.voice.failing.add("u1");
 
@@ -229,6 +227,29 @@ describe("MuteService", () => {
 
         expect(fx.voice.muted.size).toBe(0);
         expect(await fx.ledgerIds()).toEqual([]);
+    });
+
+    it("keeps the ledger row of a mute that timed out, so the release still lifts it", async () => {
+        fx.voice.channels.set("c1", ["u1"]);
+        fx.voice.timeoutAfterApplying.add("u1");
+        const service = fx.createService();
+
+        await service.handleGameEvent(gameEvent("game-start", ["Red"]));
+        expect([...fx.voice.muted]).toEqual(["u1"]);
+        expect(await fx.ledgerIds()).toEqual(["u1"]);
+
+        await service.endSession(GUILD, "s1");
+        expect(fx.voice.muted.size).toBe(0);
+        expect(await fx.ledgerIds()).toEqual([]);
+    });
+
+    it("keeps the ledger row of a mute that failed with a server error", async () => {
+        fx.voice.channels.set("c1", ["u1"]);
+        fx.voice.failOnce.add("u1");
+
+        await fx.createService().handleGameEvent(gameEvent("game-start", ["Red"]));
+
+        expect(await fx.ledgerIds()).toEqual(["u1"]);
     });
 
     it("recover reads the ledger after earlier queued work", async () => {

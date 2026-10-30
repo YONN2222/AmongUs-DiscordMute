@@ -15,6 +15,13 @@ export function wantedFlags(action: VoiceAction): WantedFlags {
     return { mute: action !== "free", deaf: action === "deafen" };
 }
 
+/** Discord answered with a 4xx (missing permission, member not in voice, unknown member): nothing was applied. */
+function isDefiniteRejection(err: unknown): boolean {
+    if (typeof err !== "object" || err === null || !("status" in err)) return false;
+    const { status } = err;
+    return typeof status === "number" && status >= 400 && status < 500;
+}
+
 function sameFlags(a: LedgerFlags, b: LedgerFlags): boolean {
     return a.muted === b.muted && a.deafened === b.deafened;
 }
@@ -63,8 +70,10 @@ export async function reconcileMember(
         try {
             await deps.voice.setVoiceState(guildId, member.discordId, patch);
         } catch (err) {
-            // Even if the call may have gone through, dropping the new flags means we never lift a later moderator change.
-            if (writesFirst) await restoreLedger(deps, guildId, member.discordId, prev, prevOwner);
+            // A timeout or server error may still have applied the mute, so its flag stays and a later lift clears it.
+            if (writesFirst && isDefiniteRejection(err)) {
+                await restoreLedger(deps, guildId, member.discordId, prev, prevOwner);
+            }
             throw err;
         }
     }
