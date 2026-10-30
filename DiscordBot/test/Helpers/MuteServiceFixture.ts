@@ -112,7 +112,7 @@ export function useMuteServiceFixture(): MuteServiceFixture {
             const callsBefore = fx.voice.calls.length;
             fx.voice.channels.set("probe-channel", [probe]);
             fx.voice.muted.add(probe);
-            await fx.db.muteLedger.add(guildId, probe, sessionId);
+            await fx.db.muteLedger.set(guildId, probe, { muted: true, deafened: false }, sessionId);
 
             await service.releaseIfIdle(guildId, probe);
             const active = fx.voice.muted.has(probe);

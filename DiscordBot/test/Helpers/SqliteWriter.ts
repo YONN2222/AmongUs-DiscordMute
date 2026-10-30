@@ -5,7 +5,7 @@ export async function writeRepeatedly(db: Database, prefix: string, iterations: 
     const guildId = `${prefix}-guild`;
     for (let i = 0; i < iterations; i++) {
         const discordId = `${prefix}-u${i}`;
-        await db.muteLedger.add(guildId, discordId);
+        await db.muteLedger.set(guildId, discordId, { muted: true, deafened: false }, null);
         await db.pendingLinks.create({
             guildId,
             discordId,

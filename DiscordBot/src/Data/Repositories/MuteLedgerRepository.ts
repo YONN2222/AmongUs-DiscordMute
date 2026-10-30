@@ -20,9 +20,7 @@ const GUILD_BATCH = 500;
 export interface MuteLedgerRepository {
     get(guildId: string, discordId: string): Promise<MuteLedgerEntry | null>;
     /** Stores both flags and the owning session at once; neither flag set removes the row. */
-    set(guildId: string, discordId: string, flags: LedgerFlags, sessionId?: string | null): Promise<void>;
-    /** Marks a mute and leaves a recorded deafen as it is. */
-    add(guildId: string, discordId: string, sessionId?: string | null): Promise<void>;
+    set(guildId: string, discordId: string, flags: LedgerFlags, sessionId: string | null): Promise<void>;
     remove(guildId: string, discordId: string): Promise<void>;
     has(guildId: string, discordId: string): Promise<boolean>;
     listByGuild(guildId: string): Promise<MuteLedgerEntry[]>;
@@ -41,12 +39,12 @@ function toEntry(row: MuteLedgerModel): MuteLedgerEntry {
 }
 
 export function createMuteLedgerRepository(model: typeof MuteLedgerModel): MuteLedgerRepository {
-    const repository: MuteLedgerRepository = {
+    return {
         async get(guildId, discordId) {
             const row = await model.findOne({ where: { guildId, discordId } });
             return row ? toEntry(row) : null;
         },
-        async set(guildId, discordId, flags, sessionId = null) {
+        async set(guildId, discordId, flags, sessionId) {
             if (!flags.muted && !flags.deafened) {
                 await model.destroy({ where: { guildId, discordId } });
                 return;
@@ -59,11 +57,6 @@ export function createMuteLedgerRepository(model: typeof MuteLedgerModel): MuteL
                 deafened: flags.deafened ? 1 : 0,
                 sessionId,
             });
-        },
-        async add(guildId, discordId, sessionId = null) {
-            const existing = await repository.get(guildId, discordId);
-            const flags = { muted: true, deafened: existing?.deafened ?? false };
-            await repository.set(guildId, discordId, flags, sessionId);
         },
         async remove(guildId, discordId) {
             await model.destroy({ where: { guildId, discordId } });
@@ -85,5 +78,4 @@ export function createMuteLedgerRepository(model: typeof MuteLedgerModel): MuteL
             return entries;
         },
     };
-    return repository;
 }

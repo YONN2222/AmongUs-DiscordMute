@@ -20,8 +20,8 @@ describe.each(backends)("NicknameLedgerRepository (%s)", (backend) => {
         });
 
         it("stores an original nickname and replaces the row on a second set", async () => {
-            await db.nicknameLedger.set(g1, "u1", "Bob", "Red");
-            await db.nicknameLedger.set(g1, "u1", "Bob", "Crimson");
+            await db.nicknameLedger.set(g1, "u1", "Bob", "Red", null);
+            await db.nicknameLedger.set(g1, "u1", "Bob", "Crimson", null);
             expect(await db.nicknameLedger.listByGuild(g1)).toEqual([
                 { guildId: g1, discordId: "u1", originalNick: "Bob", appliedNick: "Crimson", sessionId: null },
             ]);
@@ -39,13 +39,13 @@ describe.each(backends)("NicknameLedgerRepository (%s)", (backend) => {
         });
 
         it("keeps a missing original nickname as null", async () => {
-            await db.nicknameLedger.set(g1, "u1", null, "Red");
+            await db.nicknameLedger.set(g1, "u1", null, "Red", null);
             expect((await db.nicknameLedger.listByGuild(g1))[0].originalNick).toBeNull();
         });
 
         it("lists by guild and by several guilds", async () => {
-            await db.nicknameLedger.set(g1, "u1", "A", "X");
-            await db.nicknameLedger.set(g2, "u2", "B", "Y");
+            await db.nicknameLedger.set(g1, "u1", "A", "X", null);
+            await db.nicknameLedger.set(g2, "u2", "B", "Y", null);
             expect((await db.nicknameLedger.listByGuild(g1)).map((e) => e.discordId)).toEqual(["u1"]);
             expect((await db.nicknameLedger.listByGuilds([g1, g2])).map((e) => e.discordId).sort()).toEqual([
                 "u1",
@@ -55,7 +55,7 @@ describe.each(backends)("NicknameLedgerRepository (%s)", (backend) => {
         });
 
         it("removes a row", async () => {
-            await db.nicknameLedger.set(g1, "u1", "A", "X");
+            await db.nicknameLedger.set(g1, "u1", "A", "X", null);
             await db.nicknameLedger.remove(g1, "u1");
             await db.nicknameLedger.remove(g1, "u1");
             expect(await db.nicknameLedger.listByGuild(g1)).toEqual([]);

@@ -19,7 +19,7 @@ export interface NicknameLedgerRepository {
         discordId: string,
         originalNick: string | null,
         appliedNick: string,
-        sessionId?: string | null,
+        sessionId: string | null,
     ): Promise<void>;
     listByGuild(guildId: string): Promise<NicknameLedgerEntry[]>;
     listByGuilds(guildIds: string[]): Promise<NicknameLedgerEntry[]>;
@@ -38,7 +38,7 @@ function toEntry(row: NicknameLedgerModel): NicknameLedgerEntry {
 
 export function createNicknameLedgerRepository(model: typeof NicknameLedgerModel): NicknameLedgerRepository {
     return {
-        async set(guildId, discordId, originalNick, appliedNick, sessionId = null) {
+        async set(guildId, discordId, originalNick, appliedNick, sessionId) {
             await model.upsert({ guildId, discordId, originalNick, appliedNick, sessionId });
         },
         async listByGuild(guildId) {

@@ -310,8 +310,8 @@ describe.each(backends)("NicknameSync (%s)", (backend) => {
         });
 
         it("recover restores rows left behind by a crash and drops rows of missing members", async () => {
-            await db.nicknameLedger.set(guildId, "u1", "Bob", "Red");
-            await db.nicknameLedger.set(guildId, "gone", "Old", "Blue");
+            await db.nicknameLedger.set(guildId, "u1", "Bob", "Red", null);
+            await db.nicknameLedger.set(guildId, "gone", "Old", "Blue", null);
             adapter.join("u1", "Red");
 
             await sync.recover([guildId, uniqueId("empty")]);
@@ -321,8 +321,8 @@ describe.each(backends)("NicknameSync (%s)", (backend) => {
         });
 
         it("keeps the row when the member lookup fails and drops it only for a member who is gone", async () => {
-            await db.nicknameLedger.set(guildId, "u1", "Bob", "Red");
-            await db.nicknameLedger.set(guildId, "gone", "Old", "Blue");
+            await db.nicknameLedger.set(guildId, "u1", "Bob", "Red", null);
+            await db.nicknameLedger.set(guildId, "gone", "Old", "Blue", null);
             adapter.join("u1", "Red");
             adapter.lookupFails.add("u1");
 
@@ -339,7 +339,7 @@ describe.each(backends)("NicknameSync (%s)", (backend) => {
         });
 
         it("keeps the row and logs when restoring fails for missing permissions", async () => {
-            await db.nicknameLedger.set(guildId, "u1", "Bob", "Red");
+            await db.nicknameLedger.set(guildId, "u1", "Bob", "Red", null);
             adapter.join("u1", "Red");
             adapter.failing.add("u1");
 

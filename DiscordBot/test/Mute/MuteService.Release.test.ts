@@ -72,7 +72,7 @@ describe("MuteService", () => {
         });
 
         it("checks the ledger entry of the member only", async () => {
-            await fx.db.muteLedger.add(GUILD, "u1");
+            await fx.db.muteLedger.set(GUILD, "u1", { muted: true, deafened: false }, null);
             fx.voice.channels.set("c1", ["u1"]);
             fx.voice.muted.add("u1");
             const listByGuild = vi.spyOn(fx.db.muteLedger, "listByGuild");
@@ -94,7 +94,7 @@ describe("MuteService", () => {
         });
 
         it("logs instead of throwing when the unmute fails", async () => {
-            await fx.db.muteLedger.add(GUILD, "u1");
+            await fx.db.muteLedger.set(GUILD, "u1", { muted: true, deafened: false }, null);
             fx.voice.channels.set("c1", ["u1"]);
             fx.voice.muted.add("u1");
             fx.voice.failing.add("u1");

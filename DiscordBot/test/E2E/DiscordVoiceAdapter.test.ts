@@ -208,7 +208,7 @@ describe("DiscordVoiceAdapter", () => {
     });
 
     it("unmutes a ledger member who joins voice while no game runs", async () => {
-        await db.muteLedger.add(GUILD, CREW);
+        await db.muteLedger.set(GUILD, CREW, { muted: true, deafened: false }, null);
         probe.injectDispatch({
             op: GatewayOpcodes.Dispatch,
             s: 2,

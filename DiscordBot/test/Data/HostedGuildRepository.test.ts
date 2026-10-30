@@ -199,8 +199,8 @@ describe.each(backends)("HostedGuildRepository (%s)", (backend) => {
                     messageId: "message-1",
                     deleteAt: null,
                 });
-                await db.muteLedger.add(id, "user-1");
-                await db.nicknameLedger.set(id, "user-1", "Bob", "Red");
+                await db.muteLedger.set(id, "user-1", { muted: true, deafened: false }, null);
+                await db.nicknameLedger.set(id, "user-1", "Bob", "Red", null);
             };
             await seed(guildId);
             await seed(other);

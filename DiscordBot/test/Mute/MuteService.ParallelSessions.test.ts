@@ -103,8 +103,8 @@ describe("MuteService", () => {
             await startBoth(service);
             fx.voice.channels.set("c3", ["u8", "u9"]);
             fx.voice.muted.add("u8").add("u9");
-            await fx.db.muteLedger.add(GUILD, "u8", "ended-session");
-            await fx.db.muteLedger.add(GUILD, "u9");
+            await fx.db.muteLedger.set(GUILD, "u8", { muted: true, deafened: false }, "ended-session");
+            await fx.db.muteLedger.set(GUILD, "u9", { muted: true, deafened: false }, null);
 
             await service.sweepIdle([GUILD]);
 

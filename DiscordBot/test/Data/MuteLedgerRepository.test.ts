@@ -23,10 +23,10 @@ describe.each(backends)("MuteLedgerRepository (%s)", (backend) => {
             await db.close();
         });
 
-        it("add is idempotent and listByGuild is guild-scoped", async () => {
-            await db.muteLedger.add(g1, "u1");
-            await db.muteLedger.add(g1, "u1");
-            await db.muteLedger.add(g2, "u2");
+        it("set is idempotent and listByGuild is guild-scoped", async () => {
+            await db.muteLedger.set(g1, "u1", { muted: true, deafened: false }, null);
+            await db.muteLedger.set(g1, "u1", { muted: true, deafened: false }, null);
+            await db.muteLedger.set(g2, "u2", { muted: true, deafened: false }, null);
             const list = await db.muteLedger.listByGuild(g1);
             expect(list).toHaveLength(1);
             expect(list[0]).toMatchObject({ guildId: g1, discordId: "u1" });
@@ -34,30 +34,30 @@ describe.each(backends)("MuteLedgerRepository (%s)", (backend) => {
         });
 
         it("remove deletes only the given entry", async () => {
-            await db.muteLedger.add(g1, "u1");
-            await db.muteLedger.add(g1, "u2");
+            await db.muteLedger.set(g1, "u1", { muted: true, deafened: false }, null);
+            await db.muteLedger.set(g1, "u2", { muted: true, deafened: false }, null);
             await db.muteLedger.remove(g1, "u1");
             await db.muteLedger.remove(g1, "missing");
             expect((await db.muteLedger.listByGuild(g1)).map((e) => e.discordId)).toEqual(["u2"]);
         });
 
-        it("add marks a mute and keeps an existing deafen", async () => {
-            await db.muteLedger.set(g1, "u1", { muted: false, deafened: true });
-            await db.muteLedger.add(g1, "u1");
-            await db.muteLedger.add(g1, "u2");
+        it("set replaces both flags of an existing entry", async () => {
+            await db.muteLedger.set(g1, "u1", { muted: false, deafened: true }, null);
+            await db.muteLedger.set(g1, "u1", { muted: true, deafened: false }, null);
+            await db.muteLedger.set(g1, "u2", { muted: true, deafened: false }, null);
 
-            expect(await db.muteLedger.get(g1, "u1")).toMatchObject({ muted: true, deafened: true });
+            expect(await db.muteLedger.get(g1, "u1")).toMatchObject({ muted: true, deafened: false });
             expect(await db.muteLedger.get(g1, "u2")).toMatchObject({ muted: true, deafened: false });
             expect(await db.muteLedger.get(g1, "nobody")).toBeNull();
         });
 
         it("set stores both flags and deletes the row when none is left", async () => {
-            await db.muteLedger.set(g1, "u1", { muted: true, deafened: true });
-            await db.muteLedger.set(g1, "u1", { muted: false, deafened: true });
+            await db.muteLedger.set(g1, "u1", { muted: true, deafened: true }, null);
+            await db.muteLedger.set(g1, "u1", { muted: false, deafened: true }, null);
             expect(await db.muteLedger.get(g1, "u1")).toMatchObject({ muted: false, deafened: true });
             expect(await db.muteLedger.has(g1, "u1")).toBe(true);
 
-            await db.muteLedger.set(g1, "u1", { muted: false, deafened: false });
+            await db.muteLedger.set(g1, "u1", { muted: false, deafened: false }, null);
             expect(await db.muteLedger.get(g1, "u1")).toBeNull();
             expect(await db.muteLedger.has(g1, "u1")).toBe(false);
         });
@@ -77,15 +77,15 @@ describe.each(backends)("MuteLedgerRepository (%s)", (backend) => {
             });
         });
 
-        it("stores the session of the last writer and keeps it on add", async () => {
+        it("stores the session of the last writer and replaces it on the next set", async () => {
             await db.muteLedger.set(g1, "u1", { muted: true, deafened: false }, "A");
             expect(await db.muteLedger.get(g1, "u1")).toMatchObject({ sessionId: "A" });
 
             await db.muteLedger.set(g1, "u1", { muted: true, deafened: true }, "B");
             expect(await db.muteLedger.get(g1, "u1")).toMatchObject({ deafened: true, sessionId: "B" });
 
-            await db.muteLedger.add(g1, "u1", "C");
-            await db.muteLedger.add(g1, "u2");
+            await db.muteLedger.set(g1, "u1", { muted: true, deafened: true }, "C");
+            await db.muteLedger.set(g1, "u2", { muted: true, deafened: false }, null);
             expect(await db.muteLedger.get(g1, "u1")).toMatchObject({ muted: true, deafened: true, sessionId: "C" });
             expect(await db.muteLedger.get(g1, "u2")).toMatchObject({ sessionId: null });
             expect((await db.muteLedger.listByGuilds([g1])).map((e) => e.sessionId).sort()).toEqual(["C", null]);
@@ -93,9 +93,9 @@ describe.each(backends)("MuteLedgerRepository (%s)", (backend) => {
 
         it("listByGuilds spans guilds and ignores others", async () => {
             const g3 = uniqueId("g3");
-            await db.muteLedger.add(g1, "u1");
-            await db.muteLedger.add(g2, "u2");
-            await db.muteLedger.add(g3, "u3");
+            await db.muteLedger.set(g1, "u1", { muted: true, deafened: false }, null);
+            await db.muteLedger.set(g2, "u2", { muted: true, deafened: false }, null);
+            await db.muteLedger.set(g3, "u3", { muted: true, deafened: false }, null);
 
             const list = await db.muteLedger.listByGuilds([g1, g2]);
 
@@ -105,13 +105,13 @@ describe.each(backends)("MuteLedgerRepository (%s)", (backend) => {
 
         it("listByGuilds handles more guilds than one query parameter batch", async () => {
             const many = Array.from({ length: 1200 }, (_, i) => `${g1}-${i}`);
-            await db.muteLedger.add(many[1199], "u1");
+            await db.muteLedger.set(many[1199], "u1", { muted: true, deafened: false }, null);
 
             expect((await db.muteLedger.listByGuilds(many)).map((e) => e.discordId)).toEqual(["u1"]);
         });
 
         it("has reports a guild-scoped entry", async () => {
-            await db.muteLedger.add(g1, "u1");
+            await db.muteLedger.set(g1, "u1", { muted: true, deafened: false }, null);
             expect(await db.muteLedger.has(g1, "u1")).toBe(true);
             expect(await db.muteLedger.has(g2, "u1")).toBe(false);
             expect(await db.muteLedger.has(g1, "u2")).toBe(false);
