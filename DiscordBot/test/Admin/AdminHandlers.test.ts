@@ -1,12 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createAdminHandlers } from "../../src/Admin/AdminHandlers";
 import type { ClusterInfo, PluginSessionInfo } from "../../src/Admin/Contract";
+import type { ProfileLookupResult } from "../../src/Admin/ProfileLookup";
 import type { Database } from "../../src/Data/Database";
 import { LEFT_GUILD_RETENTION_MS } from "../../src/Data/Repositories/HostedGuildRepository";
 import type { PendingLink } from "../../src/Data/Repositories/PendingLinkRepository";
 import { hashSecret } from "../../src/Hosted/GuildSecrets";
 import { InMemoryClusterRouter } from "../../src/Routing/ClusterRouter";
 import { DEFAULT_SETTINGS } from "../../src/Settings/GuildSettings";
+import { unknownProfiles } from "../Helpers/ProfileLookupStub";
 import { backendAvailable, backends, openBackend, purgeTestRows, uniqueId } from "../Helpers/TestDatabase";
 
 const HOUR_MS = 3600 * 1000;
@@ -23,6 +25,7 @@ describe.each(backends)("admin handlers, read endpoints (%s)", (backend) => {
         let db: Database;
         let sessionsByGuild: Map<string, number>;
         let sessionInfoByGuild: Map<string, PluginSessionInfo[]>;
+        let lookups: Map<string, ProfileLookupResult>;
         let clusters: ClusterInfo[];
 
         const handlers = () =>
@@ -36,6 +39,10 @@ describe.each(backends)("admin handlers, read endpoints (%s)", (backend) => {
                 },
                 activeGames: async () => 4,
                 clusterInfo: async () => clusters,
+                profiles: {
+                    lookup: async (userId) => lookups.get(userId) ?? { status: "unknown" },
+                    lookupMany: unknownProfiles.lookupMany,
+                },
                 router: new InMemoryClusterRouter(),
                 version: "3.0.0",
                 startedAt: STARTED_AT,
@@ -54,6 +61,7 @@ describe.each(backends)("admin handlers, read endpoints (%s)", (backend) => {
             db = await openBackend(backend);
             sessionsByGuild = new Map();
             sessionInfoByGuild = new Map();
+            lookups = new Map();
             clusters = [
                 {
                     id: 0,
@@ -269,8 +277,33 @@ describe.each(backends)("admin handlers, read endpoints (%s)", (backend) => {
             const blocked = uniqueId("blocked");
             await db.blocks.create({ type: "user", targetId: blocked, reason: "spam", blockedBy: "system" }, NOW);
 
-            expect(await handlers().getUser(blocked)).toMatchObject({ links: [], ownedGuilds: [] });
+            expect(await handlers().getUser(blocked)).toMatchObject({ profile: null, links: [], ownedGuilds: [] });
             expect(await handlers().getUser(uniqueId("unknown"))).toBeNull();
+        });
+
+        it("user lookup adds the live profile and finds users Discord knows even when nothing is stored", async () => {
+            const userId = uniqueId("known");
+            const profile = { id: userId, username: "crewmate", globalName: null, avatarUrl: null };
+            lookups.set(userId, { status: "found", profile });
+
+            expect(await handlers().getUser(userId)).toEqual({
+                userId,
+                profile,
+                links: [],
+                ownedGuilds: [],
+                block: null,
+            });
+        });
+
+        it("user lookup still answers when Discord could not be asked", async () => {
+            const userId = uniqueId("outage");
+            lookups.set(userId, { status: "failed" });
+
+            expect(await handlers().getUser(userId)).toMatchObject({ userId, profile: null, links: [] });
+        });
+
+        it("profiles come from the lookup for every requested id", async () => {
+            expect(await handlers().getProfiles(["123456789012345678"])).toEqual({ "123456789012345678": null });
         });
 
         it("getGuild unknown is null", async () => {

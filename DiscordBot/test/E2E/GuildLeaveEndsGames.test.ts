@@ -13,6 +13,7 @@ import { MuteService, type VoiceAdapter, type VoiceMember } from "../../src/Mute
 import { InMemoryClusterRouter } from "../../src/Routing/ClusterRouter";
 import { DEFAULT_SETTINGS } from "../../src/Settings/GuildSettings";
 import { clusterQueryStubs } from "../Helpers/ClusterQueryStubs";
+import { unknownProfiles } from "../Helpers/ProfileLookupStub";
 import { backendAvailable, backends, openBackend, purgeTestRows, uniqueId } from "../Helpers/TestDatabase";
 
 const CHANNEL = "voice-1";
@@ -211,6 +212,7 @@ describe.each(backends)("leaving a guild during a game (%s)", (backend) => {
                 },
                 activeGames: async () => 1,
                 clusterInfo: async () => [],
+                profiles: unknownProfiles,
                 router,
                 version: "3.0.0",
                 startedAt: 0,

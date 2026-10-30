@@ -11,6 +11,7 @@ import { GuildLifecycle, type GuildPort } from "../../src/Hosted/GuildLifecycle"
 import { InMemoryClusterRouter } from "../../src/Routing/ClusterRouter";
 import { DEFAULT_SETTINGS } from "../../src/Settings/GuildSettings";
 import { clusterQueryStubs } from "../Helpers/ClusterQueryStubs";
+import { unknownProfiles } from "../Helpers/ProfileLookupStub";
 import { backendAvailable, backends, openBackend } from "../Helpers/TestDatabase";
 
 const TOKEN = "e2e-admin-token-".repeat(3);
@@ -102,6 +103,7 @@ describe.each(backends)("admin API block through the cluster (%s)", (backend) =>
                 },
                 activeGames: async () => 0,
                 clusterInfo: async () => [],
+                profiles: unknownProfiles,
                 router,
                 version: "3.0.0",
                 startedAt: 0,

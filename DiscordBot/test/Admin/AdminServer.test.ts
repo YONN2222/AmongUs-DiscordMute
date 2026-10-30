@@ -30,6 +30,7 @@ function fakeHandlers(overrides: Partial<AdminHandlers> = {}): AdminHandlers {
         leaveGuild: unused,
         purgeGuild: unused,
         getUser: async () => null,
+        getProfiles: async () => ({}),
         listBlocks: async () => ({ rows: [], total: 0 }),
         createBlock: unused,
         removeBlock: unused,
@@ -234,7 +235,7 @@ describe("admin server", () => {
 
     describe("users", () => {
         it("serves a stored user, 404 for an unknown one and 400 for an invalid id", async () => {
-            const user = { userId: GUILD_ID, links: [], ownedGuilds: [], block: null };
+            const user = { userId: GUILD_ID, profile: null, links: [], ownedGuilds: [], block: null };
             const getUser = vi.fn(async (userId: string) => (userId === GUILD_ID ? user : null));
             await start(fakeHandlers({ getUser }));
 
@@ -245,6 +246,42 @@ describe("admin server", () => {
             expect(await found.json()).toEqual({ ok: true, data: user });
             expect(unknown.status).toBe(404);
             expect(invalid.status).toBe(400);
+        });
+    });
+
+    describe("profiles", () => {
+        const idAt = (index: number) => `1234567890123456${String(index).padStart(2, "0")}`;
+
+        it("looks up each requested id once", async () => {
+            const getProfiles = vi.fn(async (ids: string[]) => Object.fromEntries(ids.map((id) => [id, null])));
+            await start(fakeHandlers({ getProfiles }));
+
+            const response = await fetch(`${baseUrl}/profiles?ids=${idAt(1)},${idAt(2)},${idAt(1)}`, {
+                headers: authorized,
+            });
+
+            expect(getProfiles).toHaveBeenCalledWith([idAt(1), idAt(2)]);
+            expect(await response.json()).toEqual({ ok: true, data: { [idAt(1)]: null, [idAt(2)]: null } });
+        });
+
+        it("allows at most 25 ids", async () => {
+            await start(fakeHandlers());
+            const ids = (count: number) => Array.from({ length: count }, (_, index) => idAt(index)).join(",");
+
+            const allowed = await fetch(`${baseUrl}/profiles?ids=${ids(25)}`, { headers: authorized });
+            const tooMany = await fetch(`${baseUrl}/profiles?ids=${ids(26)}`, { headers: authorized });
+
+            expect(allowed.status).toBe(200);
+            expect(tooMany.status).toBe(400);
+        });
+
+        it("an invalid or missing id is 400", async () => {
+            await start(fakeHandlers());
+
+            for (const query of [`?ids=${idAt(1)},abc`, "?ids=", `?ids=${idAt(1)},`, ""]) {
+                const response = await fetch(`${baseUrl}/profiles${query}`, { headers: authorized });
+                expect(response.status).toBe(400);
+            }
         });
     });
 

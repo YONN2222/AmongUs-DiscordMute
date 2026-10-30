@@ -20,6 +20,7 @@ import {
     type PageMeta,
     type PageQuery,
     PageQuerySchema,
+    ProfilesQuerySchema,
     PurgeGuildBodySchema,
     RemoveBlockBodySchema,
     SnowflakeSchema,
@@ -178,6 +179,10 @@ function buildRoutes(handlers: AdminHandlers): Route[] {
             const user = await handlers.getUser(parse(UserParamsSchema, params).userId);
             if (!user) throw fail("not-found", "User not found");
             return ok(user);
+        }),
+        route("GET", "/profiles", async ({ query }) => {
+            const { ids } = parse(ProfilesQuerySchema, query);
+            return ok(await handlers.getProfiles(ids));
         }),
         route("GET", "/blocks", async ({ query }) => {
             const parsed = parse(BlockListQuerySchema, query);

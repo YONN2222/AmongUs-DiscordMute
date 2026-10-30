@@ -274,7 +274,13 @@ export async function runGateway(
     const instance = deps.createInstance(config);
     const { gatewayMetrics, collector } = createMetrics(instance);
     const hosted = mode.hosted
-        ? createHostedGateway({ token: mode.adminToken, db, metrics: gatewayMetrics, instance })
+        ? createHostedGateway({
+              token: mode.adminToken,
+              botToken: config.token,
+              db,
+              metrics: gatewayMetrics,
+              instance,
+          })
         : undefined;
     const pluginGateway = new PluginGateway({
         resolver: hosted?.resolver ?? selfHostResolver(config),

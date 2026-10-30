@@ -5,6 +5,7 @@ import type { Database } from "../../src/Data/Database";
 import { CLOSE_BLOCKED, CLOSE_BOT_LEFT } from "../../src/Protocol/PluginProtocol";
 import { InMemoryClusterRouter } from "../../src/Routing/ClusterRouter";
 import type { RouterReply } from "../../src/Routing/Messages";
+import { unknownProfiles } from "../Helpers/ProfileLookupStub";
 import { backendAvailable, backends, openBackend, purgeTestRows, uniqueId } from "../Helpers/TestDatabase";
 
 const START = 1_000_000;
@@ -34,6 +35,7 @@ describe.each(backends)("admin handlers, actions (%s)", (backend) => {
                 },
                 activeGames: async () => 0,
                 clusterInfo: async () => [],
+                profiles: unknownProfiles,
                 router,
                 version: "3.0.0",
                 startedAt: START,

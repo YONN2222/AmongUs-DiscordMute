@@ -5,6 +5,7 @@ export const MAX_PAGE_LIMIT = 100;
 export const DEFAULT_PAGE_LIMIT = 25;
 export const MAX_BODY_BYTES = 16384;
 export const SNOWFLAKE_PATTERN = /^\d{17,20}$/;
+export const MAX_PROFILE_IDS = 25;
 
 const MAX_REASON_LENGTH = 500;
 const MAX_SEARCH_LENGTH = 100;
@@ -170,9 +171,19 @@ export const UserLinkSchema = z.object({
 });
 export type UserLink = z.infer<typeof UserLinkSchema>;
 
-/** Everything the bot stores about one Discord user. */
+/** A public Discord profile, looked up live from Discord and never stored by the bot. */
+export const DiscordProfileSchema = z.object({
+    id: SnowflakeSchema,
+    username: z.string(),
+    globalName: z.string().nullable(),
+    avatarUrl: z.string().nullable(),
+});
+export type DiscordProfile = z.infer<typeof DiscordProfileSchema>;
+
+/** Everything the bot stores about one Discord user, plus the live profile (null when Discord could not tell). */
 export const UserDetailSchema = z.object({
     userId: SnowflakeSchema,
+    profile: DiscordProfileSchema.nullable(),
     links: z.array(UserLinkSchema),
     /** Servers the bot is in that this user owns. */
     ownedGuilds: z.array(GuildSummarySchema),
@@ -283,6 +294,19 @@ const SearchSchema = z.string().max(MAX_SEARCH_LENGTH).optional();
 
 export const ClusterParamsSchema = z.object({ clusterId: z.coerce.number().int().min(0) });
 export type ClusterParams = z.infer<typeof ClusterParamsSchema>;
+
+/** `ids` is a comma-separated list of 1 to 25 user ids; repeated ids count once. */
+export const ProfilesQuerySchema = z.object({
+    ids: z
+        .string()
+        .transform((ids) => [...new Set(ids.split(","))])
+        .pipe(z.array(SnowflakeSchema).min(1).max(MAX_PROFILE_IDS)),
+});
+export type ProfilesQuery = z.infer<typeof ProfilesQuerySchema>;
+
+/** Every requested id is a key; null when Discord does not know the user or could not be asked. */
+export const ProfilesSchema = z.record(SnowflakeSchema, DiscordProfileSchema.nullable());
+export type Profiles = z.infer<typeof ProfilesSchema>;
 
 export const GuildListQuerySchema = PageQuerySchema.extend({ q: SearchSchema });
 export type GuildListQuery = z.infer<typeof GuildListQuerySchema>;

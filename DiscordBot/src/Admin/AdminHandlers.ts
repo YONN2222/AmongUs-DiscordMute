@@ -24,11 +24,13 @@ import type {
     LinkedUser,
     Overview,
     PageQuery,
+    Profiles,
     PurgeGuildBody,
     RemoveBlockBody,
     UserDetail,
     UserLink,
 } from "./Contract";
+import type { ProfileLookup } from "./ProfileLookup";
 
 const DAY_MS = 24 * 3600 * 1000;
 const GUILD_ICON_SIZE = 128;
@@ -55,8 +57,9 @@ export interface AdminHandlers {
     leaveGuild(guildId: string, body: LeaveGuildBody): Promise<{ left: boolean } | null>;
     /** Deletes the data of a server the bot left; null when the guild is not in the hosted guild list. */
     purgeGuild(guildId: string, body: PurgeGuildBody): Promise<"purged" | "in-guild" | null>;
-    /** Null when the bot stores no link, owned server or block of this user. */
+    /** Null when the bot stores nothing about this user and Discord does not know the user either. */
     getUser(userId: string): Promise<UserDetail | null>;
+    getProfiles(userIds: string[]): Promise<Profiles>;
     listBlocks(query: BlockListQuery): Promise<Page<Block>>;
     createBlock(body: CreateBlockBody): Promise<Block | "conflict">;
     /** True when a block existed. */
@@ -73,6 +76,7 @@ export interface AdminHandlerDeps {
     plugins: Pick<PluginGateway, "sessionCount" | "sessionsOfGuild" | "sessionsInfo" | "disconnectGuild">;
     activeGames: () => Promise<number>;
     clusterInfo: () => Promise<ClusterInfo[]>;
+    profiles: ProfileLookup;
     router: ClusterRouter;
     version: string;
     startedAt: number;
@@ -264,13 +268,24 @@ export function createAdminHandlers(deps: AdminHandlerDeps): AdminHandlers {
             return "purged";
         },
         async getUser(userId) {
-            const [links, owned, block] = await Promise.all([
+            const [links, owned, block, lookup] = await Promise.all([
                 db.links.listByDiscordId(userId),
                 db.hostedGuilds.listByOwner(userId),
                 db.blocks.get("user", userId),
+                deps.profiles.lookup(userId),
             ]);
-            if (links.length === 0 && owned.length === 0 && !block) return null;
-            return { userId, links: links.map(toUserLink), ownedGuilds: await summarize(owned), block };
+            const storesNothing = links.length === 0 && owned.length === 0 && !block;
+            if (storesNothing && lookup.status === "unknown") return null;
+            return {
+                userId,
+                profile: lookup.status === "found" ? lookup.profile : null,
+                links: links.map(toUserLink),
+                ownedGuilds: await summarize(owned),
+                block,
+            };
+        },
+        getProfiles(userIds) {
+            return deps.profiles.lookupMany(userIds);
         },
         listBlocks(query) {
             return db.blocks.list({ type: query.type, targetId: query.q, offset: offsetOf(query), limit: query.limit });

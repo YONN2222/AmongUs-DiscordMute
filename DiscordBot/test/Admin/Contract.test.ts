@@ -6,12 +6,15 @@ import {
     ClusterParamsSchema,
     CreateAuditBodySchema,
     CreateBlockBodySchema,
+    DiscordProfileSchema,
     GuildDetailSchema,
     GuildListQuerySchema,
     type GuildSettingsView,
     GuildSettingsViewSchema,
     LinkedUserSchema,
     MAX_PAGE_LIMIT,
+    ProfilesQuerySchema,
+    ProfilesSchema,
     ShardInfoSchema,
     SnowflakeSchema,
     UserDetailSchema,
@@ -162,12 +165,32 @@ describe("admin contract", () => {
     it("user detail allows links of guilds without a stored name", () => {
         const user = {
             userId: SNOWFLAKE,
+            profile: null,
             links: [{ guildId: SNOWFLAKE, guildName: null, accountName: "Red", friendCode: null, linkedAt: 1 }],
             ownedGuilds: [],
             block: null,
         };
         expect(UserDetailSchema.safeParse(user).success).toBe(true);
         expect(UserDetailSchema.safeParse({ ...user, userId: "nobody" }).success).toBe(false);
+    });
+
+    it("profiles query splits, deduplicates and limits the ids", () => {
+        const other = "223456789012345678";
+        expect(ProfilesQuerySchema.parse({ ids: `${SNOWFLAKE},${other},${SNOWFLAKE}` })).toEqual({
+            ids: [SNOWFLAKE, other],
+        });
+        const many = Array.from({ length: 26 }, (_, index) => `1234567890123456${String(index).padStart(2, "0")}`);
+        expect(ProfilesQuerySchema.safeParse({ ids: many.slice(0, 25).join(",") }).success).toBe(true);
+        expect(ProfilesQuerySchema.safeParse({ ids: many.join(",") }).success).toBe(false);
+        expect(ProfilesQuerySchema.safeParse({ ids: "" }).success).toBe(false);
+        expect(ProfilesQuerySchema.safeParse({}).success).toBe(false);
+    });
+
+    it("profiles map ids to a profile or null", () => {
+        const profile = { id: SNOWFLAKE, username: "crewmate", globalName: null, avatarUrl: null };
+        expect(DiscordProfileSchema.safeParse(profile).success).toBe(true);
+        expect(ProfilesSchema.safeParse({ [SNOWFLAKE]: profile, "223456789012345678": null }).success).toBe(true);
+        expect(ProfilesSchema.safeParse({ nobody: null }).success).toBe(false);
     });
 
     it("list queries validate their filters", () => {
