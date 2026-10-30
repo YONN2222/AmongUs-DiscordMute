@@ -1,9 +1,9 @@
 <script setup lang="ts">
 const METRIC_LINES = [
-  { name: 'discordmute_guilds', value: '42' },
-  { name: 'discordmute_mutes_total{action="mute"}', value: '1873' },
-  { name: 'discordmute_mutes_total{action="unmute"}', value: '1869' },
-  { name: 'discordmute_mute_failures_total', value: '3' },
+  { name: 'discordmute_guilds', labels: '', value: '42' },
+  { name: 'discordmute_mutes_total', labels: '{action="mute"}', value: '1873' },
+  { name: 'discordmute_mutes_total', labels: '{action="unmute"}', value: '1869' },
+  { name: 'discordmute_mute_failures_total', labels: '', value: '3' },
 ]
 
 const SMALL_FEATURES = [
@@ -22,8 +22,8 @@ const CARD_UI = { container: 'h-full', wrapper: 'h-full', footer: 'w-full pt-5' 
       <template #footer>
         <div class="proof terminal" role="img" aria-label="Example output of the metrics endpoint">
           <span class="prompt"><span class="dim">$</span> curl localhost/metrics</span>
-          <span v-for="m in METRIC_LINES" :key="m.name" class="metric">
-            <span class="metric-name">{{ m.name }}</span><span class="metric-value">{{ m.value }}</span>
+          <span v-for="m in METRIC_LINES" :key="m.name + m.labels" class="metric">
+            <span class="metric-name"><span>{{ m.name }}</span><wbr><span class="labels">{{ m.labels }}</span></span><span class="metric-value">{{ m.value }}</span>
           </span>
         </div>
       </template>
@@ -43,6 +43,8 @@ const CARD_UI = { container: 'h-full', wrapper: 'h-full', footer: 'w-full pt-5' 
 .dim { color: var(--dim); }
 .metric { display: flex; justify-content: space-between; gap: 16px; min-width: 0; }
 .metric-name { min-width: 0; overflow-wrap: anywhere; }
+.metric-name > span { white-space: nowrap; }
+.labels { color: var(--dim); }
 .metric-value { color: var(--talk); font-variant-numeric: tabular-nums; }
 .stack .small { padding: 18px 22px; }
 </style>
