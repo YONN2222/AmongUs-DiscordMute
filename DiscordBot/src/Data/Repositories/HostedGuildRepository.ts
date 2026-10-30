@@ -62,7 +62,7 @@ const COLUMNS = "guild_id, name, icon, owner_id, member_count, joined_at, bot_in
 const LIKE_ESCAPE = "\\";
 
 /** Every table that holds data of a single guild. */
-const GUILD_SCOPED_TABLES = [
+export const GUILD_SCOPED_TABLES = [
     "links",
     "pending_links",
     "guild_settings",

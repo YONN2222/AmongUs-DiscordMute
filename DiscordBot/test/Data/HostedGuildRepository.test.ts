@@ -1,6 +1,7 @@
 import { QueryTypes } from "sequelize";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Database } from "../../src/Data/Database";
+import { GUILD_SCOPED_TABLES } from "../../src/Data/Repositories/HostedGuildRepository";
 import { parseSettings } from "../../src/Settings/GuildSettings";
 import { backendAvailable, backends, openBackend, purgeTestRows, uniqueId } from "../Helpers/TestDatabase";
 
@@ -26,6 +27,15 @@ describe.each(backends)("HostedGuildRepository (%s)", (backend) => {
                 { replacements: { id }, type: QueryTypes.SELECT },
             );
             return Number(rows[0].total);
+        }
+
+        async function tablesWithGuildIdColumn(database: Database): Promise<string[]> {
+            const sql =
+                database.sequelize.getDialect() === "postgres"
+                    ? "SELECT table_name AS name FROM information_schema.columns WHERE column_name = 'guild_id' AND table_schema = current_schema()"
+                    : "SELECT m.name AS name FROM sqlite_master m, pragma_table_info(m.name) p WHERE m.type = 'table' AND p.name = 'guild_id'";
+            const rows = await database.sequelize.query<{ name: string }>(sql, { type: QueryTypes.SELECT });
+            return rows.map((row) => row.name).sort();
         }
 
         beforeEach(async () => {
@@ -174,6 +184,13 @@ describe.each(backends)("HostedGuildRepository (%s)", (backend) => {
             const page = await db.hostedGuilds.search({ q: tag, offset: 1, limit: 1 });
             expect(page.rows.map((row) => row.guildId)).toEqual([ids[1]]);
             expect(page.total).toBe(3);
+        });
+
+        it("every table with a guild_id column is purged with the guild", async () => {
+            const tables = await tablesWithGuildIdColumn(db);
+
+            expect(tables.filter((table) => !(GUILD_SCOPED_TABLES as readonly string[]).includes(table))).toEqual([]);
+            for (const table of GUILD_SCOPED_TABLES) expect(tables).toContain(table);
         });
 
         it("purgeGuild removes every guild-scoped row and keeps other guilds", async () => {
