@@ -12,6 +12,11 @@ export type GameEventRequest = Extract<ClusterRequest, { kind: "game-event" }>;
 
 export const GUILD = "g1";
 
+/** Shaped like the DiscordAPIError discord.js throws for a 4xx: Discord rejected the call. */
+export const missingPermission = () => Object.assign(new Error("Missing Permissions"), { code: 50013, status: 403 });
+
+export const serviceUnavailable = () => Object.assign(new Error("Service Unavailable"), { status: 503 });
+
 export class FakeVoice implements VoiceAdapter {
     readonly channels = new Map<string, string[]>();
     readonly muted = new Set<string>();
@@ -19,6 +24,8 @@ export class FakeVoice implements VoiceAdapter {
     readonly bots = new Set<string>();
     readonly failing = new Set<string>();
     readonly failOnce = new Set<string>();
+    /** The next call for these members goes through at Discord, but the bot only sees the request time out. */
+    readonly timeoutAfterApplying = new Set<string>();
     readonly failingChannels = new Set<string>();
     readonly calls: Array<{ discordId: string; mute: boolean }> = [];
     readonly stateCalls: Array<{ discordId: string; patch: { mute?: boolean; deaf?: boolean } }> = [];
@@ -64,13 +71,21 @@ export class FakeVoice implements VoiceAdapter {
         await this.beforeSetMute(discordId, patch.mute === true);
         this.stateCalls.push({ discordId, patch });
         if (patch.mute !== undefined) this.calls.push({ discordId, mute: patch.mute });
-        if (this.failing.has(discordId)) throw new Error("Missing Permissions");
-        if (this.failOnce.delete(discordId)) throw new Error("Service Unavailable");
+        if (this.failing.has(discordId)) throw missingPermission();
+        if (this.failOnce.delete(discordId)) throw serviceUnavailable();
+        if (this.timeoutAfterApplying.delete(discordId)) {
+            this.apply(discordId, patch);
+            throw new Error("Request aborted");
+        }
+        this.apply(discordId, patch);
+        this.afterSetMute(discordId, patch.mute === true);
+    }
+
+    private apply(discordId: string, patch: { mute?: boolean; deaf?: boolean }): void {
         if (patch.mute === true) this.muted.add(discordId);
         if (patch.mute === false) this.muted.delete(discordId);
         if (patch.deaf === true) this.deafened.add(discordId);
         if (patch.deaf === false) this.deafened.delete(discordId);
-        this.afterSetMute(discordId, patch.mute === true);
     }
 
     leave(discordId: string): void {
