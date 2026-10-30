@@ -1,14 +1,7 @@
-import {
-    type AnySelectMenuInteraction,
-    type ButtonInteraction,
-    type Interaction,
-    MessageFlags,
-    type ModalSubmitInteraction,
-} from "discord.js";
+import type { AnySelectMenuInteraction, ButtonInteraction, Interaction, ModalSubmitInteraction } from "discord.js";
 import type { CommandContext } from "../Commands/Command";
-import { localeFrom, t } from "../I18n/Index";
 import { logger, logModules } from "../Logging/Logger";
-import { ContainerBuilder } from "../Utils/ContainerBuilder";
+import { replyGenericError } from "./ErrorReply";
 
 export type ComponentInteraction = ButtonInteraction | AnySelectMenuInteraction | ModalSubmitInteraction;
 
@@ -33,17 +26,7 @@ export function isComponentInteraction(interaction: Interaction): interaction is
 
 async function replyFailed(interaction: ComponentInteraction): Promise<void> {
     try {
-        const locale = localeFrom(interaction.locale);
-        const container = new ContainerBuilder()
-            .title(t(locale, "error.title"), null)
-            .text(t(locale, "error.generic"))
-            .error();
-        const payload = {
-            components: [container.toJSON()],
-            flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
-        } as const;
-        if (interaction.replied || interaction.deferred) await interaction.followUp(payload);
-        else await interaction.reply(payload);
+        await replyGenericError(interaction, { icon: null, followUpWhenAnswered: true });
     } catch (replyError) {
         logger.error(logModules.Command, `Failed to send the error reply for ${interaction.customId}`, replyError);
     }

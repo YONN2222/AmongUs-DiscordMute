@@ -13,8 +13,9 @@ import { LINK_SELF_UNLINK_BUTTON_ID, unlinkSelf } from "../Linking/SelfUnlink";
 import { registerLinkOverviewComponents } from "../LinkOverview/LinkOverviewComponents";
 import { logger, logModules } from "../Logging/Logger";
 import { registerSetupComponents } from "../Setup/SetupComponents";
-import { ContainerBuilder, TITLE_ICON } from "../Utils/ContainerBuilder";
+import { TITLE_ICON } from "../Utils/ContainerBuilder";
 import { isComponentInteraction, registerComponent, routeComponent } from "./ComponentRouter";
+import { replyGenericError } from "./ErrorReply";
 
 function describeOptions(interaction: ChatInputCommandInteraction): string {
     return interaction.options.data
@@ -32,17 +33,8 @@ function describeOptions(interaction: ChatInputCommandInteraction): string {
 }
 
 async function replyCommandFailed(interaction: RepliableInteraction): Promise<void> {
-    if (interaction.replied || interaction.deferred) return;
     try {
-        const locale = localeFrom(interaction.locale);
-        const container = new ContainerBuilder()
-            .title(t(locale, "error.title"), TITLE_ICON.error)
-            .text(t(locale, "error.generic"))
-            .error();
-        await interaction.reply({
-            components: [container.toJSON()],
-            flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
-        });
+        await replyGenericError(interaction, { icon: TITLE_ICON.error, followUpWhenAnswered: false });
     } catch (replyError) {
         logger.error(
             logModules.Command,
