@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderStatus } from "../../src/Game/RenderStatus";
-import { FOOTER_TEXT } from "../../src/Utils/ContainerBuilder";
+import { FOOTER_BANNER_URL } from "../../src/Utils/ContainerBuilder";
 import { renderText } from "../Helpers/RenderText";
 
 const base = {
@@ -40,7 +40,7 @@ describe("renderStatus", () => {
                 "- ~~**Green**~~ <@1300000000000000002> *(dead)*",
                 "- ~~**Pink**~~ *(not linked, dead)*",
                 "---",
-                FOOTER_TEXT,
+                `[image ${FOOTER_BANNER_URL}]`,
             ].join("\n"),
         );
     });
