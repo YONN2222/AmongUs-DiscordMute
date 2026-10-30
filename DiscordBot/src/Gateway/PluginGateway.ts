@@ -1,6 +1,7 @@
 import type { IncomingMessage, Server } from "node:http";
 import type { Duplex } from "node:stream";
 import { type RawData, WebSocket, WebSocketServer } from "ws";
+import type { PluginSessionInfo } from "../Admin/Contract";
 import type { LinkingService } from "../Linking/LinkingService";
 import { logger, logModules } from "../Logging/Logger";
 import type { PluginEventType } from "../Metrics/MetricNames";
@@ -155,7 +156,7 @@ export class PluginGateway {
     }
 
     /** What the admin API may show about the guild's sessions; nothing about the connection itself. */
-    sessionsInfo(guildId: string): Omit<GameSession, "guildId">[] {
+    sessionsInfo(guildId: string): PluginSessionInfo[] {
         return this.connectionsOf(guildId)
             .flatMap(({ session }) => (session ? [session] : []))
             .map(({ sessionId, connectedAt, pluginVersion, gameVersion, protocolVersion }) => ({
