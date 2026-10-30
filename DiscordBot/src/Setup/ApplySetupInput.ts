@@ -15,6 +15,7 @@ export const LOBBY_CODE_MODES = ["always", "spoiler", "never"] as const;
 export const LANGUAGES = ["en", "de"] as const;
 
 export const VOICE_CHANNELS_FIELD = "voiceChannelIds";
+export const MS_PER_SECOND = 1000;
 export const DELAYS_MODAL_FIELD = "delays-modal";
 const MAX_DELAY_SECONDS = 5;
 const CHANNEL_ID = /^\d{17,20}$/;
@@ -80,7 +81,7 @@ function parseDelaySeconds(text: string): number | null {
     const normalized = text.trim().replace(",", ".");
     if (!DECIMAL.test(normalized)) return null;
     const seconds = Number(normalized);
-    return seconds > MAX_DELAY_SECONDS ? null : Math.round(seconds * 1000);
+    return seconds > MAX_DELAY_SECONDS ? null : Math.round(seconds * MS_PER_SECOND);
 }
 
 function delaysPatch(values: string[]): SetupResult {

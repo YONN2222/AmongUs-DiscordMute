@@ -18,17 +18,24 @@ import {
     applySetupInput,
     DELAY_FIELDS,
     DELAYS_MODAL_FIELD,
+    MS_PER_SECOND,
     setupPageOf,
     VOICE_CHANNELS_FIELD,
 } from "./ApplySetupInput";
 import { checkChannelAccess, checkVoiceChannelAccess } from "./ChannelAccess";
 import { renderSetupPanel, SETUP_PAGES, type SetupPage } from "./RenderSetupPanel";
 import { type HostedSetupContext, handleSecretButton, handleSecretConfirmButton } from "./SecretPanel";
-import { SECRET_CONFIRM_FIELD, SECRET_FIELD, SETUP_PREFIX } from "./SetupIds";
+import { DELAYS_FIELD, PAGE_FIELD, SECRET_CONFIRM_FIELD, SECRET_FIELD, SETUP_PREFIX } from "./SetupIds";
 
 const EPHEMERAL = MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral;
 const MANAGE_MESSAGES_FIELDS = new Set(["linkOverview.channelId", "status.channelId"]);
 const HOSTED_ONLY_FIELDS = new Set([SECRET_FIELD, SECRET_CONFIRM_FIELD, VOICE_CHANNELS_FIELD]);
+const SECRET_BUTTONS = new Map([
+    [SECRET_FIELD, handleSecretButton],
+    [SECRET_CONFIRM_FIELD, handleSecretConfirmButton],
+]);
+/** Character limit of the delay inputs in the delays modal. */
+const MAX_DELAY_INPUT_LENGTH = 5;
 
 const topLevel = (components: unknown[]) => components as APIMessageTopLevelComponent[];
 
@@ -77,8 +84,8 @@ async function showDelaysModal(interaction: ButtonInteraction, ctx: CommandConte
                 .setLabel(t(locale, `setup.delays.${name}`))
                 .setStyle(TextInputStyle.Short)
                 .setRequired(true)
-                .setMaxLength(5)
-                .setValue(String(settings.delaysMs[name] / 1000)),
+                .setMaxLength(MAX_DELAY_INPUT_LENGTH)
+                .setValue(String(settings.delaysMs[name] / MS_PER_SECOND)),
         );
     await interaction.showModal(
         new ModalBuilder()
@@ -121,24 +128,14 @@ function rawValues(interaction: ComponentInteraction): string[] {
     return interaction.isButton() ? [] : interaction.values;
 }
 
-/**
- * Refuses the hosted-only fields in self-host and answers the secret buttons in hosted mode.
- * Returns true when nothing is left to do for the interaction.
- */
-async function handledAsHostedOnly(
+/** Answers a hosted-only field with an error in self-host. Returns true when it did. */
+async function refusedInSelfHost(
     interaction: ComponentInteraction,
     ctx: CommandContext,
     field: string,
 ): Promise<boolean> {
-    if (!HOSTED_ONLY_FIELDS.has(field)) return false;
-    if (!ctx.hosted) {
-        await replyEphemeralText(interaction, localeFrom(interaction.locale), "setup.error.invalid");
-        return true;
-    }
-    if (!interaction.isButton()) return false;
-    if (field === SECRET_FIELD) await handleSecretButton(interaction, ctx as HostedSetupContext);
-    else if (field === SECRET_CONFIRM_FIELD) await handleSecretConfirmButton(interaction, ctx as HostedSetupContext);
-    else return false;
+    if (ctx.hosted || !HOSTED_ONLY_FIELDS.has(field)) return false;
+    await replyEphemeralText(interaction, localeFrom(interaction.locale), "setup.error.invalid");
     return true;
 }
 
@@ -151,14 +148,20 @@ async function handleSetup(interaction: ComponentInteraction, ctx: CommandContex
         return;
     }
     const field = interaction.customId.slice(SETUP_PREFIX.length + 1);
-    if (await handledAsHostedOnly(interaction, ctx, field)) return;
+    if (await refusedInSelfHost(interaction, ctx, field)) return;
 
-    if (field === "page" && interaction.isStringSelectMenu()) {
+    const secretButton = SECRET_BUTTONS.get(field);
+    if (secretButton && interaction.isButton()) {
+        await secretButton(interaction, ctx as HostedSetupContext);
+        return;
+    }
+
+    if (field === PAGE_FIELD && interaction.isStringSelectMenu()) {
         const page = SETUP_PAGES.find((candidate) => candidate === interaction.values[0]);
         if (page) await showPanel(interaction, ctx, page);
         return;
     }
-    if (field === "delays" && interaction.isButton()) {
+    if (field === DELAYS_FIELD && interaction.isButton()) {
         await showDelaysModal(interaction, ctx);
         return;
     }

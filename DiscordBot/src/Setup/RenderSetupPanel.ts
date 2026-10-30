@@ -15,11 +15,12 @@ import {
     DELETE_AFTER_MINUTES,
     LANGUAGES,
     LOBBY_CODE_MODES,
+    MS_PER_SECOND,
     NON_PLAYER_MODES,
     VOICE_ACTIONS,
     VOICE_CHANNELS_FIELD,
 } from "./ApplySetupInput";
-import { SECRET_FIELD, SETUP_PREFIX } from "./SetupIds";
+import { DELAYS_FIELD, PAGE_FIELD, SECRET_FIELD, SETUP_PREFIX } from "./SetupIds";
 
 export type SetupPage = "general" | "links" | "voice" | "game";
 
@@ -103,7 +104,7 @@ function durationLabel(locale: Locale, minutes: number): string {
 
 function pageSelect(page: SetupPage, locale: Locale): Row {
     return stringSelect(
-        "page",
+        PAGE_FIELD,
         t(locale, "setup.page.placeholder"),
         choices(locale, SETUP_PAGES, (value) => `setup.page.${value}` as MessageKey),
         page,
@@ -183,7 +184,7 @@ function voiceRuleSelect(
 }
 
 function delaysSummary(settings: GuildSettings, locale: Locale): string {
-    const seconds = (name: (typeof DELAY_FIELDS)[number]) => settings.delaysMs[name] / 1000;
+    const seconds = (name: (typeof DELAY_FIELDS)[number]) => settings.delaysMs[name] / MS_PER_SECOND;
     return t(locale, "setup.voice.delays", {
         gameStart: seconds("gameStart"),
         meetingStart: seconds("meetingStart"),
@@ -211,7 +212,11 @@ function voicePage(container: ContainerBuilder, settings: GuildSettings, locale:
             settings.nonPlayers,
         ),
     );
-    section(container, delaysSummary(settings, locale), button("delays", t(locale, "setup.voice.editDelays"), null));
+    section(
+        container,
+        delaysSummary(settings, locale),
+        button(DELAYS_FIELD, t(locale, "setup.voice.editDelays"), null),
+    );
     if (hosted) {
         section(container, t(locale, "setup.voice.channels"), voiceChannelSelect(locale, settings.voiceChannelIds));
     }
