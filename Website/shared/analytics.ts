@@ -28,5 +28,5 @@ export function trackAttrs(event: AnalyticsEvent, props: AnalyticsProps = {}): R
 // Programmatic events for in-app links, menu items and accordions that cannot carry attributes.
 export function trackEvent(event: AnalyticsEvent, props: AnalyticsProps = {}): void {
   if (!import.meta.client) return
-  ;(window as { umami?: { track: (name: string, data?: AnalyticsProps) => void } }).umami?.track(event, props)
+  ;(globalThis as { umami?: { track: (name: string, data?: AnalyticsProps) => void } }).umami?.track(event, props)
 }
