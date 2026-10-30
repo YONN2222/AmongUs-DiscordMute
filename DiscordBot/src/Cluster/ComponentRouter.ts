@@ -26,7 +26,7 @@ export function isComponentInteraction(interaction: Interaction): interaction is
 
 async function replyFailed(interaction: ComponentInteraction): Promise<void> {
     try {
-        await replyGenericError(interaction, { icon: null, followUpWhenAnswered: true });
+        await replyGenericError(interaction, { followUpWhenAnswered: true });
     } catch (replyError) {
         logger.error(logModules.Command, `Failed to send the error reply for ${interaction.customId}`, replyError);
     }

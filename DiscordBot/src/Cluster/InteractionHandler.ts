@@ -13,7 +13,7 @@ import { LINK_SELF_UNLINK_BUTTON_ID, unlinkSelf } from "../Linking/SelfUnlink";
 import { registerLinkOverviewComponents } from "../LinkOverview/LinkOverviewComponents";
 import { logger, logModules } from "../Logging/Logger";
 import { registerSetupComponents } from "../Setup/SetupComponents";
-import { TITLE_ICON } from "../Utils/ContainerBuilder";
+import { ContainerBuilder } from "../Utils/ContainerBuilder";
 import { isComponentInteraction, registerComponent, routeComponent } from "./ComponentRouter";
 import { replyGenericError } from "./ErrorReply";
 
@@ -34,7 +34,7 @@ function describeOptions(interaction: ChatInputCommandInteraction): string {
 
 async function replyCommandFailed(interaction: RepliableInteraction): Promise<void> {
     try {
-        await replyGenericError(interaction, { icon: TITLE_ICON.error, followUpWhenAnswered: false });
+        await replyGenericError(interaction, { followUpWhenAnswered: false });
     } catch (replyError) {
         logger.error(
             logModules.Command,
@@ -51,16 +51,23 @@ async function handleChatInput(interaction: ChatInputCommandInteraction, ctx: Co
     const options = describeOptions(interaction);
     logger.info(
         logModules.Command,
-        `/${commandName}${options ? ` [${options}]` : ""} by ${interaction.user.tag} in #${channel} (${guild})`,
+        `/${commandName}${options ? ` [${options}]` : ""} by ${interaction.user.tag} in ${guild} #${channel}`,
     );
 
     const command = commandRegistry.get(commandName);
     if (!command) {
-        logger.warn(logModules.Command, `No handler found for command: ${commandName}`);
+        logger.warn(logModules.Command, `No handler for /${commandName}`);
+        const locale = localeFrom(interaction.locale);
         try {
             await interaction.reply({
-                content: t(localeFrom(interaction.locale), "error.commandUnavailable"),
-                flags: MessageFlags.Ephemeral,
+                components: [
+                    new ContainerBuilder()
+                        .title(t(locale, "error.title"))
+                        .text(t(locale, "error.commandUnavailable"))
+                        .footer()
+                        .warning(),
+                ],
+                flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
             });
         } catch (replyError) {
             logger.error(logModules.Command, "Failed to send 'command not available' message", replyError);
@@ -70,7 +77,7 @@ async function handleChatInput(interaction: ChatInputCommandInteraction, ctx: Co
 
     try {
         await command.execute(interaction, ctx);
-        logger.debug(logModules.Command, `/${commandName} completed successfully for ${interaction.user.tag}`);
+        logger.debug(logModules.Command, `/${commandName} done for ${interaction.user.tag}`);
     } catch (error) {
         logger.error(logModules.Command, `/${commandName} failed for ${interaction.user.tag}`, error);
         await replyCommandFailed(interaction);

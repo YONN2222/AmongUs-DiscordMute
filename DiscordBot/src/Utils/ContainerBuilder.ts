@@ -1,18 +1,16 @@
 import { ContainerBuilder as DiscordContainerBuilder, SeparatorSpacingSize, TextDisplayBuilder } from "discord.js";
 import { logTheme } from "../Logging/Logger";
+import { BOT_VERSION } from "../Version";
 
-type HeadingDepth = 1 | 2 | 3;
+export const WEBSITE_URL = "https://mute.yonn2222.com";
+export const DOCS_URL = "https://docs.mute.yonn2222.com";
 
-const headingMarks: Record<HeadingDepth, string> = {
-    1: "#",
-    2: "##",
-    3: "###",
-};
+/** The small brand line at the bottom of every message the bot sends. */
+export const FOOTER_TEXT = `-# [DiscordMute](${WEBSITE_URL}) v${BOT_VERSION} | [Docs](${DOCS_URL})`;
 
-function normalizeHeadingDepth(depth: number): HeadingDepth {
-    if (depth <= 1) return 1;
-    if (depth === 2) return 2;
-    return 3;
+/** Discord's small grey subtext line. */
+export function subtext(content: string): string {
+    return `-# ${content}`;
 }
 
 function hexToNumber(color: number | string): number {
@@ -20,13 +18,10 @@ function hexToNumber(color: number | string): number {
     return Number.parseInt(color.replace(/^#/, ""), 16);
 }
 
-export const TITLE_ICON = { success: "✅", warning: "⚠️", error: "❌" } as const;
-
 export class ContainerBuilder extends DiscordContainerBuilder {
-    title(label: string, icon?: string | null, depth = 2): this {
-        const prefix = headingMarks[normalizeHeadingDepth(depth)];
-        const content = icon ? `${prefix} ${icon} ${label}` : `${prefix} ${label}`;
-        return this.text(content);
+    /** The heading of the message. The accent color carries success or failure, so there is no icon. */
+    title(label: string): this {
+        return this.text(`## ${label}`);
     }
 
     text(content: string): this {
@@ -37,6 +32,11 @@ export class ContainerBuilder extends DiscordContainerBuilder {
     divider(size: SeparatorSpacingSize = SeparatorSpacingSize.Small): this {
         this.addSeparatorComponents((separator) => separator.setSpacing(size));
         return this;
+    }
+
+    /** Closes the message with the brand line; call it last so it stays at the bottom. */
+    footer(): this {
+        return this.divider().text(FOOTER_TEXT);
     }
 
     accent(color: number | string): this {

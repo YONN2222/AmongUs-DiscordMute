@@ -1,7 +1,7 @@
 import { DiscordAPIError, MessageFlags, type REST, Routes } from "discord.js";
 import { type Locale, t } from "../I18n/Index";
 import { logger, logModules } from "../Logging/Logger";
-import { ContainerBuilder, TITLE_ICON } from "../Utils/ContainerBuilder";
+import { ContainerBuilder } from "../Utils/ContainerBuilder";
 import { errorMessage } from "../Utils/ErrorMessage";
 import type { ConfirmedLinkReply } from "./ClusterRequestHandler";
 
@@ -20,7 +20,7 @@ export async function resolveLinkReplyLocale(
     try {
         return await guildLanguage(link.guildId);
     } catch (error) {
-        logger.error(logModules.Command, `Could not look up the language of guild ${link.guildId}`, error);
+        logger.error(logModules.Link, `Could not look up the language of guild ${link.guildId}`, error);
         return "en";
     }
 }
@@ -29,16 +29,17 @@ export async function resolveLinkReplyLocale(
 export async function updateOriginalLinkReply(rest: REST, link: ConfirmedLinkReply, locale: Locale): Promise<boolean> {
     if (!link.applicationId || !link.interactionToken) {
         logger.warn(
-            logModules.Command,
-            `Cannot update original /link reply for Discord ${link.discordId}: missing interaction webhook data`,
+            logModules.Link,
+            `Could not update the /link reply of user ${link.discordId}: no interaction webhook data`,
         );
         return false;
     }
 
     const container = new ContainerBuilder()
-        .title(t(locale, "link.complete.title"), TITLE_ICON.success)
+        .title(t(locale, "link.complete.title"))
         .divider()
         .text(t(locale, "link.complete.body", { discordId: link.discordId, accountName: link.accountName }))
+        .footer()
         .success();
 
     try {
@@ -48,8 +49,8 @@ export async function updateOriginalLinkReply(rest: REST, link: ConfirmedLinkRep
         return true;
     } catch (error) {
         logger.error(
-            logModules.Command,
-            `Failed to update original /link reply for Discord ${link.discordId}: ${describeRestError(error)}`,
+            logModules.Link,
+            `Could not update the /link reply of user ${link.discordId}: ${describeRestError(error)}`,
         );
         return false;
     }

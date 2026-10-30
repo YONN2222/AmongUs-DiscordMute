@@ -266,7 +266,7 @@ export function renderSetupPanel(
     pluginConnected: boolean,
     hosted?: HostedPanelState,
 ): unknown[] {
-    const container = new ContainerBuilder().title(t(locale, "setup.title"), null).info();
+    const container = new ContainerBuilder().title(t(locale, "setup.title")).info();
     container.addActionRowComponents(pageSelect(page, locale) as never).divider();
     switch (page) {
         case "general":
@@ -282,5 +282,5 @@ export function renderSetupPanel(
             gamePage(container, settings, locale);
             break;
     }
-    return [container.toJSON()];
+    return [container.footer().toJSON()];
 }

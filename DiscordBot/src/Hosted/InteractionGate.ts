@@ -10,8 +10,9 @@ export async function rejectBlockedUser(
 ): Promise<boolean> {
     if (!blocks || !(await blocks.isUserBlocked(interaction.user.id))) return false;
     const container = new ContainerBuilder()
-        .title(t(localeFrom(interaction.locale), "error.title"), null)
+        .title(t(localeFrom(interaction.locale), "error.title"))
         .text(t(localeFrom(interaction.locale), "error.blocked"))
+        .footer()
         .error();
     await interaction.reply({
         components: [container.toJSON()],

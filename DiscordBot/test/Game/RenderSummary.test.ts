@@ -3,6 +3,8 @@ import { describeGameOverReason } from "../../src/Game/GameOverReason";
 import { renderSummary } from "../../src/Game/RenderSummary";
 import { de } from "../../src/I18n/De";
 import { en } from "../../src/I18n/En";
+import { FOOTER_TEXT } from "../../src/Utils/ContainerBuilder";
+import { renderText } from "../Helpers/RenderText";
 
 const RED_ID = "1300000000000000001";
 
@@ -50,10 +52,27 @@ describe("describeGameOverReason", () => {
 });
 
 describe("renderSummary", () => {
+    it("lays out result, winners, duration, players and footer", () => {
+        expect(renderText(renderSummary(base))).toBe(
+            [
+                "## Match summary",
+                `**${en["gameOver.HumansByTask"]}**`,
+                `**Winners:** <@${RED_ID}>`,
+                "**Duration:** 12:34",
+                "---",
+                "**Players (2)**",
+                `- **Red** <@${RED_ID}>`,
+                "- ~~**Blue**~~ *(not linked, dead)*",
+                "---",
+                FOOTER_TEXT,
+            ].join("\n"),
+        );
+    });
+
     it("shows winners with a mention when linked and the duration as minutes and seconds", () => {
         const out = text(base);
         expect(out).toContain(`<@${RED_ID}>`);
-        expect(out).toContain("Duration: 12:34");
+        expect(out).toContain("**Duration:** 12:34");
         expect(out).toContain(en["gameOver.HumansByTask"]);
     });
 
@@ -63,7 +82,7 @@ describe("renderSummary", () => {
             winners: ["Red"],
             players: [{ name: "Host | Red", discordId: RED_ID, dead: false }],
         });
-        expect(out).toContain(`Winners: <@${RED_ID}>`);
+        expect(out).toContain(`**Winners:** <@${RED_ID}>`);
     });
 
     it("prefers explicit winner ids and escapes unlinked winners", () => {
@@ -78,11 +97,11 @@ describe("renderSummary", () => {
 
     it("renders in german and marks dead players", () => {
         const out = text({ ...base, locale: "de" });
-        expect(out).toContain("Gewinner:");
-        expect(out).toContain("(tot)");
+        expect(out).toContain("**Gewinner:**");
+        expect(out).toContain("*(nicht verknüpft, tot)*");
     });
 
     it("shows none for a game without winners", () => {
-        expect(text({ ...base, winners: [] })).toContain("Winners: none");
+        expect(text({ ...base, winners: [] })).toContain("**Winners:** none");
     });
 });

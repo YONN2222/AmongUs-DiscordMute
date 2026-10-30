@@ -20,10 +20,10 @@ async function replyConfirmation(interaction: ButtonInteraction): Promise<void> 
         .setLabel(t(locale, "setup.secret.regenerate"))
         .setStyle(ButtonStyle.Danger);
     const container = new ContainerBuilder()
-        .title(t(locale, "setup.secret.title"), null)
+        .title(t(locale, "setup.secret.title"))
         .text(t(locale, "setup.secret.confirm"))
         .warning();
-    container.addActionRowComponents(new ActionRowBuilder<ButtonBuilder>().addComponents(confirm));
+    container.addActionRowComponents(new ActionRowBuilder<ButtonBuilder>().addComponents(confirm)).footer();
     await interaction.reply({ flags: EPHEMERAL, components: [container] });
 }
 
@@ -31,11 +31,12 @@ async function replySecret(interaction: ButtonInteraction, secret: string): Prom
     const locale = localeFrom(interaction.locale);
     const pluginConfig = `{ "mode": "hosted", "secret": "${secret}" }`;
     const container = new ContainerBuilder()
-        .title(t(locale, "setup.secret.title"), null)
+        .title(t(locale, "setup.secret.title"))
         .text(t(locale, "setup.secret.shownOnce"))
         .text(codeBlock(secret))
         .text(t(locale, "setup.secret.configHint"))
         .text(codeBlock(pluginConfig, "json"))
+        .footer()
         .success();
     await interaction.reply({ flags: EPHEMERAL, components: [container] });
 }

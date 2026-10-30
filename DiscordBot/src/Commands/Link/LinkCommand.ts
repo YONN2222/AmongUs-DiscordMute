@@ -3,7 +3,7 @@ import { type Locale, localeFrom, localized, type MessageKey, t } from "../../I1
 import { BlockedUserError } from "../../Linking/LinkingService";
 import { startSelfLink } from "../../Linking/StartSelfLink";
 import { logger, logModules } from "../../Logging/Logger";
-import { ContainerBuilder, TITLE_ICON } from "../../Utils/ContainerBuilder";
+import { ContainerBuilder } from "../../Utils/ContainerBuilder";
 import type { Command, CommandContext } from "../Command";
 
 async function replyEphemeral(interaction: ChatInputCommandInteraction, container: ContainerBuilder) {
@@ -39,8 +39,9 @@ export class LinkCommand implements Command {
             await replyEphemeral(
                 interaction,
                 new ContainerBuilder()
-                    .title(t(locale, "link.failed.title"), TITLE_ICON.warning)
+                    .title(t(locale, "link.failed.title"))
                     .text(t(locale, "link.guildOnly"))
+                    .footer()
                     .warning(),
             );
             return;
@@ -77,14 +78,15 @@ export class LinkCommand implements Command {
             await replyEphemeral(
                 interaction,
                 new ContainerBuilder()
-                    .title(t(locale, "link.force.title"), TITLE_ICON.success)
+                    .title(t(locale, "link.force.title"))
                     .divider()
                     .text(t(locale, "link.force.body", { user: user.toString(), name: displayName }))
+                    .footer()
                     .success(),
             );
         } catch (error) {
             if (error instanceof BlockedUserError) {
-                logger.info(logModules.Command, `Refused to force-link blocked user ${user.id}`);
+                logger.info(logModules.Link, `Refused to force-link blocked user ${user.id}`);
                 await this.replyError(interaction, locale, "link.force.blocked");
                 return;
             }
@@ -109,13 +111,15 @@ export class LinkCommand implements Command {
 
             const container = removed
                 ? new ContainerBuilder()
-                      .title(t(locale, "link.reset.title"), TITLE_ICON.success)
+                      .title(t(locale, "link.reset.title"))
                       .divider()
                       .text(t(locale, "link.reset.userDone", params))
+                      .footer()
                       .success()
                 : new ContainerBuilder()
-                      .title(t(locale, "link.reset.noneTitle"), TITLE_ICON.warning)
+                      .title(t(locale, "link.reset.noneTitle"))
                       .text(t(locale, "link.reset.userNone", params))
+                      .footer()
                       .warning();
 
             await replyEphemeral(interaction, container);
@@ -128,7 +132,7 @@ export class LinkCommand implements Command {
     private async replyError(interaction: ChatInputCommandInteraction, locale: Locale, key: MessageKey) {
         await replyEphemeral(
             interaction,
-            new ContainerBuilder().title(t(locale, "link.error.title"), TITLE_ICON.error).text(t(locale, key)).error(),
+            new ContainerBuilder().title(t(locale, "link.error.title")).text(t(locale, key)).footer().error(),
         );
     }
 
@@ -145,8 +149,9 @@ export class LinkCommand implements Command {
         await replyEphemeral(
             interaction,
             new ContainerBuilder()
-                .title(t(locale, "link.permission.title"), TITLE_ICON.warning)
+                .title(t(locale, "link.permission.title"))
                 .text(t(locale, "link.permission.body"))
+                .footer()
                 .warning(),
         );
     }

@@ -171,7 +171,7 @@ export class LogChannelWriter {
         const channelId = log.channelId;
         const text = this.takeChunk(log);
         try {
-            await this.deps.port.post(channelId, { components: [new ContainerBuilder().text(text).toJSON()] });
+            await this.deps.port.post(channelId, { components: [new ContainerBuilder().text(text).footer().toJSON()] });
         } catch (error) {
             this.onPostFailed(guildId, log, channelId, error);
         }

@@ -2,7 +2,7 @@ import { type ButtonInteraction, MessageFlags } from "discord.js";
 import type { CommandContext } from "../Commands/Command";
 import { rejectBlockedUser } from "../Hosted/InteractionGate";
 import { localeFrom, t } from "../I18n/Index";
-import { ContainerBuilder, TITLE_ICON } from "../Utils/ContainerBuilder";
+import { ContainerBuilder } from "../Utils/ContainerBuilder";
 
 export const LINK_SELF_UNLINK_BUTTON_ID = "link-self-unlink";
 
@@ -16,13 +16,15 @@ export async function unlinkSelf(interaction: ButtonInteraction, ctx: CommandCon
 
     const container = removed
         ? new ContainerBuilder()
-              .title(t(locale, "link.reset.title"), TITLE_ICON.success)
+              .title(t(locale, "link.reset.title"))
               .divider()
               .text(t(locale, "link.reset.selfDone"))
+              .footer()
               .success()
         : new ContainerBuilder()
-              .title(t(locale, "link.reset.noneTitle"), TITLE_ICON.warning)
+              .title(t(locale, "link.reset.noneTitle"))
               .text(t(locale, "link.reset.selfNone"))
+              .footer()
               .warning();
 
     await interaction.reply({
