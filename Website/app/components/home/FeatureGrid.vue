@@ -3,6 +3,7 @@ const COMMANDS = [
   { cmd: '/link self', text: 'Start linking your own account' },
   { cmd: '/link force user display-name', text: 'Link someone manually (admins)' },
   { cmd: '/link reset [user]', text: 'Unlink yourself, or others with Manage Server' },
+  { cmd: '/setup', text: 'Open the settings panel (Manage Server)' },
   { cmd: '/testconnection', text: 'Check that the bot can reach the mod' },
 ]
 
@@ -92,6 +93,7 @@ const CARD_UI = { container: 'h-full', wrapper: 'h-full', footer: 'w-full pt-5' 
         <UPageFeature v-for="s in SPECS" :key="s.title" :icon="s.icon" :title="s.title" :description="s.description" orientation="vertical" class="spec" />
       </div>
     </div>
+    <HomeFeatureGroups />
   </SiteSection>
 </template>
 
