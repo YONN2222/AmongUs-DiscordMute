@@ -74,6 +74,10 @@ export function createBlockRepository(sequelize: Sequelize): BlockRepository {
         });
     }
 
+    function selectByTarget(type: BlockType, targetId: string): Promise<BlockDbRow[]> {
+        return select("type = :type AND target_id = :targetId", { type, targetId });
+    }
+
     const repository: BlockRepository = {
         async create({ type, targetId, reason, blockedBy }, now = Date.now()) {
             const id = randomUUID();
@@ -83,7 +87,7 @@ export function createBlockRepository(sequelize: Sequelize): BlockRepository {
                  ON CONFLICT (type, target_id) DO NOTHING`,
                 { replacements: { id, type, targetId, reason, blockedBy, now } },
             );
-            const row = (await select("type = :type AND target_id = :targetId", { type, targetId }))[0];
+            const row = (await selectByTarget(type, targetId))[0];
             return row?.id === id ? toBlock(row) : null;
         },
         async finish(id, { summary, leftGuild, leftGuildCount }) {
@@ -103,10 +107,10 @@ export function createBlockRepository(sequelize: Sequelize): BlockRepository {
             return existed;
         },
         async isBlocked(type, targetId) {
-            return (await select("type = :type AND target_id = :targetId", { type, targetId })).length > 0;
+            return (await selectByTarget(type, targetId)).length > 0;
         },
         async get(type, targetId) {
-            const row = (await select("type = :type AND target_id = :targetId", { type, targetId }))[0];
+            const row = (await selectByTarget(type, targetId))[0];
             return row ? toBlock(row) : null;
         },
         async list({ type, targetId, offset, limit }) {
