@@ -1,10 +1,11 @@
-import { GITHUB_URL } from '#shared/site'
+import { UMAMI_ORIGIN } from '#shared/analytics'
+import { DOCS_URL, GITHUB_URL } from '#shared/site'
 import { TELEMETRY_EVENT_NAMES, TELEMETRY_FEATURES, TELEMETRY_MODES } from '#shared/telemetry/schema'
 import { MIN_INTERVAL_SECONDS } from '#shared/telemetry/contract'
 
 export type LegalSection = { id: string; heading: string; body: string[] }
 
-export const LEGAL_UPDATED_AT = '2026-10-29'
+export const LEGAL_UPDATED_AT = '2026-10-30'
 export const OPERATOR_URL = 'https://yonn2222.com'
 export const LICENSE_URL = `${GITHUB_URL}/blob/master/LICENSE`
 
@@ -23,10 +24,20 @@ export const PRIVACY_SECTIONS: readonly LegalSection[] = [
     id: 'website',
     heading: 'This website',
     body: [
-      'The website sets no cookies, runs no analytics, and does not track you. It loads no third-party scripts, fonts, images or embeds; everything comes from this domain.',
+      'The website sets no cookies and does not track you across other sites. It loads no third-party scripts, fonts, images or embeds; everything comes from this domain, apart from the self-hosted analytics scripts described under "Analytics and session recordings".',
       'The site is served by Cloudflare. To deliver pages and to protect against abuse, Cloudflare, Inc. acts as processor for the operator and processes technical request data such as your IP address, user agent and the requested URL. This data may be processed outside the European Union under Cloudflare\'s data processing terms. The site also uses Cloudflare Workers Logs, which keep an operational log of each request for up to 7 days. These logs include the client IP address, the request method and URL, request headers such as the user agent, and approximate location and network data derived from the IP address. The operator uses them only for debugging and abuse prevention. Apart from a short rejection reason (the name of the field that failed a check, and the mode) that is logged when a report is rejected, telemetry contents are not written to these logs.',
       'The legal basis for delivering and protecting the website, including rate limiting and these logs, is the legitimate interest of the operator in running a secure and working site (Article 6(1)(f) GDPR).',
       'The telemetry endpoint reads the sender IP address only as a short-lived key for rate limiting. For IPv6 senders this is the /64 network prefix. The address is never stored in the database, and the telemetry code does not write it to any log of its own. The Cloudflare request logs described above are separate from this.',
+    ],
+  },
+  {
+    id: 'analytics',
+    heading: 'Analytics and session recordings',
+    body: [
+      `This website and the documentation at ${DOCS_URL} use Umami for analytics. The operator runs Umami himself on his own server at ${UMAMI_ORIGIN}, so no third-party analytics provider receives the data. Umami sets no cookies, does not track you across other sites and does not store your IP address. It counts page views, referrers, browser and device type, language and approximate country, and derives an anonymous session identifier that cannot be traced back to your IP address.`,
+      'Clicks on the main buttons and links, such as Download, Docs, GitHub, adding the hosted bot, the setup guides, the menu, the footer and opening a question in the FAQ, are recorded as events together with the name of the element. They contain no personal data.',
+      'Both sites also load the Umami session recorder. It records how a page is used, such as mouse movement, clicks, scrolling and what the page looked like, so the operator can see where visitors get stuck and improve the sites. What you type into input fields, for example the documentation search, is masked and not recorded. Recordings are stored on the operator\'s server, are used only to improve the sites, are not shared, and are deleted after the retention period the operator has set in Umami.',
+      'The legal basis is the legitimate interest of the operator in understanding and improving his sites (Article 6(1)(f) GDPR). You can object at any time; the simplest way is to block umami.yonn2222.com in your browser or with a content blocker, which does not affect how the sites work.',
     ],
   },
   {
@@ -68,7 +79,7 @@ export const PRIVACY_SECTIONS: readonly LegalSection[] = [
     body: [
       'Aggregate counters and per-instance statistics are kept as long as they are useful for the public counters and for planning, and they contain no personal data.',
       'Hosted bot data is kept while the bot is in your server and for 7 days after it was removed. Ban records are kept for as long as the ban applies. Audit log entries of moderation actions are kept for 180 days. Operational logs are kept for 30 days. Mute records are removed once the mute is undone, and open link requests after 5 minutes. You can ask for earlier deletion.',
-      'Request data held by Cloudflare is kept according to Cloudflare policy.',
+      'Request data held by Cloudflare is kept according to Cloudflare policy. Analytics data and session recordings are kept on the operator\'s Umami server for the retention period the operator has set there.',
     ],
   },
   {
