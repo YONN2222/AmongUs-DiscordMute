@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { LinkEntry } from "../../src/Data/Repositories/LinkRepository";
 import { PAGE_SIZE, renderLinkOverview } from "../../src/LinkOverview/RenderLinkOverview";
-import { FOOTER_TEXT } from "../../src/Utils/ContainerBuilder";
+import { FOOTER_BANNER_URL } from "../../src/Utils/ContainerBuilder";
 import { renderText } from "../Helpers/RenderText";
 
 type Json = { type: number; custom_id?: string; disabled?: boolean; content?: string; components?: Json[] };
@@ -59,7 +59,7 @@ describe("renderLinkOverview", () => {
                 "---",
                 "-# Waiting for a link: <@1400000000000000002>",
                 "---",
-                FOOTER_TEXT,
+                `[image ${FOOTER_BANNER_URL}]`,
                 "[Link] [Unlink] [Show more]",
             ].join("\n"),
         );

@@ -1,12 +1,15 @@
-import { ContainerBuilder as DiscordContainerBuilder, SeparatorSpacingSize, TextDisplayBuilder } from "discord.js";
+import {
+    ContainerBuilder as DiscordContainerBuilder,
+    MediaGalleryBuilder,
+    MediaGalleryItemBuilder,
+    SeparatorSpacingSize,
+    TextDisplayBuilder,
+} from "discord.js";
 import { logTheme } from "../Logging/Logger";
-import { BOT_VERSION } from "../Version";
 
-export const WEBSITE_URL = "https://mute.yonn2222.com";
-export const DOCS_URL = "https://docs.mute.yonn2222.com";
-
-/** The small brand line at the bottom of every message the bot sends. */
-export const FOOTER_TEXT = `-# [DiscordMute](${WEBSITE_URL}) v${BOT_VERSION} | [Docs](${DOCS_URL})`;
+/** The brand banner at the bottom of every message; the website serves it from Website/public/brand. */
+export const FOOTER_BANNER_URL = "https://mute.yonn2222.com/brand/discord-footer.png";
+const FOOTER_BANNER_DESCRIPTION = "DiscordMute";
 
 /** Discord's small grey subtext line. */
 export function subtext(content: string): string {
@@ -34,9 +37,13 @@ export class ContainerBuilder extends DiscordContainerBuilder {
         return this;
     }
 
-    /** Closes the message with the brand line; call it last so it stays at the bottom. */
+    /** Closes the message with the brand banner; call it last so it stays at the bottom. */
     footer(): this {
-        return this.divider().text(FOOTER_TEXT);
+        const banner = new MediaGalleryItemBuilder()
+            .setURL(FOOTER_BANNER_URL)
+            .setDescription(FOOTER_BANNER_DESCRIPTION);
+        this.divider().addMediaGalleryComponents(new MediaGalleryBuilder().addItems(banner));
+        return this;
     }
 
     accent(color: number | string): this {

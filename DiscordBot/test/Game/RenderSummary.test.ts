@@ -3,7 +3,7 @@ import { describeGameOverReason } from "../../src/Game/GameOverReason";
 import { renderSummary } from "../../src/Game/RenderSummary";
 import { de } from "../../src/I18n/De";
 import { en } from "../../src/I18n/En";
-import { FOOTER_TEXT } from "../../src/Utils/ContainerBuilder";
+import { FOOTER_BANNER_URL } from "../../src/Utils/ContainerBuilder";
 import { renderText } from "../Helpers/RenderText";
 
 const RED_ID = "1300000000000000001";
@@ -64,7 +64,7 @@ describe("renderSummary", () => {
                 `- **Red** <@${RED_ID}>`,
                 "- ~~**Blue**~~ *(not linked, dead)*",
                 "---",
-                FOOTER_TEXT,
+                `[image ${FOOTER_BANNER_URL}]`,
             ].join("\n"),
         );
     });
