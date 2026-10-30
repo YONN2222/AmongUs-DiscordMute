@@ -11,10 +11,10 @@ export const OPS_RECENT_WINDOW_MS = 7 * 24 * 3600 * 1000
 const MIN_TOKEN_LENGTH = 32
 const DAY_MS = 24 * 3600 * 1000
 const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/
-const MODES = ['self-host', 'hosted'] as const
-const RESPONSE_HEADERS = { 'cache-control': 'no-store', 'x-robots-tag': 'noindex' }
+export const OPS_MODES = ['self-host', 'hosted'] as const
+export const OPS_RESPONSE_HEADERS = { 'cache-control': 'no-store', 'x-robots-tag': 'noindex' }
 
-type OpsMode = (typeof MODES)[number]
+export type OpsMode = (typeof OPS_MODES)[number]
 
 export type OpsQuery = { view: (typeof OPS_VIEWS)[number]; mode: OpsMode | null; from: string; to: string }
 
@@ -35,10 +35,13 @@ export type OpsRow =
   | { mode: string; feature: string; instances: number }
 
 type DailyRow = Extract<OpsRow, { day: string }>
-type SnapshotRow = Extract<OpsRow, { instancesTotal: number }>
+export type SnapshotRow = Extract<OpsRow, { instancesTotal: number }>
+export type VersionRow = Extract<OpsRow, { kind: string }>
+export type FeatureRow = Extract<OpsRow, { feature: string }>
+export type TotalRow = { mode: string; metric: string; value: number }
 
 const isView = (raw: string): raw is OpsQuery['view'] => (OPS_VIEWS as readonly string[]).includes(raw)
-const isMode = (raw: string): raw is OpsMode => (MODES as readonly string[]).includes(raw)
+const isMode = (raw: string): raw is OpsMode => (OPS_MODES as readonly string[]).includes(raw)
 
 // Returns the UTC midnight of a real calendar day written as YYYY-MM-DD, or null.
 function parseDay(raw: string): number | null {
@@ -95,7 +98,15 @@ async function readDaily(db: D1Database, q: OpsQuery): Promise<OpsRow[]> {
   return withLatencyAverages(results)
 }
 
-async function readSnapshot(db: D1Database, q: OpsQuery, now: number): Promise<OpsRow[]> {
+// All-time sums of the daily counters, one row per mode and metric.
+export async function readTotals(db: D1Database): Promise<TotalRow[]> {
+  const { results } = await db
+    .prepare('SELECT mode, metric, SUM(value) AS value FROM daily_counters GROUP BY mode, metric ORDER BY mode, metric')
+    .all<TotalRow>()
+  return results
+}
+
+export async function readSnapshot(db: D1Database, mode: OpsMode | null, now: number): Promise<SnapshotRow[]> {
   const { results } = await db
     .prepare(
       `SELECT mode,
@@ -111,12 +122,12 @@ async function readSnapshot(db: D1Database, q: OpsQuery, now: number): Promise<O
        WHERE ?4 IS NULL OR mode = ?4
        GROUP BY mode ORDER BY mode`,
     )
-    .bind(now - ACTIVE_WINDOW_MS, now - OPS_RECENT_WINDOW_MS, ESTABLISHED_INSTANCE_MS, q.mode)
+    .bind(now - ACTIVE_WINDOW_MS, now - OPS_RECENT_WINDOW_MS, ESTABLISHED_INSTANCE_MS, mode)
     .all<SnapshotRow>()
   return results.map((row) => ({ ...row, latencyAvgMs: row.latencyAvgMs === null ? null : round1(row.latencyAvgMs) }))
 }
 
-async function readVersions(db: D1Database, q: OpsQuery, now: number): Promise<OpsRow[]> {
+export async function readVersions(db: D1Database, mode: OpsMode | null, now: number): Promise<VersionRow[]> {
   const recent = 'i.last_seen_at >= ?1 AND (?2 IS NULL OR i.mode = ?2)'
   const { results } = await db
     .prepare(
@@ -130,12 +141,12 @@ async function readVersions(db: D1Database, q: OpsQuery, now: number): Promise<O
          FROM instances i, json_each(i.among_us_versions) j WHERE ${recent} GROUP BY i.mode, j.key
        ORDER BY mode, kind, version`,
     )
-    .bind(now - OPS_RECENT_WINDOW_MS, q.mode)
-    .all<Extract<OpsRow, { kind: string }>>()
+    .bind(now - OPS_RECENT_WINDOW_MS, mode)
+    .all<VersionRow>()
   return results
 }
 
-async function readFeatures(db: D1Database, q: OpsQuery, now: number): Promise<OpsRow[]> {
+export async function readFeatures(db: D1Database, mode: OpsMode | null, now: number): Promise<FeatureRow[]> {
   const { results } = await db
     .prepare(
       `SELECT i.mode AS mode, j.key AS feature, COUNT(*) AS instances
@@ -144,8 +155,8 @@ async function readFeatures(db: D1Database, q: OpsQuery, now: number): Promise<O
          AND (j.type = 'true' OR (j.type IN ('integer', 'real') AND j.value > 0))
        GROUP BY i.mode, j.key ORDER BY i.mode, j.key`,
     )
-    .bind(now - OPS_RECENT_WINDOW_MS, q.mode)
-    .all<Extract<OpsRow, { feature: string }>>()
+    .bind(now - OPS_RECENT_WINDOW_MS, mode)
+    .all<FeatureRow>()
   return results
 }
 
@@ -154,25 +165,34 @@ export function readOpsView(db: D1Database, q: OpsQuery, now: number): Promise<O
     case 'daily':
       return readDaily(db, q)
     case 'snapshot':
-      return readSnapshot(db, q, now)
+      return readSnapshot(db, q.mode, now)
     case 'versions':
-      return readVersions(db, q, now)
+      return readVersions(db, q.mode, now)
     case 'features':
-      return readFeatures(db, q, now)
+      return readFeatures(db, q.mode, now)
   }
 }
 
 function reply(status: number, body: { ok: true; data: OpsRow[] } | { ok: false; error: string }): Response {
-  return Response.json(body, { status, headers: RESPONSE_HEADERS })
+  return Response.json(body, { status, headers: OPS_RESPONSE_HEADERS })
 }
 
 // The token is an optional secret, so it is not part of the generated Env type.
-type OpsEnv = Pick<Env, 'DB'> & { OPS_STATS_TOKEN?: string }
+export type OpsEnv = Pick<Env, 'DB'> & { OPS_STATS_TOKEN?: string }
+
+export type OpsAccess = 'granted' | 'not_found' | 'unauthorized'
+
+// The ops endpoints do not exist until a long enough OPS_STATS_TOKEN is set.
+export function checkOpsAccess(request: Request, env: OpsEnv): OpsAccess {
+  const token = env.OPS_STATS_TOKEN
+  if (!token || token.length < MIN_TOKEN_LENGTH) return 'not_found'
+  return bearerMatches(request.headers.get('authorization'), token) ? 'granted' : 'unauthorized'
+}
 
 export async function handleOpsTelemetry(request: Request, env: OpsEnv, now: number): Promise<Response> {
-  const token = env.OPS_STATS_TOKEN
-  if (!token || token.length < MIN_TOKEN_LENGTH) return reply(404, { ok: false, error: 'not_found' })
-  if (!bearerMatches(request.headers.get('authorization'), token)) return reply(401, { ok: false, error: 'unauthorized' })
+  const access = checkOpsAccess(request, env)
+  if (access === 'not_found') return reply(404, { ok: false, error: 'not_found' })
+  if (access === 'unauthorized') return reply(401, { ok: false, error: 'unauthorized' })
 
   const query = parseOpsQuery(new URL(request.url), now)
   if (query === 'invalid') return reply(400, { ok: false, error: 'invalid' })
