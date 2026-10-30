@@ -297,6 +297,21 @@ describe.each(backends)("admin handlers, actions (%s)", (backend) => {
             expect(await auditOf(guildId)).toMatchObject([{ action: "guild.leave", details: { left: false } }]);
         });
 
+        it("admin leave of a guild the bot already left routes nothing and still audits", async () => {
+            const guildId = uniqueId("guild");
+            await addGuild(guildId, uniqueId("owner"));
+            await db.hostedGuilds.markLeft(guildId, Date.now());
+
+            const result = await handlers().leaveGuild(guildId, { actorId: admin, reason: "cleanup" });
+
+            expect(result).toEqual({ left: false });
+            expect(router.sent).toEqual([]);
+            expect(disconnects).toEqual([]);
+            expect(await auditOf(guildId)).toMatchObject([
+                { action: "guild.leave", details: { reason: "cleanup", left: false } },
+            ]);
+        });
+
         it("admin leave of an unknown guild is null and writes nothing", async () => {
             const guildId = uniqueId("unknown");
 

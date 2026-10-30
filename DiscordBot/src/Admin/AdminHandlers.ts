@@ -175,8 +175,10 @@ export function createAdminHandlers(deps: AdminHandlerDeps): AdminHandlers {
             return row ? (await summarize([row]))[0] : null;
         },
         async leaveGuild(guildId, { actorId, reason }) {
-            if (!(await db.hostedGuilds.get(guildId))) return null;
-            const left = (await leaveThroughCluster(guildId, "admin")).ok;
+            const guild = await db.hostedGuilds.get(guildId);
+            if (!guild) return null;
+            // The bot is no longer in a guild it left, so no cluster is asked to leave it again.
+            const left = guild.leftAt === null && (await leaveThroughCluster(guildId, "admin")).ok;
             await db.audit.record(
                 { actorId, action: "guild.leave", targetType: "guild", targetId: guildId, details: { reason, left } },
                 now(),
