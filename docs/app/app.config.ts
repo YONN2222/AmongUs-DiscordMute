@@ -1,6 +1,7 @@
 export default defineAppConfig({
   header: {
     title: 'DiscordMute',
+    logo: { favicon: '/brand/favicon-64.png' },
   },
   github: {
     url: 'https://github.com/YONN2222/AmongUs-DiscordMute',
