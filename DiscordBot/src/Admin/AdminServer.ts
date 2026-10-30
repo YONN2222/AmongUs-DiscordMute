@@ -178,6 +178,8 @@ function buildRoutes(handlers: AdminHandlers): Route[] {
         route("GET", "/users/:userId", async ({ params }) => {
             const user = await handlers.getUser(parse(UserParamsSchema, params).userId);
             if (!user) throw fail("not-found", "User not found");
+            if (user === "unavailable")
+                throw fail("unavailable", "Discord could not be asked about this user, try again");
             return ok(user);
         }),
         route("GET", "/profiles", async ({ query }) => {

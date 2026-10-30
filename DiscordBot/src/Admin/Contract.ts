@@ -180,7 +180,11 @@ export const DiscordProfileSchema = z.object({
 });
 export type DiscordProfile = z.infer<typeof DiscordProfileSchema>;
 
-/** Everything the bot stores about one Discord user, plus the live profile (null when Discord could not tell). */
+/**
+ * Everything the bot stores about one Discord user, plus the live profile (null when Discord could not tell).
+ * `GET /users/:userId` answers 404 when nothing is stored and Discord does not know the user, and 503 "unavailable"
+ * when nothing is stored and Discord could not be asked; that answer is temporary, so the caller may retry.
+ */
 export const UserDetailSchema = z.object({
     userId: SnowflakeSchema,
     profile: DiscordProfileSchema.nullable(),

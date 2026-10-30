@@ -247,6 +247,15 @@ describe("admin server", () => {
             expect(unknown.status).toBe(404);
             expect(invalid.status).toBe(400);
         });
+
+        it("is 503 while Discord cannot be asked about a user the bot knows nothing about", async () => {
+            await start(fakeHandlers({ getUser: async () => "unavailable" as const }));
+
+            const response = await fetch(`${baseUrl}/users/${GUILD_ID}`, { headers: authorized });
+
+            expect(response.status).toBe(503);
+            expect(((await response.json()) as { error: { code: string } }).error.code).toBe("unavailable");
+        });
     });
 
     describe("profiles", () => {

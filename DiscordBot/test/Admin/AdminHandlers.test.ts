@@ -295,11 +295,23 @@ describe.each(backends)("admin handlers, read endpoints (%s)", (backend) => {
             });
         });
 
-        it("user lookup still answers when Discord could not be asked", async () => {
+        it("user lookup shows stored data without a profile when Discord could not be asked", async () => {
             const userId = uniqueId("outage");
+            await db.blocks.create({ type: "user", targetId: userId, reason: "spam", blockedBy: "system" }, NOW);
             lookups.set(userId, { status: "failed" });
 
-            expect(await handlers().getUser(userId)).toMatchObject({ userId, profile: null, links: [] });
+            expect(await handlers().getUser(userId)).toMatchObject({
+                userId,
+                profile: null,
+                block: { targetId: userId },
+            });
+        });
+
+        it("user lookup is unavailable when nothing is stored and Discord could not be asked", async () => {
+            const userId = uniqueId("phantom");
+            lookups.set(userId, { status: "failed" });
+
+            expect(await handlers().getUser(userId)).toBe("unavailable");
         });
 
         it("profiles come from the lookup for every requested id", async () => {

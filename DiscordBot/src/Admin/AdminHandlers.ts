@@ -57,8 +57,11 @@ export interface AdminHandlers {
     leaveGuild(guildId: string, body: LeaveGuildBody): Promise<{ left: boolean } | null>;
     /** Deletes the data of a server the bot left; null when the guild is not in the hosted guild list. */
     purgeGuild(guildId: string, body: PurgeGuildBody): Promise<"purged" | "in-guild" | null>;
-    /** Null when the bot stores nothing about this user and Discord does not know the user either. */
-    getUser(userId: string): Promise<UserDetail | null>;
+    /**
+     * Null when the bot stores nothing about this user and Discord does not know the user either; "unavailable" when
+     * nothing is stored and Discord could not be asked, so the caller cannot tell yet whether the user exists.
+     */
+    getUser(userId: string): Promise<UserDetail | "unavailable" | null>;
     getProfiles(userIds: string[]): Promise<Profiles>;
     listBlocks(query: BlockListQuery): Promise<Page<Block>>;
     createBlock(body: CreateBlockBody): Promise<Block | "conflict">;
@@ -276,6 +279,7 @@ export function createAdminHandlers(deps: AdminHandlerDeps): AdminHandlers {
             ]);
             const storesNothing = links.length === 0 && owned.length === 0 && !block;
             if (storesNothing && lookup.status === "unknown") return null;
+            if (storesNothing && lookup.status === "failed") return "unavailable";
             return {
                 userId,
                 profile: lookup.status === "found" ? lookup.profile : null,
