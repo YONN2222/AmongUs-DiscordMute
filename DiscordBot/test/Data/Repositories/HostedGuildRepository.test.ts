@@ -1,9 +1,9 @@
 import { QueryTypes } from "sequelize";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { Database } from "../../src/Data/Database";
-import { GUILD_SCOPED_TABLES } from "../../src/Data/Repositories/HostedGuildRepository";
-import { parseSettings } from "../../src/Settings/GuildSettings";
-import { backendAvailable, backends, openBackend, purgeTestRows, uniqueId } from "../Helpers/TestDatabase";
+import type { Database } from "../../../src/Data/Database";
+import { GUILD_SCOPED_TABLES } from "../../../src/Data/Repositories/HostedGuildRepository";
+import { parseSettings } from "../../../src/Settings/GuildSettings";
+import { backendAvailable, backends, openBackend, purgeTestRows, uniqueId } from "../../Helpers/TestDatabase";
 
 describe.each(backends)("HostedGuildRepository (%s)", (backend) => {
     describe.skipIf(!backendAvailable(backend))("suite", () => {

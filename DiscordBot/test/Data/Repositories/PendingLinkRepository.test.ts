@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { Database } from "../../src/Data/Database";
-import type { PendingLinkModel } from "../../src/Data/Models/PendingLinkModel";
-import { createPendingLinkRepository, type PendingLink } from "../../src/Data/Repositories/PendingLinkRepository";
-import { backendAvailable, backends, openBackend, purgeTestRows, uniqueId } from "../Helpers/TestDatabase";
+import type { Database } from "../../../src/Data/Database";
+import type { PendingLinkModel } from "../../../src/Data/Models/PendingLinkModel";
+import { createPendingLinkRepository, type PendingLink } from "../../../src/Data/Repositories/PendingLinkRepository";
+import { backendAvailable, backends, openBackend, purgeTestRows, uniqueId } from "../../Helpers/TestDatabase";
 
 describe("createPendingLinkRepository", () => {
     it("refuses a model that was never initialised", () => {

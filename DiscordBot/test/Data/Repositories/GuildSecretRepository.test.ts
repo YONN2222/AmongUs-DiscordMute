@@ -1,8 +1,8 @@
 import { QueryTypes } from "sequelize";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { Database } from "../../src/Data/Database";
-import { hashSecret } from "../../src/Hosted/GuildSecrets";
-import { backendAvailable, backends, openBackend, purgeTestRows, uniqueId } from "../Helpers/TestDatabase";
+import type { Database } from "../../../src/Data/Database";
+import { hashSecret } from "../../../src/Hosted/GuildSecrets";
+import { backendAvailable, backends, openBackend, purgeTestRows, uniqueId } from "../../Helpers/TestDatabase";
 
 describe.each(backends)("GuildSecretRepository (%s)", (backend) => {
     describe.skipIf(!backendAvailable(backend))("suite", () => {

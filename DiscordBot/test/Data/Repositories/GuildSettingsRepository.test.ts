@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { Database } from "../../src/Data/Database";
-import type { GuildSettingsModel } from "../../src/Data/Models/GuildSettingsModel";
-import { createGuildSettingsRepository } from "../../src/Data/Repositories/GuildSettingsRepository";
-import { DEFAULT_SETTINGS, mergeSettings } from "../../src/Settings/GuildSettings";
-import { backendAvailable, backends, openBackend, purgeTestRows, uniqueId } from "../Helpers/TestDatabase";
+import type { Database } from "../../../src/Data/Database";
+import type { GuildSettingsModel } from "../../../src/Data/Models/GuildSettingsModel";
+import { createGuildSettingsRepository } from "../../../src/Data/Repositories/GuildSettingsRepository";
+import { DEFAULT_SETTINGS, mergeSettings } from "../../../src/Settings/GuildSettings";
+import { backendAvailable, backends, openBackend, purgeTestRows, uniqueId } from "../../Helpers/TestDatabase";
 
 describe("createGuildSettingsRepository", () => {
     it("refuses a model that was never initialised", () => {

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { Database } from "../../src/Data/Database";
-import type { TrackedMessage } from "../../src/Data/Repositories/TrackedMessageRepository";
-import { backendAvailable, backends, openBackend, purgeTestRows, uniqueId } from "../Helpers/TestDatabase";
+import type { Database } from "../../../src/Data/Database";
+import type { TrackedMessage } from "../../../src/Data/Repositories/TrackedMessageRepository";
+import { backendAvailable, backends, openBackend, purgeTestRows, uniqueId } from "../../Helpers/TestDatabase";
 
 describe.each(backends)("TrackedMessageRepository (%s)", (backend) => {
     describe.skipIf(!backendAvailable(backend))("suite", () => {

@@ -3,8 +3,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { type Database, openDatabase } from "../../src/Data/Database";
-import { backendAvailable, backends, openBackend, purgeTestRows, uniqueId } from "../Helpers/TestDatabase";
+import { type Database, openDatabase } from "../../../src/Data/Database";
+import { backendAvailable, backends, openBackend, purgeTestRows, uniqueId } from "../../Helpers/TestDatabase";
 
 describe.each(backends)("MuteLedgerRepository (%s)", (backend) => {
     describe.skipIf(!backendAvailable(backend))("suite", () => {

@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { type Database, openDatabase } from "../../src/Data/Database";
+import { type Database, openDatabase } from "../../../src/Data/Database";
 import {
     type Backend,
     backendAvailable,
@@ -12,7 +12,7 @@ import {
     postgresUrl,
     purgeTestRows,
     uniqueId,
-} from "../Helpers/TestDatabase";
+} from "../../Helpers/TestDatabase";
 
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
