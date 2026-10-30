@@ -25,6 +25,13 @@ export class FakeVoice implements VoiceAdapter {
     delay: () => number = () => 0;
     beforeSetMute: (discordId: string, mute: boolean) => Promise<void> = async () => {};
     afterSetMute: (discordId: string, mute: boolean) => void = () => {};
+    /** The voice states reads report while Discord has not yet sent the update for the bot's own calls. */
+    private lagged: { muted: Set<string>; deafened: Set<string> } | null = null;
+
+    /** From now on reads keep reporting the current voice states, as the gateway cache does right after an edit. */
+    lagVoiceStateUpdates(): void {
+        this.lagged = { muted: new Set(this.muted), deafened: new Set(this.deafened) };
+    }
 
     private async wait(): Promise<void> {
         const ms = this.delay();
@@ -34,8 +41,8 @@ export class FakeVoice implements VoiceAdapter {
     private member(discordId: string): VoiceMember {
         return {
             discordId,
-            serverMuted: this.muted.has(discordId),
-            serverDeafened: this.deafened.has(discordId),
+            serverMuted: (this.lagged?.muted ?? this.muted).has(discordId),
+            serverDeafened: (this.lagged?.deafened ?? this.deafened).has(discordId),
             isBot: this.bots.has(discordId),
         };
     }

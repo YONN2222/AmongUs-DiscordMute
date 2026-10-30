@@ -5,6 +5,61 @@ import { GUILD, gameEvent, useMuteServiceFixture } from "../Helpers/MuteServiceF
 describe("MuteService", () => {
     const fx = useMuteServiceFixture();
 
+    describe("before Discord confirmed the bot's own mute", () => {
+        it("lifts the mute when the session ends right after it was set", async () => {
+            fx.voice.channels.set("c1", ["u1"]);
+            fx.voice.lagVoiceStateUpdates();
+            const service = fx.createService();
+            await service.handleGameEvent(gameEvent("game-start", ["Red"]));
+            expect([...fx.voice.muted]).toEqual(["u1"]);
+
+            await service.endSession(GUILD, "s1");
+
+            expect(fx.voice.muted.size).toBe(0);
+            expect(await fx.ledgerIds()).toEqual([]);
+        });
+
+        it("lifts the mute and the deafen when a meeting starts right after", async () => {
+            fx.voice.channels.set("c1", ["u1"]);
+            fx.settings = {
+                ...fx.settings,
+                voiceRules: { ...fx.settings.voiceRules, tasks: { alive: "deafen", dead: "mute" } },
+            };
+            fx.voice.lagVoiceStateUpdates();
+            const service = fx.createService();
+            await service.handleGameEvent(gameEvent("game-start", ["Red"]));
+
+            await service.handleGameEvent(gameEvent("meeting-start", ["Red"]));
+
+            expect(fx.voice.muted.size).toBe(0);
+            expect(fx.voice.deafened.size).toBe(0);
+            expect(await fx.ledgerIds()).toEqual([]);
+        });
+    });
+
+    describe("logging", () => {
+        it("logs each phase and the session end with the number of changed members", async () => {
+            fx.voice.channels.set("c1", ["u1", "u2"]);
+            const service = fx.createService();
+            await service.handleGameEvent(gameEvent("game-start", ["Red", "Blue"]));
+            await service.endSession(GUILD, "s1");
+
+            const lines = vi.mocked(logger.info).mock.calls.map((call) => call[1]);
+            expect(lines).toEqual([
+                `Guild ${GUILD}: game-start of session s1, muted 2, unmuted 0`,
+                `Guild ${GUILD}: session s1 ended, muted 0, unmuted 2`,
+            ]);
+            const ids = vi.mocked(logger.debug).mock.calls.map((call) => call[1]);
+            expect(ids).toContain(`Guild ${GUILD}: game-start of session s1, muted [u1, u2], unmuted []`);
+        });
+
+        it("stays quiet for a sweep that changes nothing", async () => {
+            await fx.db.muteLedger.set(GUILD, "u1", { muted: true, deafened: false }, null);
+            await fx.createService().sweepIdle([GUILD]);
+            expect(logger.info).not.toHaveBeenCalled();
+        });
+    });
+
     describe("sweepIdle", () => {
         it("retries an unmute that failed earlier", async () => {
             fx.voice.channels.set("c1", ["u1"]);

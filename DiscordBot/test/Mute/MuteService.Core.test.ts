@@ -131,7 +131,7 @@ describe("MuteService", () => {
         expect(await fx.ledgerIds()).toEqual([]);
     });
 
-    it("drops a ledger entry whose member was already unmuted elsewhere", async () => {
+    it("lifts a ledger mute even when the member already reads unmuted", async () => {
         fx.voice.channels.set("c1", ["u1"]);
         const service = fx.createService();
         await service.handleGameEvent(gameEvent("game-start", ["Red"]));
@@ -140,7 +140,7 @@ describe("MuteService", () => {
 
         await service.handleGameEvent(gameEvent("meeting-start", ["Red"]));
 
-        expect(fx.voice.calls).toEqual([]);
+        expect(fx.voice.calls).toEqual([{ discordId: "u1", mute: false }]);
         expect(await fx.ledgerIds()).toEqual([]);
     });
 
