@@ -37,8 +37,8 @@ const DEFAULT_ROUTE_TIMEOUT_MS = 10000;
 const DEFAULT_SESSION_END_RETRY_DELAYS_MS = [1000, 2000, 5000, 10_000, 30_000, 60_000, 120_000];
 const MAX_PENDING_BEFORE_ACTIVE = 16;
 const MAX_PENDING_ACTIVE = 64;
-/** A player sends a link code by hand, so more than this per minute is someone guessing codes. */
-export const LINK_CHAT_LIMIT_PER_MINUTE = 10;
+/** Link codes are typed by hand; a full lobby of 15 linking at once stays well below this, guessing does not. */
+export const LINK_CHAT_LIMIT_PER_MINUTE = 30;
 const LINK_CHAT_WINDOW_MS = 60_000;
 const OUTDATED_REASON = "Plugin outdated, please update DiscordMute";
 const TOO_MANY_SESSIONS_REASON = "Too many games on this server";
