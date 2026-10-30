@@ -22,14 +22,15 @@ I built it because my friend group kept talking during live rounds and didn't wa
 ## Quick start
 
 1. Install the 64-bit BepInEx build into your Among Us folder and copy `DiscordMute.dll` into `BepInEx/plugins`.
-2. Start Among Us once, then set `ip`, `secret` and `exe` in the `config.json` created in `BepInEx/DiscordMute`.
-3. In `DiscordBot`, rename `config.example.json` to `config.json` and fill in `token`, `clientId`, `guildId` and the same `secret`.
-4. Host a lobby (online or LAN), join a Discord voice channel and run `/link self`.
-5. Send the phrase the bot gives you in Among Us Free Chat.
+2. In `DiscordBot`, rename `config.example.json` to `config.json`, fill in `token` and `clientId` and start the bot.
+3. In Discord, run `/setup` and press **Create secret** on the General page. All other server settings are in `/setup` too.
+4. Start Among Us once, then set `secret` and `exe` in the `config.json` created in `BepInEx/DiscordMute`.
+5. Host a lobby (online or LAN), join a Discord voice channel and run `/link self`.
+6. Send the phrase the bot gives you in Among Us Free Chat.
 
 The full walkthrough is in [self-host setup guide](https://docs.mute.yonn2222.com/getting-started/self-host-setup).
 
-Prefer not to run a bot? With the hosted bot you add it to your server, create a secret with `/setup` and set `"mode": "hosted"` and your `secret` in the plugin config. See [hosted setup](https://docs.mute.yonn2222.com/getting-started/hosted-setup).
+Prefer not to run a bot? The hosted bot is available now. Invite it from [mute.yonn2222.com](https://mute.yonn2222.com), create a secret with `/setup` and set `"mode": "hosted"` and your `secret` in the plugin config. See [hosted setup](https://docs.mute.yonn2222.com/getting-started/hosted-setup).
 
 ## Documentation
 

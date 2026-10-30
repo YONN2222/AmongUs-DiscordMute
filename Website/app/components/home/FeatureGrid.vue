@@ -50,7 +50,7 @@ const CARD_UI = { container: 'h-full', wrapper: 'h-full', footer: 'w-full pt-5' 
 
       <UPageCard v-reveal="90" variant="soft" title="Follows the host" :ui="CARD_UI">
         <template #description>
-          Mutes whichever voice channel the host is in. <code class="code">channelIds</code> is only a fallback.
+          Mutes whichever voice channel the host is in. The fallback voice channels from <code class="code">/setup</code> are used only when it cannot tell.
         </template>
         <template #footer>
           <div class="proof channel" role="img" aria-label="Example: the voice channel the host is in is the one that gets muted">

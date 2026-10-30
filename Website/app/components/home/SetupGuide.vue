@@ -25,7 +25,7 @@ const SELF_STEPS: Step[] = [
   { title: 'Install BepInEx', avatar: { text: '1' }, where: 'Game PC', whereIcon: 'i-lucide-package', slot: 'bepinex' },
   { title: 'Add the mod', avatar: { text: '2' }, where: 'Game PC', whereIcon: 'i-lucide-package', slot: 'mod' },
   { title: 'Set up the bot', avatar: { text: '3' }, where: 'DiscordBot/config.json', whereIcon: 'i-lucide-file-cog', slot: 'bot' },
-  { title: 'Point the mod at the bot', avatar: { text: '4' }, where: 'BepInEx/DiscordMute/config.json', whereIcon: 'i-lucide-file-cog', slot: 'plugin' },
+  { title: 'Create the secret and point the mod at the bot', avatar: { text: '4' }, where: 'BepInEx/DiscordMute/config.json', whereIcon: 'i-lucide-file-cog', slot: 'plugin' },
   { title: 'Start the bot and link', avatar: { text: '5' }, where: 'In game and Discord', whereIcon: 'i-brand-discord', slot: 'start' },
 ]
 const HOSTED_STEPS: Step[] = [
@@ -88,14 +88,12 @@ const TIMELINE_UI = {
               <ULink :to="DEVELOPER_PORTAL_URL" rel="noopener" class="inline-link" v-bind="guideLink('developer-portal')">Discord Developer Portal</ULink> and turn on
               <b>Server Members Intent</b> under Bot, and invite the bot with the <code class="code">bot</code> and
               <code class="code">applications.commands</code> scopes (permission integer
-              <code class="code">146877440</code>). Then fill in the values and pick your own <code class="code">secret</code>.
+              <code class="code">146877440</code>). Then fill in the token and the application ID. Everything else is set in
+              Discord with <code class="code">/setup</code>.
             </p>
 <pre><code>{
   <span class="k">"token"</span>: <span class="s">"YOUR_BOT_TOKEN"</span>,
   <span class="k">"clientId"</span>: <span class="s">"YOUR_CLIENT_ID"</span>,
-  <span class="k">"guildId"</span>: <span class="s">"YOUR_GUILD_ID"</span>,
-  <span class="k">"channelIds"</span>: [],
-  <span class="k">"secret"</span>: <span class="s">"replace-this-with-your-own-secret"</span>,
   <span class="k">"botIp"</span>: <span class="s">"localhost"</span>,
   <span class="k">"botPort"</span>: <span class="n">7264</span>,
   <span class="k">"databaseDialect"</span>: <span class="s">"sqlite"</span>
@@ -103,16 +101,15 @@ const TIMELINE_UI = {
           </template>
           <template #plugin-description>
             <p>
-              Use the same <code class="code">secret</code> as the bot, and the bot's IP and port. <code class="code">exe</code>
-              points to <code class="code">start.bat</code> in the <code class="code">DiscordBot</code> folder, so the bot starts
-              with the game.
+              Start the bot once, run <code class="code">/setup</code> in your server and press <b>Create secret</b>. Paste the
+              secret here. <code class="code">exe</code> points to <code class="code">start.bat</code> in the
+              <code class="code">DiscordBot</code> folder, so the bot starts with the game.
             </p>
 <pre><code>{
   <span class="k">"ip"</span>: <span class="s">"localhost"</span>,
   <span class="k">"botPort"</span>: <span class="n">7264</span>,
-  <span class="k">"secret"</span>: <span class="s">"replace-this-with-your-own-secret"</span>,
-  <span class="k">"exe"</span>: <span class="s">"C:\\Path\\To\\DiscordBot\\start.bat"</span>,
-  <span class="k">"bridgeLogsToBotConsole"</span>: <span class="n">false</span>
+  <span class="k">"secret"</span>: <span class="s">"dmh_your-secret"</span>,
+  <span class="k">"exe"</span>: <span class="s">"C:\\Path\\To\\DiscordBot\\start.bat"</span>
 }</code></pre>
             <UAlert color="warning" variant="soft" icon="i-lucide-info" class="mt-3.5 tip">
               <template #description>

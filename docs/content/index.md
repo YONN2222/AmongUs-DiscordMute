@@ -60,7 +60,7 @@ features:
     icon: i-lucide-puzzle
     to: /getting-started/self-host-setup
   - title: Create your bot
-    description: Fill in the bot config with your token and a shared secret.
+    description: Put your token in the bot config, then run /setup in Discord for the rest.
     icon: i-lucide-bot
     to: /configuration/bot-config
   - title: Link your account
@@ -124,7 +124,7 @@ No more hand muting, no more talking over live gameplay.
     icon: i-lucide-server
     spotlight: true
     title: Self-host or hosted
-    description: Run your own bot on your PC. A hosted bot is planned.
+    description: Run your own bot on your PC, or invite the hosted bot. The hosted bot is available now.
     to: /getting-started/hosted-setup
     ---
     ::::
@@ -154,7 +154,7 @@ ui:
 Something not working? [Check the FAQ.]{.font-extrabold}
 
 #description
-Most problems come down to a mismatched secret, a broken path in the config or a host who is not linked yet.
+Most problems come down to a wrong plugin secret, a broken path in the config or a host who is not linked yet.
 
 #links
   :::u-button

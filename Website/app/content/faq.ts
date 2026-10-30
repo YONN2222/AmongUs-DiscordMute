@@ -26,7 +26,7 @@ export const FAQ: readonly FaqEntry[] = [
     id: 'install',
     question: 'What do I need to install?',
     answer:
-      'The host installs BepInEx and puts DiscordMute.dll into BepInEx/plugins. When you self-host, you also run the Discord bot from the release download. It ships as a compiled bot.exe, so you do not need Bun or Node.js. Nobody else installs anything.',
+      'The host installs BepInEx and puts DiscordMute.dll into BepInEx/plugins. When you self-host, you also run the Discord bot from the release download. It ships as a compiled bot.exe, so you do not need Bun or Node.js. Only the bot token and application ID go into its config file; the plugin secret, voice channels and all other server settings are set in Discord with /setup. Nobody else installs anything.',
   },
   {
     id: 'linking',
