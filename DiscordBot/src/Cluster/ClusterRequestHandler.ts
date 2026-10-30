@@ -67,6 +67,8 @@ async function handleGameEvent(deps: ClusterRequestHandlerDeps, req: GameEventRe
     // session-ended can overtake this event while it relinks; an ended game must not mute, rename or post again.
     if (deps.mute.hasEnded(req.sessionId)) return { ok: true };
     const { channelIds, ...reply } = await deps.mute.handleGameEvent(req);
+    // The gateway stops waiting after a while, so session-ended can also overtake a slow mute call.
+    if (deps.mute.hasEnded(req.sessionId)) return reply;
     const { kind: _kind, ...event } = req;
     const usedChannels = reply.ok && !reply.notice ? (channelIds ?? []) : [];
     deps.events.emit({ type: "game-event", ...event, channelIds: usedChannels });

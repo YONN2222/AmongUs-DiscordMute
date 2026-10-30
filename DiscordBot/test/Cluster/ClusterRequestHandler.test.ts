@@ -95,6 +95,28 @@ describe("createClusterRequestHandler", () => {
         expect(events.emit).not.toHaveBeenCalled();
     });
 
+    it("does not emit a game event whose session ended while the mute call was running", async () => {
+        let releaseMute = (): void => {};
+        // Running before the mute call, then after session-ended ran.
+        mute.hasEnded.mockReturnValueOnce(false).mockReturnValueOnce(true);
+        mute.handleGameEvent.mockImplementationOnce(async () => {
+            await new Promise<void>((resolve) => (releaseMute = resolve));
+            return { ok: true, channelIds: ["c1"] };
+        });
+        const restoreSession = vi.fn(async () => {});
+        const handle = handler(() => true, { nicknames: { restoreSession } });
+
+        const lateEvent = handle(gameEvent);
+        await vi.waitFor(() => expect(mute.handleGameEvent).toHaveBeenCalled());
+        await handle({ kind: "session-ended", guildId: "g", sessionId: "s" });
+        releaseMute();
+
+        expect(await lateEvent).toEqual({ ok: true });
+        expect(mute.endSession).toHaveBeenCalledWith("g", "s");
+        expect(restoreSession).toHaveBeenCalledWith("g", "s");
+        expect(events.emit.mock.calls.map(([event]) => event.type)).toEqual(["session-ended"]);
+    });
+
     it("emits the game event with the channels the mute service used", async () => {
         mute.handleGameEvent.mockResolvedValueOnce({ ok: true, channelIds: ["c1", "c2"] });
         const roster = [{ name: "Red", dead: false, disconnected: false }];
