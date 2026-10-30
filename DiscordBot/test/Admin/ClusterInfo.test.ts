@@ -17,6 +17,8 @@ function fakeInstance(replies: (cluster: FakeCluster) => Promise<unknown>) {
     return { clusters, sendRequestToCluster: vi.fn((cluster: FakeCluster) => replies(cluster)) };
 }
 
+const TIMEOUT_MS = 3000;
+
 const shard = (id: number) => ({ id, status: 0, pingMs: 40, guilds: 1, lastPingAt: 5000 });
 
 const okReply = (id: number) => ({
@@ -66,14 +68,14 @@ describe("cluster info", () => {
     it("merges the answer of every cluster with what the gateway knows about it", async () => {
         const instance = fakeInstance(async (cluster) => okReply(cluster.id));
 
-        const info = await collectClusterInfo(instance, 50);
+        const info = await collectClusterInfo(instance, TIMEOUT_MS);
 
         expect(info).toEqual([answered(0, "running", 1000), answered(1, "starting", 2000)]);
         for (const entry of info) expect(ClusterInfoSchema.safeParse(entry).success).toBe(true);
         expect(instance.sendRequestToCluster).toHaveBeenCalledWith(
             expect.objectContaining({ id: 0 }),
             { kind: CLUSTER_INFO_KIND },
-            50,
+            TIMEOUT_MS,
         );
     });
 
@@ -85,12 +87,15 @@ describe("cluster info", () => {
                       /* never answers */
                   }),
         );
-        const started = Date.now();
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        try {
+            const collecting = collectClusterInfo(instance, TIMEOUT_MS);
+            await vi.advanceTimersByTimeAsync(TIMEOUT_MS);
 
-        const info = await collectClusterInfo(instance, 50);
-
-        expect(Date.now() - started).toBeLessThan(1000);
-        expect(info).toEqual([answered(0, "running", 1000), silent(1, "starting", 2000)]);
+            expect(await collecting).toEqual([answered(0, "running", 1000), silent(1, "starting", 2000)]);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     it("a failing or malformed answer is reported as not ok", async () => {
@@ -99,7 +104,7 @@ describe("cluster info", () => {
             return { ...okReply(1), shards: [{ id: "x" }] };
         });
 
-        const info = await collectClusterInfo(instance, 50);
+        const info = await collectClusterInfo(instance, TIMEOUT_MS);
 
         expect(info).toEqual([silent(0, "running", 1000), silent(1, "starting", 2000)]);
         for (const entry of info) expect(ClusterInfoSchema.safeParse(entry).success).toBe(true);
@@ -111,7 +116,7 @@ describe("cluster info", () => {
         });
         instance.clusters.set(1, { id: 1, shardList: [2, 3], status: "stopped", createdAt: 2000 });
 
-        const info = await collectClusterInfo(instance, 50);
+        const info = await collectClusterInfo(instance, TIMEOUT_MS);
 
         expect(info[1]).toEqual(silent(1, "stopped", 2000));
     });

@@ -78,7 +78,10 @@ export interface PluginGatewayFixture {
     restart(options: StartOptions): Promise<void>;
 }
 
-/** Call inside a describe: starts a self-host gateway (hello timeout 100 ms) before each test and stops it after. */
+/** Long enough that a hello is never cut off while the whole suite runs in parallel. */
+const FIXTURE_HELLO_TIMEOUT_MS = 1000;
+
+/** Call inside a describe: starts a self-host gateway (hello timeout 1 s) before each test and stops it after. */
 export function usePluginGatewayFixture(): PluginGatewayFixture {
     const fx = {
         clients: [] as WebSocket[],
@@ -134,7 +137,7 @@ export function usePluginGatewayFixture(): PluginGatewayFixture {
         fx.router.register(GUILD, async () => ({ ok: true }));
         fx.db = await createTestDatabase();
         fx.linking = new LinkingService(fx.db);
-        await fx.start({ helloTimeoutMs: 100 });
+        await fx.start({ helloTimeoutMs: FIXTURE_HELLO_TIMEOUT_MS });
     });
 
     afterEach(async () => {

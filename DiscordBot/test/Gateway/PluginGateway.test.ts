@@ -20,6 +20,7 @@ describe("PluginGateway", () => {
     const fx = usePluginGatewayFixture();
 
     it("closes 4000 without hello", async () => {
+        await fx.restart({ helloTimeoutMs: 100 });
         const ws = await fx.connect();
         expect((await waitForClose(ws)).code).toBe(4000);
     });
@@ -423,7 +424,7 @@ describe("PluginGateway", () => {
     });
 
     it("terminates a socket that stops answering pings", async () => {
-        await fx.restart({ pingIntervalMs: 20, pongTimeoutMs: 60 });
+        await fx.restart({ pingIntervalMs: 50, pongTimeoutMs: 150 });
 
         const ws = await fx.authenticate({ autoPong: false });
         const closed = waitForClose(ws);
@@ -432,24 +433,24 @@ describe("PluginGateway", () => {
     });
 
     it("terminates after pongTimeoutMs of silence, not after the next ping tick", async () => {
-        // A tick-based check would only notice at the second ping (400 ms).
-        await fx.restart({ pingIntervalMs: 200, pongTimeoutMs: 300 });
+        // A tick-based check would only notice at the second ping (1200 ms).
+        await fx.restart({ pingIntervalMs: 600, pongTimeoutMs: 900 });
 
         const ws = await fx.authenticate({ autoPong: false });
         const startedAt = Date.now();
         await waitForClose(ws);
         const elapsed = Date.now() - startedAt;
-        expect(elapsed).toBeGreaterThanOrEqual(250);
-        expect(elapsed).toBeLessThan(390);
+        expect(elapsed).toBeGreaterThanOrEqual(850);
+        expect(elapsed).toBeLessThan(1150);
     });
 
     it("keeps a socket that answers pings for several pong timeout periods", async () => {
-        await fx.restart({ pingIntervalMs: 20, pongTimeoutMs: 60 });
+        await fx.restart({ pingIntervalMs: 50, pongTimeoutMs: 250 });
 
         const ws = await fx.authenticate();
         let pings = 0;
         ws.on("ping", () => pings++);
-        await sleep(300);
+        await sleep(800);
         expect(pings).toBeGreaterThanOrEqual(5);
         expect(fx.gateway.isConnected(GUILD)).toBe(true);
         expect(ws.readyState).toBe(WebSocket.OPEN);
