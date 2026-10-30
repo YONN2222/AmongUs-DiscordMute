@@ -332,7 +332,7 @@ describe("admin server", () => {
         it("a cluster id that is not a whole number from 0 is 400", async () => {
             await start(fakeHandlers());
 
-            for (const id of ["abc", "-1", "1.5"]) {
+            for (const id of ["abc", "-1", "1.5", "0x1", ""]) {
                 const response = await fetch(`${baseUrl}/clusters/${id}`, { headers: authorized });
                 expect(response.status).toBe(400);
             }

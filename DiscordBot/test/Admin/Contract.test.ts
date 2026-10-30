@@ -104,7 +104,9 @@ describe("admin contract", () => {
         expect(ClusterParamsSchema.parse({ clusterId: "3" })).toEqual({ clusterId: 3 });
         expect(ClusterParamsSchema.parse({ clusterId: "0" })).toEqual({ clusterId: 0 });
         expect(ClusterParamsSchema.safeParse({ clusterId: "-1" }).success).toBe(false);
-        expect(ClusterParamsSchema.safeParse({ clusterId: "x" }).success).toBe(false);
+        for (const clusterId of ["x", "", "0x1", "1e0", "1.5", " 1"]) {
+            expect(ClusterParamsSchema.safeParse({ clusterId }).success).toBe(false);
+        }
     });
 
     it("the settings view covers every field of the bot's settings", () => {

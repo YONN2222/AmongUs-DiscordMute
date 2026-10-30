@@ -296,7 +296,8 @@ export type PageQuery = z.infer<typeof PageQuerySchema>;
 
 const SearchSchema = z.string().max(MAX_SEARCH_LENGTH).optional();
 
-export const ClusterParamsSchema = z.object({ clusterId: z.coerce.number().int().min(0) });
+/** Digits only, so an empty segment, "0x1" or "1e0" is rejected instead of turning into a number. */
+export const ClusterParamsSchema = z.object({ clusterId: z.string().regex(/^\d+$/).transform(Number) });
 export type ClusterParams = z.infer<typeof ClusterParamsSchema>;
 
 /** `ids` is a comma-separated list of 1 to 25 user ids; repeated ids count once. */
