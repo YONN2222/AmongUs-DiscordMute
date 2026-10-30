@@ -212,6 +212,8 @@ export type ShardInfo = z.infer<typeof ShardInfoSchema>;
 /**
  * `ok` is false when the cluster did not answer. Status, shard ids and start time come from the gateway and are
  * filled in either way; the other values come from the cluster and are null (or empty) without an answer.
+ * A crashed cluster shows as "stopped" only until the gateway respawns it; between that and the new process it can
+ * be missing from the list.
  */
 export const ClusterInfoSchema = z.object({
     id: z.number().int(),
