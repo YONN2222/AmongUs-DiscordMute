@@ -1,7 +1,7 @@
 import type { Server } from "node:http";
 import { createAdminHandlers } from "../Admin/AdminHandlers";
 import { createAdminServer } from "../Admin/AdminServer";
-import { type ClusterProcessState, collectClusterInfo } from "../Admin/ClusterInfo";
+import { collectClusterInfo, type KnownClusterProcess } from "../Admin/ClusterInfo";
 import { createProfileLookup, createProfileRest } from "../Admin/ProfileLookup";
 import type { Config } from "../Config/ConfigSchema";
 import type { Database } from "../Data/Database";
@@ -27,7 +27,7 @@ export function readHostedAdminTokenOrThrow(config: Config, env: Record<string, 
     return token;
 }
 
-export interface HostedGatewayDeps<TCluster extends ClusterProcessState> {
+export interface HostedGatewayDeps<TCluster extends KnownClusterProcess> {
     token: string;
     /** The admin API looks up Discord profiles with it; the clusters are not involved. */
     botToken: string;
@@ -44,7 +44,7 @@ export interface HostedGateway {
     createAdminServer(plugins: PluginGateway): Server;
 }
 
-export function createHostedGateway<TCluster extends ClusterProcessState>(
+export function createHostedGateway<TCluster extends KnownClusterProcess>(
     deps: HostedGatewayDeps<TCluster>,
 ): HostedGateway {
     const { db } = deps;
@@ -57,7 +57,7 @@ export function createHostedGateway<TCluster extends ClusterProcessState>(
                 db,
                 plugins,
                 activeGames: async () => (await deps.metrics.activeGames.get()).values[0]?.value ?? 0,
-                clusterInfo: () => collectClusterInfo(deps.instance),
+                clusterInfo: (clusterId) => collectClusterInfo(deps.instance, { clusterId }),
                 profiles: createProfileLookup({
                     rest: createProfileRest(deps.botToken),
                     now: Date.now,

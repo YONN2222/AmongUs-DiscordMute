@@ -78,7 +78,8 @@ export interface AdminHandlerDeps {
     >;
     plugins: Pick<PluginGateway, "sessionCount" | "sessionsOfGuild" | "sessionsInfo" | "disconnectGuild">;
     activeGames: () => Promise<number>;
-    clusterInfo: () => Promise<ClusterInfo[]>;
+    /** Every cluster, or only the one with `clusterId` (empty when there is none). */
+    clusterInfo: (clusterId?: number) => Promise<ClusterInfo[]>;
     profiles: ProfileLookup;
     router: ClusterRouter;
     version: string;
@@ -209,7 +210,7 @@ export function createAdminHandlers(deps: AdminHandlerDeps): AdminHandlers {
             return deps.clusterInfo();
         },
         async getCluster(clusterId) {
-            return (await deps.clusterInfo()).find((cluster) => cluster.id === clusterId) ?? null;
+            return (await deps.clusterInfo(clusterId)).find((cluster) => cluster.id === clusterId) ?? null;
         },
         async listGuilds(query) {
             const { rows, total } = await db.hostedGuilds.search({

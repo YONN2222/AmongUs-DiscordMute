@@ -38,7 +38,8 @@ describe.each(backends)("admin handlers, read endpoints (%s)", (backend) => {
                     disconnectGuild: () => 0,
                 },
                 activeGames: async () => 4,
-                clusterInfo: async () => clusters,
+                clusterInfo: async (clusterId) =>
+                    clusters.filter((cluster) => clusterId === undefined || cluster.id === clusterId),
                 profiles: {
                     lookup: async (userId) => lookups.get(userId) ?? { status: "unknown" },
                     lookupMany: unknownProfiles.lookupMany,

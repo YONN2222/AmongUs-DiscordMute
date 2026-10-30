@@ -68,7 +68,7 @@ describe("cluster info", () => {
     it("merges the answer of every cluster with what the gateway knows about it", async () => {
         const instance = fakeInstance(async (cluster) => okReply(cluster.id));
 
-        const info = await collectClusterInfo(instance, TIMEOUT_MS);
+        const info = await collectClusterInfo(instance, { timeoutMs: TIMEOUT_MS });
 
         expect(info).toEqual([answered(0, "running", 1000), answered(1, "starting", 2000)]);
         for (const entry of info) expect(ClusterInfoSchema.safeParse(entry).success).toBe(true);
@@ -89,7 +89,7 @@ describe("cluster info", () => {
         );
         vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
         try {
-            const collecting = collectClusterInfo(instance, TIMEOUT_MS);
+            const collecting = collectClusterInfo(instance, { timeoutMs: TIMEOUT_MS });
             await vi.advanceTimersByTimeAsync(TIMEOUT_MS);
 
             expect(await collecting).toEqual([answered(0, "running", 1000), silent(1, "starting", 2000)]);
@@ -104,10 +104,24 @@ describe("cluster info", () => {
             return { ...okReply(1), shards: [{ id: "x" }] };
         });
 
-        const info = await collectClusterInfo(instance, TIMEOUT_MS);
+        const info = await collectClusterInfo(instance, { timeoutMs: TIMEOUT_MS });
 
         expect(info).toEqual([silent(0, "running", 1000), silent(1, "starting", 2000)]);
         for (const entry of info) expect(ClusterInfoSchema.safeParse(entry).success).toBe(true);
+    });
+
+    it("asks only the requested cluster, so a hung sibling does not slow it down", async () => {
+        const instance = fakeInstance((cluster) =>
+            cluster.id === 1
+                ? Promise.resolve(okReply(1))
+                : new Promise(() => {
+                      /* never answers */
+                  }),
+        );
+
+        expect(await collectClusterInfo(instance, { clusterId: 1 })).toEqual([answered(1, "starting", 2000)]);
+        expect(instance.sendRequestToCluster).toHaveBeenCalledTimes(1);
+        expect(await collectClusterInfo(instance, { clusterId: 7 })).toEqual([]);
     });
 
     it("a stopped cluster that cannot answer still lists its shards", async () => {
@@ -116,7 +130,7 @@ describe("cluster info", () => {
         });
         instance.clusters.set(1, { id: 1, shardList: [2, 3], status: "stopped", createdAt: 2000 });
 
-        const info = await collectClusterInfo(instance, TIMEOUT_MS);
+        const info = await collectClusterInfo(instance, { timeoutMs: TIMEOUT_MS });
 
         expect(info[1]).toEqual(silent(1, "stopped", 2000));
     });
