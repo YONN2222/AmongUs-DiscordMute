@@ -45,9 +45,9 @@ describe("PluginGateway", () => {
         it("handles messages in send order even when one is slow", async () => {
             const codes = await fx.linking.createPendingLink(GUILD, "user-1");
             const realConfirm = fx.linking.confirmLink.bind(fx.linking);
-            vi.spyOn(fx.linking, "confirmLink").mockImplementation(async (code, accountName) => {
+            vi.spyOn(fx.linking, "confirmLink").mockImplementation(async (guildId, code, accountName) => {
                 await sleep(40);
-                return realConfirm(code, accountName);
+                return realConfirm(guildId, code, accountName);
             });
             const ws = await fx.authenticate();
 

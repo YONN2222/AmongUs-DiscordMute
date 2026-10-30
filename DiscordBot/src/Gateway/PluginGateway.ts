@@ -37,6 +37,9 @@ const DEFAULT_ROUTE_TIMEOUT_MS = 10000;
 const DEFAULT_SESSION_END_RETRY_DELAYS_MS = [1000, 2000, 5000, 10_000, 30_000, 60_000, 120_000];
 const MAX_PENDING_BEFORE_ACTIVE = 16;
 const MAX_PENDING_ACTIVE = 64;
+/** A player sends a link code by hand, so more than this per minute is someone guessing codes. */
+export const LINK_CHAT_LIMIT_PER_MINUTE = 10;
+const LINK_CHAT_WINDOW_MS = 60_000;
 const OUTDATED_REASON = "Plugin outdated, please update DiscordMute";
 const TOO_MANY_SESSIONS_REASON = "Too many games on this server";
 const BLOCKED_REASON = "Blocked";
@@ -84,6 +87,8 @@ interface Connection {
     /** Messages are handled strictly one after another, in the order they arrived. */
     queue: Promise<void>;
     pending: number;
+    /** When the recent link-chat messages arrived, for the per-connection limit. */
+    linkChatTimes: number[];
     /** Resolves once the socket closed and any session-ended routing finished. */
     finished: Promise<void>;
     markFinished: () => void;
@@ -200,6 +205,7 @@ export class PluginGateway {
             replaced: false,
             queue: Promise.resolve(),
             pending: 0,
+            linkChatTimes: [],
             finished,
             markFinished,
         };
@@ -358,6 +364,11 @@ export class PluginGateway {
                 await this.onGameEnd(session, message);
                 return;
             case "link-chat":
+                if (this.linkChatLimitReached(conn)) {
+                    logger.warn(logModules.WebServer, `Too many link codes from guild ${session.guildId}, closing`);
+                    conn.ws.close(CLOSE_INVALID_MESSAGE, "Too many link codes");
+                    return;
+                }
                 await this.onLinkChat(conn, session, message);
                 return;
             case "plugin-log":
@@ -367,6 +378,14 @@ export class PluginGateway {
                 conn.ws.close(CLOSE_INVALID_MESSAGE, "Duplicate hello");
                 return;
         }
+    }
+
+    private linkChatLimitReached(conn: Connection): boolean {
+        const now = Date.now();
+        conn.linkChatTimes = conn.linkChatTimes.filter((time) => now - time < LINK_CHAT_WINDOW_MS);
+        if (conn.linkChatTimes.length >= LINK_CHAT_LIMIT_PER_MINUTE) return true;
+        conn.linkChatTimes.push(now);
+        return false;
     }
 
     private async onGameEvent(conn: Connection, session: GameSession, message: GameEventMessage): Promise<void> {
@@ -408,7 +427,12 @@ export class PluginGateway {
         this.observe((observer) => observer.pluginMessage(session, "link-chat"));
         let confirmed: Awaited<ReturnType<LinkingService["confirmLink"]>>;
         try {
-            confirmed = await this.deps.linking.confirmLink(message.code, message.accountName, message.friendCode);
+            confirmed = await this.deps.linking.confirmLink(
+                session.guildId,
+                message.code,
+                message.accountName,
+                message.friendCode,
+            );
         } catch (error) {
             logger.error(logModules.WebServer, `Could not confirm link code "${message.code}"`, error);
             this.send(conn, { type: "link-result", status: "not-found", accountName: message.accountName });

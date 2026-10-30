@@ -142,8 +142,14 @@ export class LinkingService {
         await this.db.pendingLinks.attachInteraction(guildId, discordId, applicationId, interactionToken, locale);
     }
 
-    async confirmLink(code: string, accountName: string, friendCode?: string): Promise<ConfirmedLink | null> {
-        const matched = await this.db.pendingLinks.consumeByCode(code, Date.now());
+    /** Only codes of the plugin's own guild match, so one server can never confirm another server's link. */
+    async confirmLink(
+        guildId: string,
+        code: string,
+        accountName: string,
+        friendCode?: string,
+    ): Promise<ConfirmedLink | null> {
+        const matched = await this.db.pendingLinks.consumeByCode(guildId, code, Date.now());
         if (!matched) return null;
         // The code is already consumed, so a blocked user's code cannot be used later either.
         if (await this.blocks?.isUserBlocked(matched.discordId)) return null;

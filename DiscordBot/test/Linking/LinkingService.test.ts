@@ -49,10 +49,10 @@ describe.each(backends)("LinkingService (%s)", (backend) => {
                 const codes = await blocked.createPendingLink(guildId, blockedId);
                 await block();
 
-                expect(await blocked.confirmLink(codes.phrase, "Crew")).toBeNull();
+                expect(await blocked.confirmLink(guildId, codes.phrase, "Crew")).toBeNull();
                 expect(await db.links.get(guildId, blockedId)).toBeNull();
                 await db.blocks.remove("user", blockedId);
-                expect(await blocked.confirmLink(codes.phrase, "Crew")).toBeNull();
+                expect(await blocked.confirmLink(guildId, codes.phrase, "Crew")).toBeNull();
             });
 
             it("admin cannot force link a blocked user", async () => {
@@ -75,7 +75,7 @@ describe.each(backends)("LinkingService (%s)", (backend) => {
             it("users that are not blocked link as before", async () => {
                 const codes = await blocked.createPendingLink(guildId, "u1");
 
-                expect(await blocked.confirmLink(codes.phrase, "Crew")).toMatchObject({ discordId: "u1" });
+                expect(await blocked.confirmLink(guildId, codes.phrase, "Crew")).toMatchObject({ discordId: "u1" });
             });
         });
 
@@ -89,7 +89,7 @@ describe.each(backends)("LinkingService (%s)", (backend) => {
             const codes = await service.createPendingLink(guildId, "u1");
             await service.attachInteractionResponse(guildId, "u1", "app", "token");
 
-            const confirmed = await service.confirmLink(codes.phrase, "Crew");
+            const confirmed = await service.confirmLink(guildId, codes.phrase, "Crew");
             expect(confirmed).toEqual({
                 guildId,
                 discordId: "u1",
@@ -98,23 +98,23 @@ describe.each(backends)("LinkingService (%s)", (backend) => {
                 interactionToken: "token",
             });
             expect(await service.getLink(guildId, "u1")).toMatchObject({ accountName: "Crew" });
-            expect(await service.confirmLink(codes.phrase, "Crew")).toBeNull();
+            expect(await service.confirmLink(guildId, codes.phrase, "Crew")).toBeNull();
         });
 
         it("confirmLink returns the locale stored with the interaction", async () => {
             const codes = await service.createPendingLink(guildId, "u1");
             await service.attachInteractionResponse(guildId, "u1", "app", "token", "de");
 
-            expect(await service.confirmLink(codes.phrase, "Crew")).toMatchObject({ locale: "de" });
+            expect(await service.confirmLink(guildId, codes.phrase, "Crew")).toMatchObject({ locale: "de" });
         });
 
         it("confirmLink stores a non-empty friend code and ignores an empty one", async () => {
             const first = await service.createPendingLink(guildId, "u1");
-            await service.confirmLink(first.phrase, "Crew", "crew#1234");
+            await service.confirmLink(guildId, first.phrase, "Crew", "crew#1234");
             expect(await db.links.get(guildId, "u1")).toMatchObject({ friendCode: "crew#1234" });
 
             const second = await service.createPendingLink(guildId, "u2");
-            await service.confirmLink(second.phrase, "Blue", "");
+            await service.confirmLink(guildId, second.phrase, "Blue", "");
             expect(await db.links.get(guildId, "u2")).toMatchObject({ friendCode: null });
         });
 
@@ -130,9 +130,22 @@ describe.each(backends)("LinkingService (%s)", (backend) => {
             expect((await db.links.get(guildId, "u1"))?.accountName).toBe("Blue");
         });
 
+        it("confirmLink does not accept a code of another guild", async () => {
+            const otherGuild = uniqueId("other");
+            const codes = await service.createPendingLink(otherGuild, "u1");
+
+            expect(await service.confirmLink(guildId, codes.phrase, "Attacker")).toBeNull();
+            expect(await service.confirmLink(guildId, codes.quickChatCode, "Attacker")).toBeNull();
+            expect(await db.links.get(otherGuild, "u1")).toBeNull();
+            expect(await service.confirmLink(otherGuild, codes.quickChatCode, "Crew")).toMatchObject({
+                guildId: otherGuild,
+                discordId: "u1",
+            });
+        });
+
         it("confirmLink accepts the quick chat code", async () => {
             const codes = await service.createPendingLink(guildId, "u1");
-            expect(await service.confirmLink(codes.quickChatCode, "Crew")).not.toBeNull();
+            expect(await service.confirmLink(guildId, codes.quickChatCode, "Crew")).not.toBeNull();
         });
     });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { WebSocket } from "ws";
-import { PluginGateway } from "../../src/Gateway/PluginGateway";
+import { LINK_CHAT_LIMIT_PER_MINUTE, PluginGateway } from "../../src/Gateway/PluginGateway";
 import { SelfHostSecretResolver } from "../../src/Gateway/SecretResolver";
 import { logger } from "../../src/Logging/Logger";
 import { MIN_PROTOCOL_VERSION } from "../../src/Protocol/PluginProtocol";
@@ -305,6 +305,33 @@ describe("PluginGateway", () => {
             interactionToken: "token",
         });
         expect(await fx.linking.getLink(GUILD, "user-1")).toMatchObject({ accountName: "Crew" });
+    });
+
+    it("link-chat cannot confirm a pending link of another guild", async () => {
+        const otherGuild = "guild-2";
+        const codes = await fx.linking.createPendingLink(otherGuild, "user-2");
+        const ws = await fx.authenticate();
+        const result = nextMessage(ws);
+
+        ws.send(JSON.stringify({ type: "link-chat", code: codes.quickChatCode, accountName: "Attacker" }));
+
+        expect(await result).toEqual({ type: "link-result", status: "not-found", accountName: "Attacker" });
+        expect(fx.sentOfKind("link-confirmed")).toHaveLength(0);
+        expect(await fx.db.pendingLinks.getActive(otherGuild, "user-2", Date.now())).not.toBeNull();
+    });
+
+    it(`closes 4003 after ${LINK_CHAT_LIMIT_PER_MINUTE} link-chat messages within a minute`, async () => {
+        const ws = await fx.authenticate();
+        const results: unknown[] = [];
+        ws.on("message", (data) => results.push(JSON.parse(data.toString())));
+        const closed = waitForClose(ws);
+
+        for (let i = 0; i <= LINK_CHAT_LIMIT_PER_MINUTE; i++) {
+            ws.send(JSON.stringify({ type: "link-chat", code: `link-${i}`, accountName: "Crew" }));
+        }
+
+        expect((await closed).code).toBe(4003);
+        expect(results).toHaveLength(LINK_CHAT_LIMIT_PER_MINUTE);
     });
 
     it("link-chat with an unknown code routes nothing", async () => {

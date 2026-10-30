@@ -16,10 +16,10 @@ export interface PendingLink {
 
 export interface PendingLinkRepository {
     getActive(guildId: string, discordId: string, now: number): Promise<PendingLink | null>;
-    /** Replaces any existing pending link of the same user. Rejects when a code is already taken. */
+    /** Replaces any existing pending link of the same user. Rejects when a code is already taken in the guild. */
     create(pending: PendingLink): Promise<void>;
-    /** Matches the text phrase or the quick chat code; only one caller can win a given row. */
-    consumeByCode(code: string, now: number): Promise<PendingLink | null>;
+    /** Matches the text phrase or the quick chat code within the guild; only one caller can win a given row. */
+    consumeByCode(guildId: string, code: string, now: number): Promise<PendingLink | null>;
     attachInteraction(
         guildId: string,
         discordId: string,
@@ -77,9 +77,13 @@ export function createPendingLinkRepository(model: typeof PendingLinkModel): Pen
                 );
             });
         },
-        async consumeByCode(code, now) {
+        async consumeByCode(guildId, code, now) {
             const row = await model.findOne({
-                where: { [Op.or]: [{ phrase: code }, { quickChatCode: code }], expiresAt: { [Op.gt]: now } },
+                where: {
+                    guildId,
+                    [Op.or]: [{ phrase: code }, { quickChatCode: code }],
+                    expiresAt: { [Op.gt]: now },
+                },
             });
             if (!row) return null;
             const deleted = await model.destroy({

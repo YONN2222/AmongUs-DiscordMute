@@ -18,15 +18,23 @@ export function initPendingLinkModel(sequelize: Sequelize): typeof PendingLinkMo
         {
             guildId: { type: DataTypes.STRING, allowNull: false, primaryKey: true, field: "guild_id" },
             discordId: { type: DataTypes.STRING, allowNull: false, primaryKey: true, field: "discord_id" },
-            phrase: { type: DataTypes.STRING, allowNull: false, unique: true },
-            quickChatCode: { type: DataTypes.STRING, allowNull: false, unique: true, field: "quick_chat_code" },
+            phrase: { type: DataTypes.STRING, allowNull: false },
+            quickChatCode: { type: DataTypes.STRING, allowNull: false, field: "quick_chat_code" },
             quickChatIds: { type: DataTypes.STRING, allowNull: false, field: "quick_chat_ids" },
             expiresAt: { type: DataTypes.BIGINT, allowNull: false, field: "expires_at" },
             applicationId: { type: DataTypes.TEXT, allowNull: true, field: "application_id" },
             interactionToken: { type: DataTypes.TEXT, allowNull: true, field: "interaction_token" },
             locale: { type: DataTypes.TEXT, allowNull: true },
         },
-        { sequelize, tableName: "pending_links", timestamps: false },
+        {
+            sequelize,
+            tableName: "pending_links",
+            timestamps: false,
+            indexes: [
+                { unique: true, fields: ["guild_id", "phrase"] },
+                { unique: true, fields: ["guild_id", "quick_chat_code"] },
+            ],
+        },
     );
     return BoundPendingLinkModel;
 }

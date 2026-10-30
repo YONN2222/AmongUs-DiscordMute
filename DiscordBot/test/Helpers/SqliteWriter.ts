@@ -14,7 +14,7 @@ export async function writeRepeatedly(db: Database, prefix: string, iterations: 
             quickChatIds: [1, 2],
             expiresAt: Date.now() + 60_000,
         });
-        await db.pendingLinks.consumeByCode(`${prefix}-phrase-${i}`, Date.now());
+        await db.pendingLinks.consumeByCode(guildId, `${prefix}-phrase-${i}`, Date.now());
         await db.muteLedger.remove(guildId, discordId);
     }
 }

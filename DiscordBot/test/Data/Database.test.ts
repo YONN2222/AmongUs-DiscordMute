@@ -96,6 +96,45 @@ describe("openDatabase (sqlite specifics)", () => {
         });
     });
 
+    it("keeps open pending links when it scopes their codes to the guild", async () => {
+        const storage = tempStorage();
+        const earlier = await openDatabase({ dialect: "sqlite", storage });
+        await earlier.close();
+
+        const raw = new BunDatabase(storage);
+        raw.run("DROP TABLE pending_links");
+        raw.run(
+            "CREATE TABLE pending_links (guild_id VARCHAR(255) NOT NULL, discord_id VARCHAR(255) NOT NULL, phrase VARCHAR(255) NOT NULL UNIQUE, quick_chat_code VARCHAR(255) NOT NULL UNIQUE, quick_chat_ids VARCHAR(255) NOT NULL, expires_at BIGINT NOT NULL, application_id TEXT, interaction_token TEXT, locale TEXT, PRIMARY KEY (guild_id, discord_id))",
+        );
+        raw.run(
+            "INSERT INTO pending_links VALUES ('g1', 'u1', 'link-AAAA', '3-7', '[3,7]', 9999999999999, 'app', 'token', 'de')",
+        );
+        raw.run("DELETE FROM schema_migrations WHERE name = '0017-pending-link-guild-codes'");
+        raw.close();
+
+        const db = await track(openDatabase({ dialect: "sqlite", storage }));
+        expect(await db.pendingLinks.getActive("g1", "u1", Date.now())).toEqual({
+            guildId: "g1",
+            discordId: "u1",
+            phrase: "link-AAAA",
+            quickChatCode: "3-7",
+            quickChatIds: [3, 7],
+            expiresAt: 9999999999999,
+            applicationId: "app",
+            interactionToken: "token",
+            locale: "de",
+        });
+        await db.pendingLinks.create({
+            guildId: "g2",
+            discordId: "u1",
+            phrase: "link-AAAA",
+            quickChatCode: "3-7",
+            quickChatIds: [3, 7],
+            expiresAt: 9999999999999,
+        });
+        expect(await db.pendingLinks.countActive("g2", Date.now())).toBe(1);
+    });
+
     it("migrate: false does not create tables on an empty database", async () => {
         const db = await track(openDatabase({ dialect: "sqlite", storage: ":memory:" }, { migrate: false }));
         expect(await tableNames(db)).toEqual([]);

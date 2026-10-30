@@ -66,28 +66,49 @@ describe.each(backends)("PendingLinkRepository (%s)", (backend) => {
         it("consumeByCode matches text code", async () => {
             const p = pending();
             await db.pendingLinks.create(p);
-            expect(await db.pendingLinks.consumeByCode(p.phrase, now)).toEqual(p);
+            expect(await db.pendingLinks.consumeByCode(guildId, p.phrase, now)).toEqual(p);
             expect(await db.pendingLinks.getActive(guildId, "u1", now)).toBeNull();
         });
 
         it("consumeByCode matches quick chat code", async () => {
             const p = pending();
             await db.pendingLinks.create(p);
-            expect(await db.pendingLinks.consumeByCode(p.quickChatCode, now)).toEqual(p);
+            expect(await db.pendingLinks.consumeByCode(guildId, p.quickChatCode, now)).toEqual(p);
         });
 
         it("consumeByCode ignores expired", async () => {
             const p = pending({ expiresAt: now - 1 });
             await db.pendingLinks.create(p);
-            expect(await db.pendingLinks.consumeByCode(p.phrase, now)).toBeNull();
+            expect(await db.pendingLinks.consumeByCode(guildId, p.phrase, now)).toBeNull();
+        });
+
+        it("consumeByCode does not match a code of another guild and leaves that row in place", async () => {
+            const otherGuild = uniqueId("other");
+            const p = pending({ guildId: otherGuild });
+            await db.pendingLinks.create(p);
+
+            expect(await db.pendingLinks.consumeByCode(guildId, p.phrase, now)).toBeNull();
+            expect(await db.pendingLinks.consumeByCode(guildId, p.quickChatCode, now)).toBeNull();
+            expect(await db.pendingLinks.getActive(otherGuild, "u1", now)).toEqual(p);
+        });
+
+        it("the same codes can be open in two guilds at once", async () => {
+            const otherGuild = uniqueId("other");
+            const p = pending();
+            const sameCodesElsewhere = { ...p, guildId: otherGuild };
+            await db.pendingLinks.create(p);
+            await db.pendingLinks.create(sameCodesElsewhere);
+
+            expect(await db.pendingLinks.consumeByCode(otherGuild, p.quickChatCode, now)).toEqual(sameCodesElsewhere);
+            expect(await db.pendingLinks.consumeByCode(guildId, p.phrase, now)).toEqual(p);
         });
 
         it("a code can be consumed only once", async () => {
             const p = pending();
             await db.pendingLinks.create(p);
             const results = await Promise.all([
-                db.pendingLinks.consumeByCode(p.phrase, now),
-                db.pendingLinks.consumeByCode(p.phrase, now),
+                db.pendingLinks.consumeByCode(guildId, p.phrase, now),
+                db.pendingLinks.consumeByCode(guildId, p.phrase, now),
             ]);
             expect(results.filter((r) => r !== null)).toHaveLength(1);
         });
@@ -97,15 +118,15 @@ describe.each(backends)("PendingLinkRepository (%s)", (backend) => {
             const second = pending();
             await db.pendingLinks.create(first);
             await db.pendingLinks.create(second);
-            expect(await db.pendingLinks.consumeByCode(first.phrase, now)).toBeNull();
-            expect(await db.pendingLinks.consumeByCode(second.phrase, now)).toEqual(second);
+            expect(await db.pendingLinks.consumeByCode(guildId, first.phrase, now)).toBeNull();
+            expect(await db.pendingLinks.consumeByCode(guildId, second.phrase, now)).toEqual(second);
         });
 
         it("attachInteraction stores the interaction data", async () => {
             const p = pending();
             await db.pendingLinks.create(p);
             await db.pendingLinks.attachInteraction(guildId, "u1", "app", "token");
-            expect(await db.pendingLinks.consumeByCode(p.phrase, now)).toEqual({
+            expect(await db.pendingLinks.consumeByCode(guildId, p.phrase, now)).toEqual({
                 ...p,
                 applicationId: "app",
                 interactionToken: "token",
@@ -131,7 +152,7 @@ describe.each(backends)("PendingLinkRepository (%s)", (backend) => {
             const longToken = "t".repeat(1000);
             await db.pendingLinks.create(p);
             await db.pendingLinks.attachInteraction(guildId, "u1", "app", longToken);
-            expect((await db.pendingLinks.consumeByCode(p.phrase, now))?.interactionToken).toBe(longToken);
+            expect((await db.pendingLinks.consumeByCode(guildId, p.phrase, now))?.interactionToken).toBe(longToken);
         });
 
         it("deleteExpired removes only expired rows", async () => {
