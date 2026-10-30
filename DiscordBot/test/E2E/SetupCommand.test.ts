@@ -110,6 +110,65 @@ describe("/setup", () => {
     });
 });
 
+describe("/setup secret in self-host mode", () => {
+    const ACTOR = "1300000000000000099";
+    const adminAsActor = { member: { permissions: "32" }, user: { id: ACTOR } };
+    const SECRET_PATTERN = /dmh_[\w-]+/;
+    let bot: CommandProbe;
+
+    beforeEach(async () => {
+        bot = await createCommandProbe();
+        bot.probe.injectDispatch(buildGuildCreateDispatch());
+    });
+
+    afterEach(async () => {
+        await bot.close();
+    });
+
+    const reply = () => bot.probe.lastReply() ?? {};
+
+    it("creates the first secret and shows a plugin config without the hosted mode", async () => {
+        await bot.probe.button("setup:secret").withContext(adminAsActor).click();
+
+        const text = extractText(reply());
+        const secret = SECRET_PATTERN.exec(text)?.[0] ?? "";
+        expect(secret).not.toBe("");
+        expect(text).toContain(`{ "secret": "${secret}" }`);
+        expect(text).not.toContain('"mode"');
+        expect(await bot.db.guildSecrets.findGuildByHash(hashSecret(secret))).toBe(GUILD);
+        expect(bot.disconnectGuild).not.toHaveBeenCalled();
+        expect(bot.events).toContainEqual({ type: "secret-changed", guildId: GUILD, actorId: ACTOR, created: true });
+    });
+
+    it("replaces the secret after confirmation and disconnects the running games", async () => {
+        const first = await bot.db.guildSecrets.rotate(GUILD, ACTOR);
+
+        await bot.probe.button("setup:secret").withContext(adminAsActor).click();
+        expect(extractText(reply())).toContain("disconnects every running game");
+        expect(bot.disconnectGuild).not.toHaveBeenCalled();
+
+        await bot.probe.button("setup:secret-confirm").withContext(adminAsActor).click();
+        const secret = SECRET_PATTERN.exec(extractText(reply()))?.[0] ?? "";
+        expect(secret).not.toBe(first.secret);
+        expect(await bot.db.guildSecrets.findGuildByHash(hashSecret(first.secret))).toBeNull();
+        expect(await bot.db.guildSecrets.findGuildByHash(hashSecret(secret))).toBe(GUILD);
+        expect(bot.disconnectGuild).toHaveBeenCalledWith(GUILD, 4001, "Secret changed");
+        expect((await bot.db.audit.list({ offset: 0, limit: 10 })).rows).toEqual([]);
+    });
+
+    it("shows the secret state on the general page", async () => {
+        await bot.probe.slashCommand("setup").withContext(adminAsActor).invoke();
+        expect(extractText(reply())).toContain("No plugin secret yet");
+    });
+
+    it("does not let members without Manage Server create a secret", async () => {
+        await bot.probe.button("setup:secret").click();
+
+        expect(extractText(reply())).toContain("Manage Server");
+        expect(await bot.db.guildSecrets.get(GUILD)).toBeNull();
+    });
+});
+
 describe("/setup secret in hosted mode", () => {
     const ACTOR = "1300000000000000099";
     const adminAsActor = { member: { permissions: "32" }, user: { id: ACTOR } };
@@ -121,14 +180,15 @@ describe("/setup secret in hosted mode", () => {
 
     beforeEach(async () => {
         disconnectGuild = vi.fn(async () => true);
-        bot = await createCommandProbe((db) => ({
-            hosted: {
+        bot = await createCommandProbe((db) => {
+            const hosted = {
                 secrets: db.guildSecrets,
                 audit: db.audit,
                 blocks: new BlockChecker({ blocks: db.blocks, hostedGuilds: db.hostedGuilds }),
                 disconnectGuild,
-            },
-        }));
+            };
+            return { hosted, pluginSecret: hosted };
+        });
         bot.probe.injectDispatch(buildGuildCreateDispatch());
     });
 

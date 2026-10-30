@@ -24,6 +24,7 @@ import { createClusterRequestHandler } from "./ClusterRequestHandler";
 import { type ClusterServices, createClusterServices } from "./ClusterServices";
 import { createDiscordClient } from "./CreateDiscordClient";
 import { onFatalGatewayClose } from "./FatalGatewayClose";
+import { createGuildDisconnect } from "./GuildDisconnect";
 import { bindGuildLifecycle, createHostedCluster, type HostedCluster } from "./HostedCluster";
 import { registerInteractionHandlers } from "./InteractionHandler";
 import { resolveLinkReplyLocale, updateOriginalLinkReply } from "./LinkReply";
@@ -39,6 +40,7 @@ function failure(error: unknown): RouterReply {
 
 function createCommandContext(
     gateway: GalacticGatewayLink,
+    db: Database,
     linking: LinkingService,
     events: GuildEventBus,
     settings: SettingsService,
@@ -48,6 +50,7 @@ function createCommandContext(
         linking,
         events,
         settings,
+        pluginSecret: hosted?.commands ?? { secrets: db.guildSecrets, disconnectGuild: createGuildDisconnect(gateway) },
         hosted: hosted?.commands,
         pushLinkPending: async (guildId, phrase, quickChatCode, discordId) =>
             (await gateway.send({ kind: "push-link-pending", guildId, phrase, quickChatCode, discordId })).ok,
@@ -56,13 +59,13 @@ function createCommandContext(
 }
 
 /**
- * Hosted publishes the commands globally from cluster 0; self-host deploys to the configured guild from the
- * cluster that owns it. Either way a single cluster deploys, so clusters never race on it.
+ * Hosted and self-host without a `guildId` publish the commands globally from cluster 0; self-host with a
+ * `guildId` deploys to that guild from the cluster that owns it. Either way a single cluster deploys, so
+ * clusters never race on it.
  */
 function startupDeployTarget(cluster: Cluster<Client>): { guildId: string } | "global" | null {
-    if (isHosted(config)) return cluster.clusterID === 0 ? "global" : null;
     const guildId = config.guildId;
-    if (!guildId) return null;
+    if (isHosted(config) || !guildId) return cluster.clusterID === 0 ? "global" : null;
     return cluster.shardList.includes(ShardingUtil.getShardIDForGuild(guildId, cluster.totalShards))
         ? { guildId }
         : null;
@@ -260,7 +263,7 @@ export async function runCluster(): Promise<void> {
     const registry = new Registry();
     const metrics = createClusterMetrics(registry, cluster.clusterID);
     registerDiscordMetrics(client, metrics);
-    const services = createClusterServices({ db, client, metrics, hosted, selfHostChannelIds: config.channelIds });
+    const services = createClusterServices({ db, client, metrics, hosted, legacyChannelIds: config.channelIds });
     const { settings, events, logWriter, nicknameSync, mute } = services;
 
     // The hosted lifecycle calls these when the bot leaves, is removed from or is added to a guild.
@@ -290,7 +293,7 @@ export async function runCluster(): Promise<void> {
 
     registerInteractionHandlers(
         client,
-        createCommandContext(gateway, new LinkingService(db, events, hosted?.blocks), events, settings, hosted),
+        createCommandContext(gateway, db, new LinkingService(db, events, hosted?.blocks), events, settings, hosted),
     );
     registerVoiceRejoin(client, mute);
     if (hosted) bindGuildLifecycle(client, hosted.lifecycle);

@@ -1,5 +1,5 @@
 import { vi } from "vitest";
-import type { CommandContext } from "../../src/Commands/Command";
+import type { CommandContext, SecretCommandContext } from "../../src/Commands/Command";
 import type { Database } from "../../src/Data/Database";
 import type { GuildEvent } from "../../src/Events/GuildEvents";
 import { LinkingService } from "../../src/Linking/LinkingService";
@@ -12,6 +12,8 @@ export interface CommandProbe {
     db: Database;
     probe: ReturnType<typeof createTestProbe>;
     pushLinkPending: ReturnType<typeof vi.fn<CommandContext["pushLinkPending"]>>;
+    /** Stands in for the gateway when /setup replaces a plugin secret. */
+    disconnectGuild: ReturnType<typeof vi.fn<SecretCommandContext["disconnectGuild"]>>;
     /** Every guild event the commands and components emitted, in order. */
     events: GuildEvent[];
     /** Injects a prepared interaction dispatch with the given Discord locale. */
@@ -31,6 +33,7 @@ export async function createCommandProbe(
     const { registerInteractionHandlers } = await import("../../src/Cluster/InteractionHandler");
     const db = await createTestDatabase();
     const pushLinkPending = vi.fn<CommandContext["pushLinkPending"]>(async () => true);
+    const disconnectGuild = vi.fn<SecretCommandContext["disconnectGuild"]>(async () => true);
     const client = createDiscordClient();
     const events: GuildEvent[] = [];
     const sink = { emit: (event: GuildEvent) => void events.push(event) };
@@ -40,6 +43,7 @@ export async function createCommandProbe(
         settings: new SettingsService(db.settings),
         pushLinkPending,
         isPluginConnected: async () => true,
+        pluginSecret: { secrets: db.guildSecrets, disconnectGuild },
         ...(typeof overrides === "function" ? overrides(db) : overrides),
     });
     const probe = createTestProbe(client);
@@ -48,6 +52,7 @@ export async function createCommandProbe(
         db,
         probe,
         pushLinkPending,
+        disconnectGuild,
         events,
         inject(dispatch, discordLocale) {
             probe.injectDispatch({ ...dispatch, d: { ...dispatch.d, locale: discordLocale } } as never);

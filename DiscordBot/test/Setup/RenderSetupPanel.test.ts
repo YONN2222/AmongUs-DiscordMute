@@ -13,8 +13,12 @@ function flatten(components: unknown[]): WithChildren[] {
     return (components as WithChildren[]).flatMap((node) => [node, ...flatten(node.components ?? [])]);
 }
 
-const render = (page: (typeof SETUP_PAGES)[number], settings = DEFAULT_SETTINGS, locale: "en" | "de" = "en") =>
-    flatten(renderSetupPanel(settings, page, locale, true));
+const render = (
+    page: (typeof SETUP_PAGES)[number],
+    settings = DEFAULT_SETTINGS,
+    locale: "en" | "de" = "en",
+    secretCreatedAt: number | null = null,
+) => flatten(renderSetupPanel(settings, page, locale, true, secretCreatedAt));
 
 const byId = (nodes: WithChildren[], id: string) => nodes.find((node) => node.custom_id === id);
 const text = (nodes: WithChildren[]) => nodes.map((node) => node.content ?? "").join("\n");
@@ -67,60 +71,44 @@ describe("renderSetupPanel", () => {
         ]);
     });
 
-    it("self-host panel has no secret button and no voice channel select", () => {
-        const all = SETUP_PAGES.flatMap((page) => render(page));
+    it("shows create when the server has no plugin secret", () => {
+        const nodes = render("general");
+        const button = byId(nodes, "setup:secret") as (Node & { label?: string }) | undefined;
 
-        expect(byId(all, "setup:secret")).toBeUndefined();
-        expect(byId(all, "setup:voiceChannelIds")).toBeUndefined();
-        expect(text(all)).not.toContain("Plugin secret");
+        expect(text(nodes)).toContain("No plugin secret yet");
+        expect(button?.label).toBe("Create secret");
     });
 
-    describe("in hosted mode", () => {
-        const renderHosted = (
-            page: (typeof SETUP_PAGES)[number],
-            secretCreatedAt: number | null,
-            settings = DEFAULT_SETTINGS,
-        ) => flatten(renderSetupPanel(settings, page, "en", true, { secretCreatedAt }));
+    it("shows regenerate with the created time", () => {
+        const createdAt = 1_700_000_000_000;
+        const nodes = render("general", DEFAULT_SETTINGS, "en", createdAt);
+        const button = byId(nodes, "setup:secret") as (Node & { label?: string }) | undefined;
 
-        it("hosted panel shows create when no secret exists", () => {
-            const nodes = renderHosted("general", null);
-            const button = byId(nodes, "setup:secret") as (Node & { label?: string }) | undefined;
+        expect(text(nodes)).toContain(`Plugin secret: created <t:${createdAt / 1000}:R>`);
+        expect(button?.label).toBe("Generate new secret");
+    });
 
-            expect(text(nodes)).toContain("No plugin secret yet");
-            expect(button?.label).toBe("Create secret");
-        });
+    it("offers the voice channel select with the stored channels preselected", () => {
+        const settings = mergeSettings(DEFAULT_SETTINGS, { voiceChannelIds: [CHANNEL] });
+        const select = byId(render("voice", settings), "setup:voiceChannelIds") as
+            | (WithChildren & {
+                  min_values?: number;
+                  max_values?: number;
+                  channel_types?: number[];
+                  placeholder?: string;
+              })
+            | undefined;
 
-        it("hosted panel shows regenerate with the created time", () => {
-            const createdAt = 1_700_000_000_000;
-            const nodes = renderHosted("general", createdAt);
-            const button = byId(nodes, "setup:secret") as (Node & { label?: string }) | undefined;
+        expect(select?.placeholder).toBe("No fallback channel - pick the voice channels you play in");
+        expect(select?.min_values).toBe(0);
+        expect(select?.max_values).toBe(10);
+        expect(select?.channel_types).toEqual([ChannelType.GuildVoice, ChannelType.GuildStageVoice]);
+        expect(select?.default_values).toEqual([{ id: CHANNEL, type: "channel" }]);
+        expect(text(render("voice"))).toContain("Fallback voice channels");
+    });
 
-            expect(text(nodes)).toContain(`Plugin secret: created <t:${createdAt / 1000}:R>`);
-            expect(button?.label).toBe("Generate new secret");
-        });
-
-        it("offers the voice channel select with the stored channels preselected", () => {
-            const settings = mergeSettings(DEFAULT_SETTINGS, { voiceChannelIds: [CHANNEL] });
-            const select = byId(renderHosted("voice", null, settings), "setup:voiceChannelIds") as
-                | (WithChildren & {
-                      min_values?: number;
-                      max_values?: number;
-                      channel_types?: number[];
-                      placeholder?: string;
-                  })
-                | undefined;
-
-            expect(select?.placeholder).toBe("No fallback channel - pick the voice channels you play in");
-            expect(select?.min_values).toBe(0);
-            expect(select?.max_values).toBe(10);
-            expect(select?.channel_types).toEqual([ChannelType.GuildVoice, ChannelType.GuildStageVoice]);
-            expect(select?.default_values).toEqual([{ id: CHANNEL, type: "channel" }]);
-            expect(text(renderHosted("voice", null))).toContain("Fallback voice channels");
-        });
-
-        it.each(SETUP_PAGES)("keeps the %s page within the component limit", (page) => {
-            expect(renderHosted(page, 1).length).toBeLessThanOrEqual(MAX_COMPONENTS);
-        });
+    it.each(SETUP_PAGES)("keeps the %s page within the component limit with a secret", (page) => {
+        expect(render(page, DEFAULT_SETTINGS, "en", 1).length).toBeLessThanOrEqual(MAX_COMPONENTS);
     });
 
     it("renders in german and contains no unicode symbols", () => {

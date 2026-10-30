@@ -10,10 +10,24 @@ export interface SecretResolver {
     resolve(secret: string): Promise<ResolvedSecret | null>;
 }
 
+/** Asks the resolvers in order and answers with the first match. */
+export class ChainedSecretResolver implements SecretResolver {
+    constructor(private readonly resolvers: readonly SecretResolver[]) {}
+
+    async resolve(secret: string): Promise<ResolvedSecret | null> {
+        for (const resolver of this.resolvers) {
+            const resolved = await resolver.resolve(secret);
+            if (resolved) return resolved;
+        }
+        return null;
+    }
+}
+
 function digest(value: string): Buffer {
     return createHash("sha256").update(value).digest();
 }
 
+/** The deprecated `secret` of config.json: one shared secret for the one server named by `guildId`. */
 export class SelfHostSecretResolver implements SecretResolver {
     private readonly expected: Buffer;
 

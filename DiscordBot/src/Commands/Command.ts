@@ -9,10 +9,11 @@ import type { CLOSE_BLOCKED, CLOSE_UNAUTHORIZED } from "../Protocol/PluginProtoc
 import type { SettingsService } from "../Settings/SettingsService";
 import { commandConstructors } from "./Generated";
 
-export interface HostedCommandContext {
+/** What /setup needs to create and replace the plugin secret of a server. */
+export interface SecretCommandContext {
     secrets: Pick<GuildSecretRepository, "rotate" | "get">;
-    audit: Pick<AuditLogRepository, "record">;
-    blocks: BlockChecker;
+    /** Secret changes are written to the audit log when this is set. */
+    audit?: Pick<AuditLogRepository, "record">;
     /** Closes the plugin connections of a guild; resolves to false when none was open. */
     disconnectGuild(
         guildId: string,
@@ -21,12 +22,18 @@ export interface HostedCommandContext {
     ): Promise<boolean>;
 }
 
+export interface HostedCommandContext extends SecretCommandContext {
+    audit: Pick<AuditLogRepository, "record">;
+    blocks: BlockChecker;
+}
+
 export interface CommandContext {
     linking: LinkingService;
     events: Pick<GuildEventBus, "emit">;
     settings: Pick<SettingsService, "get" | "update">;
     pushLinkPending(guildId: string, phrase: string, quickChatCode: string, discordId: string): Promise<boolean>;
     isPluginConnected(guildId: string): Promise<boolean>;
+    pluginSecret: SecretCommandContext;
     /** Set only in hosted mode. */
     hosted?: HostedCommandContext;
 }

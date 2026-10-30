@@ -1,11 +1,8 @@
 import type { GuildSecretRepository } from "../Data/Repositories/GuildSecretRepository";
 import type { HostedGuildRepository } from "../Data/Repositories/HostedGuildRepository";
+import { GuildSecretResolver } from "../Gateway/GuildSecretResolver";
 import type { ResolvedSecret, SecretResolver } from "../Gateway/SecretResolver";
 import type { BlockChecker } from "./BlockChecker";
-import { hashSecret, SECRET_PREFIX } from "./GuildSecrets";
-
-/** Generated secrets are far shorter; anything longer is rejected before it reaches the database. */
-const MAX_SECRET_LENGTH = 64;
 
 export interface HostedSecretResolverDeps {
     secrets: Pick<GuildSecretRepository, "findGuildByHash">;
@@ -18,12 +15,16 @@ export interface HostedSecretResolverDeps {
  * The secret of a guild the bot left does not resolve until the bot is added back.
  */
 export class HostedSecretResolver implements SecretResolver {
-    constructor(private readonly deps: HostedSecretResolverDeps) {}
+    private readonly guildSecrets: GuildSecretResolver;
+
+    constructor(private readonly deps: HostedSecretResolverDeps) {
+        this.guildSecrets = new GuildSecretResolver(deps.secrets);
+    }
 
     async resolve(secret: string): Promise<ResolvedSecret | null> {
-        if (!secret.startsWith(SECRET_PREFIX) || secret.length > MAX_SECRET_LENGTH) return null;
-        const guildId = await this.deps.secrets.findGuildByHash(hashSecret(secret));
-        if (!guildId || (await this.isLeft(guildId))) return null;
+        const resolved = await this.guildSecrets.resolve(secret);
+        if (!resolved || (await this.isLeft(resolved.guildId))) return null;
+        const { guildId } = resolved;
         return (await this.deps.blocks.isGuildBlocked(guildId)) ? { guildId, blocked: true } : { guildId };
     }
 

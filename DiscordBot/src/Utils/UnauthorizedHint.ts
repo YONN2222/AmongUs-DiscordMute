@@ -7,5 +7,5 @@ export function unauthorizedMessage(context: string, secret: unknown): string {
             `Its config.json is probably invalid JSON (e.g. single backslashes in the "exe" path), check BepInEx/LogOutput.log`
         );
     }
-    return `${context}: secret does not match the bot config`;
+    return `${context}: unknown secret. Create the plugin secret with /setup in Discord and put it into the plugin config`;
 }

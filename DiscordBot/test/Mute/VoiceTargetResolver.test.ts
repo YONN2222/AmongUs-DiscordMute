@@ -2,8 +2,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Database } from "../../src/Data/Database";
 import { type Locale, t } from "../../src/I18n/Index";
 import { logger, logModules } from "../../src/Logging/Logger";
-import { createVoiceTargetResolver } from "../../src/Mute/VoiceTargetResolver";
+import { chooseFallbackChannels, createVoiceTargetResolver } from "../../src/Mute/VoiceTargetResolver";
 import { createTestDatabase, purgeTestRows, uniqueId } from "../Helpers/TestDatabase";
+
+describe("chooseFallbackChannels", () => {
+    it("prefers the channels chosen in /setup", () => {
+        expect(chooseFallbackChannels(["a"], ["legacy"])).toEqual(["a"]);
+    });
+
+    it("uses the deprecated config channels when none was chosen", () => {
+        expect(chooseFallbackChannels([], ["legacy"])).toEqual(["legacy"]);
+        expect(chooseFallbackChannels([], [])).toEqual([]);
+    });
+});
 
 describe("VoiceTargetResolver", () => {
     let db: Database;

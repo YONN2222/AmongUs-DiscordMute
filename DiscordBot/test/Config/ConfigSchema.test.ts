@@ -14,7 +14,6 @@ describe("parseConfig", () => {
     it("parses the current example config unchanged", () => {
         const raw = JSON.parse(readFileSync(resolve(__dirname, "../../config.example.json"), "utf-8"));
         const config = parseConfig(raw);
-        expect(config.channelIds).toEqual(raw.channelIds);
         expect(config.clusters).toEqual({ total: 1, shardsPerCluster: 1 });
         expect(config.sqlitePath).toBe("./data/linking.sqlite");
         expect(config.databaseDialect).toBe("sqlite");
@@ -104,11 +103,24 @@ describe("parseConfig", () => {
         expect(config.secret).toBeUndefined();
     });
 
-    it("self-host config without secret is rejected", () => {
-        const result = Config.safeParse({ token: "t", clientId: "c", guildId: "g" });
+    it("self-host config needs only the token and the client id", () => {
+        const config = parseConfig({ token: "t", clientId: "c" });
+        expect(config.mode).toBe("self-host");
+        expect(config.guildId).toBeUndefined();
+        expect(config.secret).toBeUndefined();
+    });
+
+    it("example config sets neither the deprecated secret nor channelIds", () => {
+        const text = readFileSync(resolve(__dirname, "../../config.example.json"), "utf-8");
+        expect(text).not.toContain('"secret"');
+        expect(text).not.toContain('"channelIds"');
+    });
+
+    it("rejects the deprecated secret without a guildId", () => {
+        const result = Config.safeParse({ token: "t", clientId: "c", secret: "s" });
         expect(result.success).toBe(false);
         const issue = result.error?.issues[0];
-        expect(issue?.message).toBe('guildId and secret are required when mode is "self-host"');
+        expect(issue?.message).toBe("guildId is required when secret is set");
         expect(issue?.path).toEqual(["guildId"]);
     });
 

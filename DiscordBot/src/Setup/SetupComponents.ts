@@ -24,12 +24,11 @@ import {
 } from "./ApplySetupInput";
 import { checkChannelAccess, checkVoiceChannelAccess } from "./ChannelAccess";
 import { renderSetupPanel, SETUP_PAGES, type SetupPage } from "./RenderSetupPanel";
-import { type HostedSetupContext, handleSecretButton, handleSecretConfirmButton } from "./SecretPanel";
+import { handleSecretButton, handleSecretConfirmButton } from "./SecretPanel";
 import { DELAYS_FIELD, PAGE_FIELD, SECRET_CONFIRM_FIELD, SECRET_FIELD, SETUP_PREFIX } from "./SetupIds";
 
 const EPHEMERAL = MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral;
 const MANAGE_MESSAGES_FIELDS = new Set(["linkOverview.channelId", "status.channelId"]);
-const HOSTED_ONLY_FIELDS = new Set([SECRET_FIELD, SECRET_CONFIRM_FIELD, VOICE_CHANNELS_FIELD]);
 const SECRET_BUTTONS = new Map([
     [SECRET_FIELD, handleSecretButton],
     [SECRET_CONFIRM_FIELD, handleSecretConfirmButton],
@@ -48,10 +47,9 @@ export async function buildSetupPanel(
     const [settings, connected, secret] = await Promise.all([
         ctx.settings.get(guildId),
         ctx.isPluginConnected(guildId),
-        ctx.hosted?.secrets.get(guildId),
+        ctx.pluginSecret.secrets.get(guildId),
     ]);
-    const hosted = ctx.hosted ? { secretCreatedAt: secret?.createdAt ?? null } : undefined;
-    return topLevel(renderSetupPanel(settings, page, locale, connected, hosted));
+    return topLevel(renderSetupPanel(settings, page, locale, connected, secret?.createdAt ?? null));
 }
 
 export async function replyEphemeralText(
@@ -128,17 +126,6 @@ function rawValues(interaction: ComponentInteraction): string[] {
     return interaction.isButton() ? [] : interaction.values;
 }
 
-/** Answers a hosted-only field with an error in self-host. Returns true when it did. */
-async function refusedInSelfHost(
-    interaction: ComponentInteraction,
-    ctx: CommandContext,
-    field: string,
-): Promise<boolean> {
-    if (ctx.hosted || !HOSTED_ONLY_FIELDS.has(field)) return false;
-    await replyEphemeralText(interaction, localeFrom(interaction.locale), "setup.error.invalid");
-    return true;
-}
-
 async function handleSetup(interaction: ComponentInteraction, ctx: CommandContext): Promise<void> {
     const guildId = interaction.guildId;
     if (!guildId) return;
@@ -148,11 +135,10 @@ async function handleSetup(interaction: ComponentInteraction, ctx: CommandContex
         return;
     }
     const field = interaction.customId.slice(SETUP_PREFIX.length + 1);
-    if (await refusedInSelfHost(interaction, ctx, field)) return;
 
     const secretButton = SECRET_BUTTONS.get(field);
     if (secretButton && interaction.isButton()) {
-        await secretButton(interaction, ctx as HostedSetupContext);
+        await secretButton(interaction, ctx);
         return;
     }
 

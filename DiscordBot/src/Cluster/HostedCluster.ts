@@ -6,9 +6,9 @@ import { BlockChecker } from "../Hosted/BlockChecker";
 import { type BlockLeaveReason, type GuildGames, GuildLifecycle } from "../Hosted/GuildLifecycle";
 import { LEAVE_DISCONNECTS, REMOVED_DISCONNECT } from "../Hosted/LeaveDisconnects";
 import { logger, logModules } from "../Logging/Logger";
-import type { CLOSE_UNAUTHORIZED } from "../Protocol/PluginProtocol";
 import type { GatewayLink } from "../Routing/ClusterRouter";
 import { DiscordGuildPort, toGuildInfo } from "./DiscordGuildPort";
+import { createGuildDisconnect } from "./GuildDisconnect";
 
 type PluginDisconnect = (typeof LEAVE_DISCONNECTS)[BlockLeaveReason] | typeof REMOVED_DISCONNECT;
 
@@ -27,11 +27,7 @@ export function createHostedCluster(deps: {
     games: GuildGames;
 }): HostedCluster {
     const { db, gateway } = deps;
-    const sendDisconnect = async (
-        guildId: string,
-        code: PluginDisconnect["code"] | typeof CLOSE_UNAUTHORIZED,
-        reason: string,
-    ): Promise<boolean> => (await gateway.send({ kind: "disconnect-guild", guildId, code, reason })).ok;
+    const sendDisconnect = createGuildDisconnect(gateway);
     const disconnectPlugins = async (guildId: string, { code, reason }: PluginDisconnect) => {
         if (!(await sendDisconnect(guildId, code, reason)))
             logger.warn(logModules.Bot, `Guild ${guildId}: could not disconnect its plugins`);

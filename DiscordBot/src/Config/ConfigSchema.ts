@@ -1,13 +1,16 @@
 import { z } from "zod";
 
-export const SELF_HOST_FIELDS_REQUIRED = 'guildId and secret are required when mode is "self-host"';
+export const LEGACY_SECRET_NEEDS_GUILD = "guildId is required when secret is set";
 
 export const Config = z
     .object({
         token: z.string().min(1),
         clientId: z.string().min(1),
+        /** Self-host: commands are deployed to this server only. Without it they are deployed globally. */
         guildId: z.string().min(1).optional(),
+        /** Deprecated: choose the fallback voice channels in /setup. Still used for servers that chose none. */
         channelIds: z.array(z.string().min(1)).default([]),
+        /** Deprecated: create the plugin secret in /setup. Still accepted for `guildId`. */
         secret: z.string().min(1).optional(),
         botIp: z.string().default("0.0.0.0"),
         botPort: z.number().int().positive().default(7264),
@@ -39,8 +42,8 @@ export const Config = z
             })
             .default({ host: "127.0.0.1", port: 9465 }),
     })
-    .refine((c) => c.mode !== "self-host" || (c.guildId !== undefined && c.secret !== undefined), {
-        message: SELF_HOST_FIELDS_REQUIRED,
+    .refine((c) => c.mode === "hosted" || c.secret === undefined || c.guildId !== undefined, {
+        message: LEGACY_SECRET_NEEDS_GUILD,
         path: ["guildId"],
     })
     .refine((c) => c.databaseDialect !== "postgres" || c.databaseUrl !== undefined, {

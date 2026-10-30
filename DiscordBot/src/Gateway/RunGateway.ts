@@ -2,7 +2,8 @@ import type { Server } from "node:http";
 import { type ClusterProcess, StandaloneInstance } from "galactic.ts";
 import { Registry } from "prom-client";
 import { DISCORD_INTENTS } from "../Cluster/CreateDiscordClient";
-import { type Config, SELF_HOST_FIELDS_REQUIRED } from "../Config/ConfigSchema";
+import type { Config } from "../Config/ConfigSchema";
+import { legacyConfigWarnings } from "../Config/LegacyConfigWarnings";
 import { type Database, databaseOptionsFrom, openDatabase } from "../Data/Database";
 import { isHosted } from "../Hosted/HostedMode";
 import { LinkingService } from "../Linking/LinkingService";
@@ -20,10 +21,11 @@ import { startUpdateChecks } from "../Updates/UpdateChecker";
 import { errorMessage } from "../Utils/ErrorMessage";
 import { BOT_VERSION } from "../Version";
 import { createGatewayRequestHandler } from "./GatewayRequestHandler";
+import { GuildSecretResolver } from "./GuildSecretResolver";
 import { createHostedGateway, readHostedAdminTokenOrThrow, startHourlyCleanup } from "./HostedGateway";
 import { createGatewayHttpServer } from "./HttpServer";
 import { PluginGateway } from "./PluginGateway";
-import { SelfHostSecretResolver } from "./SecretResolver";
+import { ChainedSecretResolver, type SecretResolver, SelfHostSecretResolver } from "./SecretResolver";
 import { createClusterExitHandler, onShutdownSignal, shutdownGateway } from "./Shutdown";
 
 /**
@@ -138,11 +140,13 @@ async function createTelemetryService(
     return new TelemetryService({ target, fetch, collect: () => collector.snapshots(), builder });
 }
 
-function selfHostResolver(cfg: Pick<Config, "guildId" | "secret">): SelfHostSecretResolver {
-    if (cfg.guildId === undefined || cfg.secret === undefined) {
-        throw new Error(SELF_HOST_FIELDS_REQUIRED);
+/** Secrets created with /setup, plus the deprecated config.json secret so existing installs keep working. */
+function selfHostResolver(cfg: Pick<Config, "guildId" | "secret">, db: Pick<Database, "guildSecrets">): SecretResolver {
+    const resolvers: SecretResolver[] = [new GuildSecretResolver(db.guildSecrets)];
+    if (cfg.guildId !== undefined && cfg.secret !== undefined) {
+        resolvers.push(new SelfHostSecretResolver({ guildId: cfg.guildId, secret: cfg.secret }));
     }
-    return new SelfHostSecretResolver({ guildId: cfg.guildId, secret: cfg.secret });
+    return new ChainedSecretResolver(resolvers);
 }
 
 type StartupMode = { hosted: false } | { hosted: true; adminToken: string };
@@ -268,6 +272,8 @@ export async function runGateway(
         return undefined;
     }
 
+    for (const warning of legacyConfigWarnings(config)) logger.warn(logModules.Bot, warning);
+
     const db = await openDatabase(databaseOptionsFrom(config));
     logger.success(logModules.Database, "Database is ready!");
 
@@ -283,7 +289,7 @@ export async function runGateway(
           })
         : undefined;
     const pluginGateway = new PluginGateway({
-        resolver: hosted?.resolver ?? selfHostResolver(config),
+        resolver: hosted?.resolver ?? selfHostResolver(config, db),
         router: new GalacticClusterRouter(instance),
         linking: new LinkingService(db, undefined, hosted?.blocks),
         observer: createGatewayMetricsObserver(gatewayMetrics),

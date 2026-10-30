@@ -1,5 +1,5 @@
 import { ActionRowBuilder, ButtonBuilder, type ButtonInteraction, ButtonStyle, MessageFlags } from "discord.js";
-import type { CommandContext, HostedCommandContext } from "../Commands/Command";
+import type { CommandContext } from "../Commands/Command";
 import { localeFrom, t } from "../I18n/Index";
 import { logger, logModules } from "../Logging/Logger";
 import { ContainerBuilder } from "../Utils/ContainerBuilder";
@@ -8,8 +8,6 @@ import { SECRET_CONFIRM_FIELD, SETUP_PREFIX } from "./SetupIds";
 const GATEWAY_CLOSE_SECRET_CHANGED = 4001;
 const DISCONNECT_REASON = "Secret changed";
 const EPHEMERAL = MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral;
-
-export type HostedSetupContext = CommandContext & { hosted: HostedCommandContext };
 
 const codeBlock = (text: string, language = "") => `\`\`\`${language}\n${text}\n\`\`\``;
 
@@ -27,9 +25,9 @@ async function replyConfirmation(interaction: ButtonInteraction): Promise<void> 
     await interaction.reply({ flags: EPHEMERAL, components: [container] });
 }
 
-async function replySecret(interaction: ButtonInteraction, secret: string): Promise<void> {
+async function replySecret(interaction: ButtonInteraction, secret: string, hosted: boolean): Promise<void> {
     const locale = localeFrom(interaction.locale);
-    const pluginConfig = `{ "mode": "hosted", "secret": "${secret}" }`;
+    const pluginConfig = hosted ? `{ "mode": "hosted", "secret": "${secret}" }` : `{ "secret": "${secret}" }`;
     const container = new ContainerBuilder()
         .title(t(locale, "setup.secret.title"), null)
         .text(t(locale, "setup.secret.shownOnce"))
@@ -45,20 +43,15 @@ function logFailure(guildId: string, step: string, error: unknown): void {
 }
 
 /** Cleanup after the new secret is stored; a failure here must not stop the admin from seeing the secret. */
-async function finishRotation(
-    ctx: HostedSetupContext,
-    guildId: string,
-    actorId: string,
-    replaced: boolean,
-): Promise<void> {
-    const { hosted } = ctx;
+async function finishRotation(ctx: CommandContext, guildId: string, actorId: string, replaced: boolean): Promise<void> {
+    const { pluginSecret } = ctx;
     if (replaced) {
-        await hosted
+        await pluginSecret
             .disconnectGuild(guildId, GATEWAY_CLOSE_SECRET_CHANGED, DISCONNECT_REASON)
             .catch((error: unknown) => logFailure(guildId, "disconnecting the running games", error));
     }
-    await hosted.audit
-        .record({
+    await pluginSecret.audit
+        ?.record({
             actorId,
             action: replaced ? "secret.regenerate" : "secret.create",
             targetType: "guild",
@@ -68,12 +61,12 @@ async function finishRotation(
     ctx.events.emit({ type: "secret-changed", guildId, actorId, created: !replaced });
 }
 
-async function issueSecret(interaction: ButtonInteraction, ctx: HostedSetupContext): Promise<void> {
+async function issueSecret(interaction: ButtonInteraction, ctx: CommandContext): Promise<void> {
     const guildId = interaction.guildId as string;
     const actorId = interaction.user.id;
-    const { secret, replaced } = await ctx.hosted.secrets.rotate(guildId, actorId);
+    const { secret, replaced } = await ctx.pluginSecret.secrets.rotate(guildId, actorId);
     try {
-        await replySecret(interaction, secret);
+        await replySecret(interaction, secret, ctx.hosted !== undefined);
     } finally {
         // Disconnecting can take seconds; the admin must see the secret inside Discord's reply window first.
         await finishRotation(ctx, guildId, actorId, replaced);
@@ -81,8 +74,8 @@ async function issueSecret(interaction: ButtonInteraction, ctx: HostedSetupConte
 }
 
 /** The panel's secret button: creates the first secret, or asks before replacing an existing one. */
-export async function handleSecretButton(interaction: ButtonInteraction, ctx: HostedSetupContext): Promise<void> {
-    const existing = await ctx.hosted.secrets.get(interaction.guildId as string);
+export async function handleSecretButton(interaction: ButtonInteraction, ctx: CommandContext): Promise<void> {
+    const existing = await ctx.pluginSecret.secrets.get(interaction.guildId as string);
     if (existing) {
         await replyConfirmation(interaction);
         return;
@@ -91,9 +84,6 @@ export async function handleSecretButton(interaction: ButtonInteraction, ctx: Ho
 }
 
 /** The danger button of the confirmation: replaces the secret and disconnects the running games. */
-export async function handleSecretConfirmButton(
-    interaction: ButtonInteraction,
-    ctx: HostedSetupContext,
-): Promise<void> {
+export async function handleSecretConfirmButton(interaction: ButtonInteraction, ctx: CommandContext): Promise<void> {
     await issueSecret(interaction, ctx);
 }

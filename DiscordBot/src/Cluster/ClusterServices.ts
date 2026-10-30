@@ -9,7 +9,7 @@ import { LinkOverviewPublisher } from "../LinkOverview/LinkOverviewPublisher";
 import { LogChannelWriter } from "../LogChannel/LogChannelWriter";
 import { type ClusterMetrics, instrumentVoiceAdapter } from "../Metrics/ClusterMetrics";
 import { MuteService } from "../Mute/MuteService";
-import { createVoiceTargetResolver } from "../Mute/VoiceTargetResolver";
+import { chooseFallbackChannels, createVoiceTargetResolver } from "../Mute/VoiceTargetResolver";
 import { SettingsService } from "../Settings/SettingsService";
 import { cachedGuildIds } from "./CachedGuildIds";
 import { DiscordVoiceAdapter } from "./DiscordVoiceAdapter";
@@ -22,8 +22,8 @@ export interface ClusterServicesDeps {
     metrics: ClusterMetrics;
     /** Set only in hosted mode. */
     hosted: HostedCluster | undefined;
-    /** The fallback voice channels from config.json; hosted servers pick theirs in /setup instead. */
-    selfHostChannelIds: string[];
+    /** Deprecated `channelIds` of config.json, used for servers that chose no fallback voice channels in /setup. */
+    legacyChannelIds: string[];
 }
 
 /** The feature services of one cluster, wired to the guild event bus. */
@@ -45,7 +45,7 @@ export function createClusterServices({
     client,
     metrics,
     hosted,
-    selfHostChannelIds,
+    legacyChannelIds,
 }: ClusterServicesDeps): ClusterServices {
     const events = new GuildEventBus();
     const settings = new SettingsService(db.settings, events);
@@ -97,10 +97,8 @@ export function createClusterServices({
         resolveTarget: createVoiceTargetResolver({
             links: db.links,
             memberVoiceChannel: (guildId, discordId) => voice.voiceChannelOf(guildId, discordId),
-            // Hosted servers pick their fallback channels in /setup; self-host keeps them in config.json.
-            fallbackChannelIds: hosted
-                ? async (guildId) => (await settings.get(guildId)).voiceChannelIds
-                : async () => selfHostChannelIds,
+            fallbackChannelIds: async (guildId) =>
+                chooseFallbackChannels((await settings.get(guildId)).voiceChannelIds, legacyChannelIds),
             isUserBlocked: hosted ? (userId) => hosted.blocks.isUserBlocked(userId) : undefined,
             localeOf: guildLanguage,
         }),
