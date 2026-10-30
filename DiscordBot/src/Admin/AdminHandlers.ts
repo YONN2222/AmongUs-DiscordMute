@@ -1,7 +1,7 @@
 import type { Database } from "../Data/Database";
 import type { BlockOutcome } from "../Data/Repositories/BlockRepository";
 import type { HostedGuildRow } from "../Data/Repositories/HostedGuildRepository";
-import type { LinkEntry } from "../Data/Repositories/LinkRepository";
+import type { LinkEntry, UserLinkEntry } from "../Data/Repositories/LinkRepository";
 import type { PluginGateway } from "../Gateway/PluginGateway";
 import { LEAVE_DISCONNECTS } from "../Hosted/LeaveDisconnects";
 import { purgeAtOf, purgeGuildData } from "../Hosted/LeftGuildPurge";
@@ -26,6 +26,8 @@ import type {
     PageQuery,
     PurgeGuildBody,
     RemoveBlockBody,
+    UserDetail,
+    UserLink,
 } from "./Contract";
 
 const DAY_MS = 24 * 3600 * 1000;
@@ -53,6 +55,8 @@ export interface AdminHandlers {
     leaveGuild(guildId: string, body: LeaveGuildBody): Promise<{ left: boolean } | null>;
     /** Deletes the data of a server the bot left; null when the guild is not in the hosted guild list. */
     purgeGuild(guildId: string, body: PurgeGuildBody): Promise<"purged" | "in-guild" | null>;
+    /** Null when the bot stores no link, owned server or block of this user. */
+    getUser(userId: string): Promise<UserDetail | null>;
     listBlocks(query: BlockListQuery): Promise<Page<Block>>;
     createBlock(body: CreateBlockBody): Promise<Block | "conflict">;
     /** True when a block existed. */
@@ -86,6 +90,16 @@ function iconUrlOf(row: HostedGuildRow): string | null {
 function toLinkedUser(link: LinkEntry): LinkedUser {
     return {
         discordId: link.discordId,
+        accountName: link.accountName,
+        friendCode: link.friendCode,
+        linkedAt: Date.parse(link.linkedAt),
+    };
+}
+
+function toUserLink(link: UserLinkEntry): UserLink {
+    return {
+        guildId: link.guildId,
+        guildName: link.guildName,
         accountName: link.accountName,
         friendCode: link.friendCode,
         linkedAt: Date.parse(link.linkedAt),
@@ -248,6 +262,15 @@ export function createAdminHandlers(deps: AdminHandlerDeps): AdminHandlers {
             if (guild.leftAt === null) return "in-guild";
             await purgeGuildData(db, guildId, actorId, now());
             return "purged";
+        },
+        async getUser(userId) {
+            const [links, owned, block] = await Promise.all([
+                db.links.listByDiscordId(userId),
+                db.hostedGuilds.listByOwner(userId),
+                db.blocks.get("user", userId),
+            ]);
+            if (links.length === 0 && owned.length === 0 && !block) return null;
+            return { userId, links: links.map(toUserLink), ownedGuilds: await summarize(owned), block };
         },
         listBlocks(query) {
             return db.blocks.list({ type: query.type, targetId: query.q, offset: offsetOf(query), limit: query.limit });

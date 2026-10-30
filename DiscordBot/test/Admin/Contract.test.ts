@@ -14,6 +14,7 @@ import {
     MAX_PAGE_LIMIT,
     ShardInfoSchema,
     SnowflakeSchema,
+    UserDetailSchema,
 } from "../../src/Admin/Contract";
 import { DEFAULT_SETTINGS, type GuildSettings } from "../../src/Settings/GuildSettings";
 
@@ -156,6 +157,17 @@ describe("admin contract", () => {
         const link = { discordId: SNOWFLAKE, accountName: "Red", friendCode: null, linkedAt: 1 };
         expect(LinkedUserSchema.safeParse(link).success).toBe(true);
         expect(LinkedUserSchema.safeParse({ ...link, linkedAt: "2026-01-01" }).success).toBe(false);
+    });
+
+    it("user detail allows links of guilds without a stored name", () => {
+        const user = {
+            userId: SNOWFLAKE,
+            links: [{ guildId: SNOWFLAKE, guildName: null, accountName: "Red", friendCode: null, linkedAt: 1 }],
+            ownedGuilds: [],
+            block: null,
+        };
+        expect(UserDetailSchema.safeParse(user).success).toBe(true);
+        expect(UserDetailSchema.safeParse({ ...user, userId: "nobody" }).success).toBe(false);
     });
 
     it("list queries validate their filters", () => {

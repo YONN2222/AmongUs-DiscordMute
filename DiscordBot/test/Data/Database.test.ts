@@ -52,6 +52,12 @@ describe.each(backends)("openDatabase (%s)", (backend: Backend) => {
             );
         });
 
+        it("indexes the links by Discord user", async () => {
+            const db = await track(openBackend(backend));
+            const indexes = (await db.sequelize.getQueryInterface().showIndex("links")) as { name: string }[];
+            expect(indexes.map((index) => index.name)).toContain("links_discord_id");
+        });
+
         it("migrations are idempotent", async () => {
             const options =
                 backend === "postgres"

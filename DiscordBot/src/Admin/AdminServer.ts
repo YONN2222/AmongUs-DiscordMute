@@ -121,6 +121,7 @@ function pageOf<T>(query: PageQuery, page: Page<T>): Reply {
 }
 
 const GuildParamsSchema = z.object({ guildId: SnowflakeSchema });
+const UserParamsSchema = z.object({ userId: SnowflakeSchema });
 const BlockParamsSchema = z.object({ type: BlockTypeSchema, targetId: SnowflakeSchema });
 
 function buildRoutes(handlers: AdminHandlers): Route[] {
@@ -172,6 +173,11 @@ function buildRoutes(handlers: AdminHandlers): Route[] {
             if (!result) throw fail("not-found", "Server not found");
             if (result === "in-guild") throw fail("conflict", "The bot is still in this server");
             return ok({ purged: true });
+        }),
+        route("GET", "/users/:userId", async ({ params }) => {
+            const user = await handlers.getUser(parse(UserParamsSchema, params).userId);
+            if (!user) throw fail("not-found", "User not found");
+            return ok(user);
         }),
         route("GET", "/blocks", async ({ query }) => {
             const parsed = parse(BlockListQuerySchema, query);

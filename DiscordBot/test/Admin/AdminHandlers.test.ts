@@ -238,6 +238,41 @@ describe.each(backends)("admin handlers, read endpoints (%s)", (backend) => {
             expect(await handlers().listGuildLinks(uniqueId("missing"), { page: 1, limit: 25 })).toBeNull();
         });
 
+        it("user lookup joins the user's links, owned servers and block", async () => {
+            const userId = uniqueId("user");
+            const linkedGuild = uniqueId("linked");
+            const ownedGuild = uniqueId("owned");
+            await addGuild(linkedGuild, "Linked Crew", uniqueId("owner"), 1000);
+            await addGuild(ownedGuild, "Own Crew", userId, 2000);
+            await db.links.upsert(linkedGuild, userId, "Red");
+            await db.blocks.create({ type: "user", targetId: userId, reason: "spam", blockedBy: "system" }, NOW);
+
+            const user = await handlers().getUser(userId);
+
+            expect(user).toMatchObject({
+                userId,
+                links: [
+                    {
+                        guildId: linkedGuild,
+                        guildName: "Linked Crew",
+                        accountName: "Red",
+                        friendCode: null,
+                        linkedAt: expect.any(Number),
+                    },
+                ],
+                ownedGuilds: [{ guildId: ownedGuild, name: "Own Crew", ownerBlocked: true }],
+                block: { type: "user", targetId: userId, reason: "spam" },
+            });
+        });
+
+        it("user lookup finds a user by a block alone and is null when nothing is stored", async () => {
+            const blocked = uniqueId("blocked");
+            await db.blocks.create({ type: "user", targetId: blocked, reason: "spam", blockedBy: "system" }, NOW);
+
+            expect(await handlers().getUser(blocked)).toMatchObject({ links: [], ownedGuilds: [] });
+            expect(await handlers().getUser(uniqueId("unknown"))).toBeNull();
+        });
+
         it("getGuild unknown is null", async () => {
             expect(await handlers().getGuild(uniqueId("missing"))).toBeNull();
         });

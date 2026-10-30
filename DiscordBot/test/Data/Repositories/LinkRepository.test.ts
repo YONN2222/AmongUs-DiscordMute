@@ -134,6 +134,35 @@ describe.each(backends)("LinkRepository (%s)", (backend) => {
             expect(counts.size).toBe(1);
         });
 
+        it("listByDiscordId finds the user's links in every guild with the guild name", async () => {
+            const user = uniqueId("user");
+            await db.hostedGuilds.upsert({
+                guildId: g1,
+                name: "Skeld Crew",
+                icon: null,
+                ownerId: uniqueId("o"),
+                memberCount: 5,
+                joinedAt: 1,
+            });
+            await db.links.upsert(g1, user, "Red");
+            await db.links.setFriendCode(g1, user, "red#1");
+            await db.links.upsert(g2, user, "Blue");
+            await db.links.upsert(g1, uniqueId("other"), "Green");
+
+            const links = await db.links.listByDiscordId(user);
+
+            expect(
+                links
+                    .map(({ linkedAt: _, ...link }) => link)
+                    .sort((a, b) => a.accountName.localeCompare(b.accountName)),
+            ).toEqual([
+                { guildId: g2, guildName: null, discordId: user, accountName: "Blue", friendCode: null },
+                { guildId: g1, guildName: "Skeld Crew", discordId: user, accountName: "Red", friendCode: "red#1" },
+            ]);
+            expect(links.every((link) => !Number.isNaN(Date.parse(link.linkedAt)))).toBe(true);
+            expect(await db.links.listByDiscordId(uniqueId("nobody"))).toEqual([]);
+        });
+
         it("listByGuild is guild-scoped", async () => {
             await db.links.upsert(g1, "u1", "A");
             await db.links.upsert(g2, "u2", "B");

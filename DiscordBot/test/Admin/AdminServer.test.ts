@@ -29,6 +29,7 @@ function fakeHandlers(overrides: Partial<AdminHandlers> = {}): AdminHandlers {
         listGuildLinks: async () => null,
         leaveGuild: unused,
         purgeGuild: unused,
+        getUser: async () => null,
         listBlocks: async () => ({ rows: [], total: 0 }),
         createBlock: unused,
         removeBlock: unused,
@@ -228,6 +229,22 @@ describe("admin server", () => {
 
             expect(listGuildLinks).toHaveBeenCalledWith(GUILD_ID, { page: 3, limit: 100 });
             expect(await response.json()).toEqual({ ok: true, data: [], meta: { total: 12, page: 3, limit: 100 } });
+        });
+    });
+
+    describe("users", () => {
+        it("serves a stored user, 404 for an unknown one and 400 for an invalid id", async () => {
+            const user = { userId: GUILD_ID, links: [], ownedGuilds: [], block: null };
+            const getUser = vi.fn(async (userId: string) => (userId === GUILD_ID ? user : null));
+            await start(fakeHandlers({ getUser }));
+
+            const found = await fetch(`${baseUrl}/users/${GUILD_ID}`, { headers: authorized });
+            const unknown = await fetch(`${baseUrl}/users/223456789012345678`, { headers: authorized });
+            const invalid = await fetch(`${baseUrl}/users/12345`, { headers: authorized });
+
+            expect(await found.json()).toEqual({ ok: true, data: user });
+            expect(unknown.status).toBe(404);
+            expect(invalid.status).toBe(400);
         });
     });
 

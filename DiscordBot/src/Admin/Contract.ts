@@ -160,6 +160,26 @@ export const LinkedUserSchema = z.object({
 });
 export type LinkedUser = z.infer<typeof LinkedUserSchema>;
 
+/** A link of one user; `guildName` is null when the guild is not in the hosted guild list. */
+export const UserLinkSchema = z.object({
+    guildId: SnowflakeSchema,
+    guildName: z.string().nullable(),
+    accountName: z.string(),
+    friendCode: z.string().nullable(),
+    linkedAt: z.number(),
+});
+export type UserLink = z.infer<typeof UserLinkSchema>;
+
+/** Everything the bot stores about one Discord user. */
+export const UserDetailSchema = z.object({
+    userId: SnowflakeSchema,
+    links: z.array(UserLinkSchema),
+    /** Servers the bot is in that this user owns. */
+    ownedGuilds: z.array(GuildSummarySchema),
+    block: BlockSchema.nullable(),
+});
+export type UserDetail = z.infer<typeof UserDetailSchema>;
+
 export const CLUSTER_STATUSES = ["starting", "running", "stopped"] as const;
 export const ClusterStatusSchema = z.enum(CLUSTER_STATUSES);
 export type ClusterStatus = z.infer<typeof ClusterStatusSchema>;

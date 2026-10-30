@@ -1,4 +1,4 @@
-import { col, fn } from "sequelize";
+import { col, fn, QueryTypes } from "sequelize";
 import { matchesAccountName } from "../AccountNameMatch";
 import type { LinkModel } from "../Models/LinkModel";
 
@@ -25,6 +25,21 @@ export interface LinkRepository {
     /** One page ordered by account name (case-insensitive), then Discord id; sorted and cut in SQL. */
     listPage(guildId: string, offset: number, limit: number): Promise<LinkEntry[]>;
     findByAccountName(guildId: string, accountName: string): Promise<LinkEntry[]>;
+    /** Every link of one Discord user, newest first, with the name of the guild when it is a hosted guild. */
+    listByDiscordId(discordId: string): Promise<UserLinkEntry[]>;
+}
+
+export interface UserLinkEntry extends LinkEntry {
+    guildName: string | null;
+}
+
+interface UserLinkDbRow {
+    guild_id: string;
+    discord_id: string;
+    account_name: string;
+    linked_at: string;
+    friend_code: string | null;
+    guild_name: string | null;
 }
 
 const COUNT_BATCH_SIZE = 500;
@@ -40,6 +55,8 @@ function toEntry(row: LinkModel): LinkEntry {
 }
 
 export function createLinkRepository(model: typeof LinkModel): LinkRepository {
+    const sequelize = model.sequelize;
+    if (!sequelize) throw new Error("LinkModel is not initialised, call initLinkModel first");
     return {
         async get(guildId, discordId) {
             const row = await model.findOne({ where: { guildId, discordId } });
@@ -103,6 +120,24 @@ export function createLinkRepository(model: typeof LinkModel): LinkRepository {
         async findByAccountName(guildId, accountName) {
             const rows = await model.findAll({ where: { guildId } });
             return rows.filter((row) => matchesAccountName(row.accountName, accountName)).map(toEntry);
+        },
+        async listByDiscordId(discordId) {
+            const rows = await sequelize.query<UserLinkDbRow>(
+                `SELECT links.guild_id, links.discord_id, links.account_name, links.linked_at, links.friend_code,
+                        hosted_guilds.name AS guild_name
+                 FROM links LEFT JOIN hosted_guilds ON hosted_guilds.guild_id = links.guild_id
+                 WHERE links.discord_id = :discordId
+                 ORDER BY links.linked_at DESC, links.guild_id`,
+                { replacements: { discordId }, type: QueryTypes.SELECT },
+            );
+            return rows.map((row) => ({
+                guildId: row.guild_id,
+                guildName: row.guild_name,
+                discordId: row.discord_id,
+                accountName: row.account_name,
+                linkedAt: row.linked_at,
+                friendCode: row.friend_code,
+            }));
         },
     };
 }
