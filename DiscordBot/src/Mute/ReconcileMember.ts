@@ -28,7 +28,7 @@ export interface ReconcileDeps {
  * Brings one member to the wanted mute and deafen state with a single Discord call. A flag is only ever
  * lifted when the ledger says the bot set it, and a newly set flag is written to the ledger first so a
  * crash mid-call can never leave an untracked mute. The row is recorded for `sessionId`, so the session that
- * touched the member last owns the row, even when only the owner changes.
+ * touched the member last owns the row, even when only the owner changes. Resolves to the change it sent.
  */
 export async function reconcileMember(
     deps: ReconcileDeps,
@@ -37,7 +37,7 @@ export async function reconcileMember(
     want: WantedFlags,
     entry: MuteLedgerEntry | undefined,
     sessionId: string | null,
-): Promise<void> {
+): Promise<VoiceStatePatch> {
     const prev: LedgerFlags = { muted: entry?.muted ?? false, deafened: entry?.deafened ?? false };
     const prevOwner = entry?.sessionId ?? null;
     const addMute = want.mute && !member.serverMuted;
@@ -45,11 +45,13 @@ export async function reconcileMember(
     const liftMute = !want.mute && prev.muted;
     const liftDeaf = !want.deaf && prev.deafened;
 
+    // A lift trusts the ledger, not the member: the cached voice state only catches up with the bot's own call once
+    // Discord sends the update, so right after a mute it still reads unmuted and the lift would be skipped for good.
     const patch: VoiceStatePatch = {};
     if (addMute) patch.mute = true;
-    else if (liftMute && member.serverMuted) patch.mute = false;
+    else if (liftMute) patch.mute = false;
     if (addDeaf) patch.deaf = true;
-    else if (liftDeaf && member.serverDeafened) patch.deaf = false;
+    else if (liftDeaf) patch.deaf = false;
 
     const withAdds: LedgerFlags = { muted: prev.muted || addMute, deafened: prev.deafened || addDeaf };
     const final: LedgerFlags = { muted: withAdds.muted && !liftMute, deafened: withAdds.deafened && !liftDeaf };
@@ -67,6 +69,7 @@ export async function reconcileMember(
         }
     }
     if (!sameFlags(withAdds, final)) await deps.ledger.set(guildId, member.discordId, final, sessionId);
+    return patch;
 }
 
 /** Never rejects, so the error of the failed voice call is the one that gets reported. */

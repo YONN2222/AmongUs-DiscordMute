@@ -119,6 +119,10 @@ export function createClusterRequestHandler(deps: ClusterRequestHandlerDeps): (d
                 return handleGameEvent(deps, req);
             case "session-started": {
                 const { kind: _kind, ...started } = req;
+                logger.info(
+                    logModules.Mute,
+                    `Guild ${req.guildId}: session ${req.sessionId} started (plugin ${req.pluginVersion})`,
+                );
                 deps.events.emit({ type: "session-started", ...started });
                 return { ok: true };
             }

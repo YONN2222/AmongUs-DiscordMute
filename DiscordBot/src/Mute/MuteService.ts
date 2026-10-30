@@ -10,6 +10,7 @@ import { GuildQueue } from "../Utils/GuildQueue";
 import { LeavingGuilds } from "../Utils/LeavingGuilds";
 import { computeDesiredState, type DesiredState } from "./DesiredState";
 import { RELEASE, reconcileMember, wantedFlags } from "./ReconcileMember";
+import { logVoiceChanges, logVoiceChangesIfAny, type VoiceChange } from "./VoiceChangeLog";
 import { delayFor, effectiveRules, type Phase, phaseOf } from "./VoiceRules";
 import type { VoiceTarget } from "./VoiceTarget";
 
@@ -188,7 +189,7 @@ export class MuteService {
         return this.enqueue(guildId, async () => {
             this.forgetSession(sessionId);
             try {
-                await this.releaseSession(guildId, sessionId);
+                logVoiceChanges(guildId, `session ${sessionId} ended`, await this.releaseSession(guildId, sessionId));
             } catch (err) {
                 logger.error(logModules.Mute, `Could not end the session in guild ${guildId}`, err);
             }
@@ -204,7 +205,7 @@ export class MuteService {
         this.leavingGuilds.enter(guildId);
         return this.enqueue(guildId, async () => {
             this.endSessionsOf(guildId);
-            await this.releaseGuild(guildId);
+            logVoiceChangesIfAny(guildId, "leaving the guild", await this.releaseGuild(guildId));
         });
     }
 
@@ -232,7 +233,7 @@ export class MuteService {
                 this.enqueue(guildId, async () => {
                     this.removedGuilds.delete(guildId);
                     try {
-                        await this.releaseGuild(guildId);
+                        logVoiceChangesIfAny(guildId, "recovery", await this.releaseGuild(guildId));
                     } catch (err) {
                         logger.error(logModules.Mute, `Could not recover mutes in guild ${guildId}`, err);
                     }
@@ -248,7 +249,9 @@ export class MuteService {
                 const entry = await this.deps.ledger.get(guildId, discordId);
                 if (!entry || this.activeSessions.has(guildId, entry.sessionId)) return;
                 const member = await this.deps.voice.findVoiceMember(guildId, discordId);
-                if (member) await reconcileMember(this.deps, guildId, member, RELEASE, entry, entry.sessionId);
+                if (!member) return;
+                const patch = await reconcileMember(this.deps, guildId, member, RELEASE, entry, entry.sessionId);
+                logVoiceChangesIfAny(guildId, "rejoin after the session ended", [{ discordId, patch }]);
             }),
         );
     }
@@ -261,7 +264,7 @@ export class MuteService {
             [...withEntries].map((guildId) =>
                 this.enqueue(guildId, async () => {
                     try {
-                        await this.releaseUnowned(guildId);
+                        logVoiceChangesIfAny(guildId, "idle sweep", await this.releaseUnowned(guildId));
                     } catch (err) {
                         logger.error(logModules.Mute, `Could not sweep mutes in guild ${guildId}`, err);
                     }
@@ -327,7 +330,7 @@ export class MuteService {
         if (this.isDropped(guildId, sessionId)) return { ok: true };
         if (req.event === "lobby") {
             this.phases.delete(sessionId);
-            await this.releaseSession(guildId, sessionId);
+            logVoiceChanges(guildId, `lobby of session ${sessionId}`, await this.releaseSession(guildId, sessionId));
             return { ok: true };
         }
         this.activeSessions.add(guildId, sessionId);
@@ -336,7 +339,13 @@ export class MuteService {
         if (req.event !== "player-died") this.phases.set(sessionId, phaseOf(req.event));
 
         const target = await this.deps.resolveTarget(req.guildId, req.hostAccountName);
-        if ("notice" in target) return { ok: true, notice: target.notice };
+        if ("notice" in target) {
+            logger.info(
+                logModules.Mute,
+                `Guild ${guildId}: ${req.event} of session ${sessionId} skipped (${target.notice.code})`,
+            );
+            return { ok: true, notice: target.notice };
+        }
 
         const settings = await this.deps.settings.get(req.guildId);
         const state = computeDesiredState({
@@ -353,7 +362,8 @@ export class MuteService {
                 `Guild ${req.guildId}: ${state.ambiguousNames.length} player name(s) match several links and were skipped`,
             );
         }
-        await this.applyState(req.guildId, sessionId, target.channelIds, state);
+        const changes = await this.applyState(req.guildId, sessionId, target.channelIds, state);
+        logVoiceChanges(guildId, `${req.event} of session ${sessionId}`, changes);
         return { ok: true, channelIds: target.channelIds };
     }
 
@@ -362,21 +372,24 @@ export class MuteService {
         sessionId: string,
         channelIds: string[],
         state: DesiredState,
-    ): Promise<void> {
+    ): Promise<VoiceChange[]> {
         const members = await this.membersInChannels(guildId, channelIds);
         const ledger = new Map((await this.deps.ledger.listByGuild(guildId)).map((entry) => [entry.discordId, entry]));
 
-        await Promise.all(
+        const changes = await Promise.all(
             members.map((member) =>
-                this.guarded(guildId, member.discordId, async () => {
-                    if (member.isBot) return;
+                this.guarded(guildId, member.discordId, async (): Promise<VoiceChange | undefined> => {
+                    if (member.isBot) return undefined;
                     const action = state.actions.get(member.discordId) ?? state.nonPlayerAction;
-                    if (action === null) return;
+                    if (action === null) return undefined;
                     const entry = ledger.get(member.discordId);
-                    await reconcileMember(this.deps, guildId, member, wantedFlags(action), entry, sessionId);
+                    const want = wantedFlags(action);
+                    const patch = await reconcileMember(this.deps, guildId, member, want, entry, sessionId);
+                    return { discordId: member.discordId, patch };
                 }),
             ),
         );
+        return changes.filter((change) => change !== undefined);
     }
 
     private async membersInChannels(guildId: string, channelIds: string[]): Promise<VoiceMember[]> {
@@ -394,45 +407,50 @@ export class MuteService {
     }
 
     /** Takes the session out of the game and lifts every mute no running session owns, its own included. */
-    private async releaseSession(guildId: string, sessionId: string): Promise<void> {
+    private async releaseSession(guildId: string, sessionId: string): Promise<VoiceChange[]> {
         this.activeSessions.delete(guildId, sessionId);
-        await this.releaseUnowned(guildId);
+        return this.releaseUnowned(guildId);
     }
 
     /** Rows of other running sessions stay; rows without a session or of a session that ended are lifted. */
-    private async releaseUnowned(guildId: string): Promise<void> {
+    private async releaseUnowned(guildId: string): Promise<VoiceChange[]> {
         const entries = await this.deps.ledger.listByGuild(guildId);
-        await this.releaseEntries(
+        return this.releaseEntries(
             guildId,
             entries.filter((entry) => !this.activeSessions.has(guildId, entry.sessionId)),
         );
     }
 
     /** Lifts every row of the guild, whichever session owns it. */
-    private async releaseGuild(guildId: string): Promise<void> {
-        await this.releaseEntries(guildId, await this.deps.ledger.listByGuild(guildId));
+    private async releaseGuild(guildId: string): Promise<VoiceChange[]> {
+        return this.releaseEntries(guildId, await this.deps.ledger.listByGuild(guildId));
     }
 
     /** Members who left voice stay in the ledger and are released when they rejoin. */
-    private async releaseEntries(guildId: string, entries: MuteLedgerEntry[]): Promise<void> {
-        await Promise.all(
+    private async releaseEntries(guildId: string, entries: MuteLedgerEntry[]): Promise<VoiceChange[]> {
+        const changes = await Promise.all(
             entries.map((entry) =>
-                this.guarded(guildId, entry.discordId, async () => {
+                this.guarded(guildId, entry.discordId, async (): Promise<VoiceChange | undefined> => {
                     const member = await this.deps.voice.findVoiceMember(guildId, entry.discordId);
-                    if (member) await reconcileMember(this.deps, guildId, member, RELEASE, entry, entry.sessionId);
+                    if (!member) return undefined;
+                    const patch = await reconcileMember(this.deps, guildId, member, RELEASE, entry, entry.sessionId);
+                    return { discordId: entry.discordId, patch };
                 }),
             ),
         );
+        return changes.filter((change) => change !== undefined);
     }
 
-    private async guarded(guildId: string, discordId: string, action: () => Promise<void>): Promise<void> {
+    /** Resolves to undefined when the action failed; the failure is logged. */
+    private async guarded<T>(guildId: string, discordId: string, action: () => Promise<T>): Promise<T | undefined> {
         try {
-            await action();
+            return await action();
         } catch (err) {
             logger.error(logModules.Mute, `Guild ${guildId}, member ${discordId}: voice update failed`, err);
             if (isMissingPermission(err)) {
                 this.deps.events?.emit({ type: "voice-error", guildId, code: "missing-permission", discordId });
             }
+            return undefined;
         }
     }
 }

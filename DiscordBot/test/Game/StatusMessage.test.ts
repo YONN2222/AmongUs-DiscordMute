@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MessagePort } from "../../src/Cluster/MessagePort";
+import type { LinkEntry } from "../../src/Data/Repositories/LinkRepository";
 import type { TrackedMessage } from "../../src/Data/Repositories/TrackedMessageRepository";
 import type { GuildEvent } from "../../src/Events/GuildEvents";
 import { StatusMessage } from "../../src/Game/StatusMessage";
@@ -10,6 +11,7 @@ import { DEFAULT_SETTINGS, type GuildSettings } from "../../src/Settings/GuildSe
 const GUILD = "1200000000000000001";
 const CHANNEL = "1200000000000000010";
 const RED_ID = "1300000000000000001";
+const BLUE_ID = "1300000000000000002";
 const SESSION = "s1";
 
 const settingsWith = (channelId: string | null): GuildSettings => ({
@@ -40,7 +42,14 @@ function gameEvent(
 }
 
 function setup(initial: GuildSettings = settingsWith(CHANNEL), tracked: TrackedMessage[] = []) {
-    const state = { settings: initial };
+    const linkOf = (discordId: string, accountName: string): LinkEntry => ({
+        guildId: GUILD,
+        discordId,
+        accountName,
+        linkedAt: "2026-01-01T00:00:00.000Z",
+        friendCode: null,
+    });
+    const state = { settings: initial, links: [linkOf(RED_ID, "Red")] };
     const rows = new Map<string, TrackedMessage>();
     for (const row of tracked) rows.set(`${row.guildId}:${row.kind}:${row.key}`, row);
     const port = {
@@ -63,20 +72,10 @@ function setup(initial: GuildSettings = settingsWith(CHANNEL), tracked: TrackedM
     const status = new StatusMessage({
         port,
         tracked: repo,
-        links: {
-            listByGuild: async (guildId) => [
-                {
-                    guildId,
-                    discordId: RED_ID,
-                    accountName: "Red",
-                    linkedAt: "2026-01-01T00:00:00.000Z",
-                    friendCode: null,
-                },
-            ],
-        },
+        links: { listByGuild: async () => state.links },
         settings: { get: async () => state.settings },
     });
-    return { port, rows, status, state };
+    return { port, rows, status, state, linkOf };
 }
 
 const bodyOf = (call: unknown[]) => JSON.stringify(call[call.length - 1]);
@@ -220,6 +219,71 @@ describe("StatusMessage", () => {
         await status.handle({ type: "session-ended", guildId: GUILD, sessionId: SESSION });
         expect(port.delete).toHaveBeenCalledTimes(1);
         expect(port.delete).toHaveBeenCalledWith(CHANNEL, "m-1");
+    });
+
+    it("shows a player as linked once they link while the lobby is open", async () => {
+        const { port, status, state, linkOf } = setup();
+        await status.handle(gameEvent("lobby", roster(["Red", false], ["Blue", false])));
+        await vi.advanceTimersByTimeAsync(10);
+        expect(bodyOf(port.post.mock.calls[0])).not.toContain(`<@${BLUE_ID}>`);
+
+        state.links = [...state.links, linkOf(BLUE_ID, "Blue")];
+        await status.handle({
+            type: "link-changed",
+            guildId: GUILD,
+            discordId: BLUE_ID,
+            change: "linked",
+            accountName: "Blue",
+        });
+        await vi.advanceTimersByTimeAsync(5000);
+        expect(port.edit).toHaveBeenCalledTimes(1);
+        expect(bodyOf(port.edit.mock.calls[0])).toContain(`<@${BLUE_ID}>`);
+    });
+
+    it("ignores link changes of a guild without a running session", async () => {
+        const { port, status } = setup();
+        await status.handle(gameEvent("lobby", roster(["Red", false])));
+        await vi.advanceTimersByTimeAsync(10);
+        await status.handle({
+            type: "link-changed",
+            guildId: "1200000000000000099",
+            discordId: BLUE_ID,
+            change: "linked",
+        });
+        await vi.advanceTimersByTimeAsync(5000);
+        expect(port.edit).not.toHaveBeenCalled();
+        expect(port.post).toHaveBeenCalledTimes(1);
+    });
+
+    it("redraws with the new lobby code mode when the status settings change", async () => {
+        const { port, status, state } = setup();
+        await status.handle(gameEvent("lobby", roster(["Red", false]), { lobbyCode: "ABCDEF" }));
+        await vi.advanceTimersByTimeAsync(10);
+        expect(bodyOf(port.post.mock.calls[0])).not.toContain("||ABCDEF||");
+
+        const before = state.settings;
+        state.settings = { ...before, status: { ...before.status, lobbyCode: "spoiler" } };
+        await status.handle({
+            type: "settings-changed",
+            guildId: GUILD,
+            actorId: RED_ID,
+            paths: ["status.lobbyCode"],
+            before,
+            after: state.settings,
+        });
+        await vi.advanceTimersByTimeAsync(5000);
+        expect(port.edit).toHaveBeenCalledTimes(1);
+        expect(bodyOf(port.edit.mock.calls[0])).toContain("||ABCDEF||");
+    });
+
+    it("hides the lobby code behind a spoiler by default", async () => {
+        const { port, status } = setup({
+            ...DEFAULT_SETTINGS,
+            status: { ...DEFAULT_SETTINGS.status, channelId: CHANNEL },
+        });
+        await status.handle(gameEvent("lobby", roster(["Red", false]), { lobbyCode: "ABCDEF" }));
+        await vi.advanceTimersByTimeAsync(10);
+        expect(bodyOf(port.post.mock.calls[0])).toContain("||ABCDEF||");
     });
 
     it("recover deletes the message of a leftover row", async () => {

@@ -89,6 +89,15 @@ export class StatusMessage {
             case "session-ended":
                 await this.end(event.guildId, event.sessionId);
                 return;
+            // The roster resolves links and settings on every redraw, so a change while the lobby is open must redraw too.
+            case "link-changed":
+                this.refreshGuild(event.guildId);
+                return;
+            case "settings-changed":
+                if (event.paths.some((path) => path.startsWith("status.") || path === "language")) {
+                    this.refreshGuild(event.guildId);
+                }
+                return;
             default:
                 return;
         }
@@ -116,6 +125,12 @@ export class StatusMessage {
         }
         apply(session, new Set(session.players.filter((p) => p.dead).map((p) => nameKey(p.name))));
         session.refresher.request();
+    }
+
+    private refreshGuild(guildId: string): void {
+        for (const session of this.sessions.values()) {
+            if (session.guildId === guildId) session.refresher.request();
+        }
     }
 
     private createSession(guildId: string, sessionId: string): Session {
