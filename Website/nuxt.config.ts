@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url'
 import type { Nitro } from 'nitropack'
-import { SECURITY_HEADERS } from './server/security/csp'
+import { API_SECURITY_HEADERS, SECURITY_HEADERS } from './server/security/csp'
 import { DEFAULT_HOSTED_STATUS } from './shared/hostedStatus'
 import { DEFAULT_STATS_VISIBILITY } from './shared/statsVisibility'
 import { CANONICAL_ORIGIN, DEFAULT_HOSTED_BOT_CLIENT_ID, SITE_DESCRIPTION, SITE_NAME } from './shared/site'
@@ -44,6 +44,9 @@ export default defineNuxtConfig({
     '/': { swr: 60 },
     '/**': {
       headers: { ...SECURITY_HEADERS },
+    },
+    '/api/**': {
+      headers: { ...API_SECURITY_HEADERS },
     },
   },
   nitro: {

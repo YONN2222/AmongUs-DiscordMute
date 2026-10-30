@@ -21,9 +21,10 @@ describe('contentSecurityPolicy', () => {
     expect(csp).toContain(`script-src 'self' ${UMAMI_ORIGIN};`)
     expect(csp).toContain(`connect-src 'self' ${UMAMI_ORIGIN};`)
     expect(csp).toContain("font-src 'self'")
-    expect(csp).toContain("frame-ancestors 'none'")
+    expect(csp).toContain(`frame-ancestors ${UMAMI_ORIGIN}`)
+    expect(csp).not.toContain("frame-ancestors 'none'")
     expect(csp).toContain("object-src 'none'")
-    expect(csp.match(/https?:\/\/[^\s;]+/g)).toEqual([UMAMI_ORIGIN, UMAMI_ORIGIN])
+    expect(csp.match(/https?:\/\/[^\s;]+/g)).toEqual([UMAMI_ORIGIN, UMAMI_ORIGIN, UMAMI_ORIGIN])
     expect(csp).not.toContain('unsafe-eval')
     expect(csp).not.toMatch(/script-src[^;]*unsafe-inline/)
   })
@@ -58,6 +59,12 @@ describe('contentSecurityPolicy', () => {
 })
 
 describe('withSecurityHeaders', () => {
+  it('keeps API responses unframeable', () => {
+    const response = withSecurityHeaders(new Response('{}'))
+    expect(response.headers.get('content-security-policy')).toContain("frame-ancestors 'none'")
+    expect(response.headers.get('content-security-policy')).not.toContain(UMAMI_ORIGIN)
+  })
+
   it('adds the security headers and a deny-all CSP and keeps status and body', async () => {
     const response = withSecurityHeaders(new Response('{"ok":true}', { status: 202, headers: { 'content-type': 'application/json' } }))
     expect(response.status).toBe(202)

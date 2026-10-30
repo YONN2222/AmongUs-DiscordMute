@@ -21,6 +21,9 @@ async function sha256Source(code: string): Promise<string> {
   return `'sha256-${btoa(String.fromCharCode(...new Uint8Array(digest)))}'`
 }
 
+// Only the owner's Umami may frame pages (heatmaps, session replay); CSP replaces X-Frame-Options, which cannot allowlist a host.
+export const FRAME_ANCESTORS = `frame-ancestors ${UMAMI_ORIGIN}`
+
 export function buildPolicy(scriptHashes: readonly string[] = []): string {
   return [
     "default-src 'self'",
@@ -32,7 +35,7 @@ export function buildPolicy(scriptHashes: readonly string[] = []): string {
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
-    "frame-ancestors 'none'",
+    FRAME_ANCESTORS,
   ].join('; ')
 }
 
@@ -51,7 +54,12 @@ export const API_CSP = "default-src 'none'; frame-ancestors 'none'"
 export const SECURITY_HEADERS: Readonly<Record<string, string>> = {
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
-  'X-Frame-Options': 'DENY',
   'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
   'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+}
+
+export const API_SECURITY_HEADERS: Readonly<Record<string, string>> = {
+  ...SECURITY_HEADERS,
+  'Content-Security-Policy': API_CSP,
+  'X-Frame-Options': 'DENY',
 }
