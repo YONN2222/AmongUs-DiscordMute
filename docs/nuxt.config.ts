@@ -15,7 +15,7 @@ export default defineNuxtConfig({
         headers: {
           'X-Content-Type-Options': 'nosniff',
           'Referrer-Policy': 'strict-origin-when-cross-origin',
-          'X-Frame-Options': 'DENY',
+          'Content-Security-Policy': 'frame-ancestors https://umami.yonn2222.com',
           'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
         },
       },
