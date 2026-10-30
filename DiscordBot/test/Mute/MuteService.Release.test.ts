@@ -46,11 +46,11 @@ describe("MuteService", () => {
 
             const lines = vi.mocked(logger.info).mock.calls.map((call) => call[1]);
             expect(lines).toEqual([
-                `Guild ${GUILD}: game-start of session s1, muted 2, unmuted 0`,
-                `Guild ${GUILD}: session s1 ended, muted 0, unmuted 2`,
+                `Guild ${GUILD}: game-start of session s1, mute calls 2, unmute calls 0`,
+                `Guild ${GUILD}: session s1 ended, mute calls 0, unmute calls 2`,
             ]);
             const ids = vi.mocked(logger.debug).mock.calls.map((call) => call[1]);
-            expect(ids).toContain(`Guild ${GUILD}: game-start of session s1, muted [u1, u2], unmuted []`);
+            expect(ids).toContain(`Guild ${GUILD}: game-start of session s1, mute calls [u1, u2], unmute calls []`);
         });
 
         it("stays quiet for a sweep that changes nothing", async () => {
