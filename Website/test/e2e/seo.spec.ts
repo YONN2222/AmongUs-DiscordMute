@@ -63,6 +63,7 @@ test('robots.txt allows / and references the sitemap', async ({ request }) => {
   const body = await (await request.get('/robots.txt')).text()
   expect(body).not.toMatch(/^Disallow: \/\s*$/m)
   expect(body).toContain(`Sitemap: ${ORIGIN}/sitemap.xml`)
+  expect(body).toContain('Content-Signal: search=yes, ai-input=yes, ai-train=yes')
 })
 
 test('html pages keep their content security policy', async ({ request }) => {

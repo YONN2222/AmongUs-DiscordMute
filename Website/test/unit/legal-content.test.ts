@@ -5,7 +5,7 @@ import { TELEMETRY_EVENT_NAMES, TELEMETRY_FEATURES } from '../../shared/telemetr
 const range = (from: number, to: number) => `${String.fromCodePoint(from)}-${String.fromCodePoint(to)}`
 const SYMBOLS = new RegExp(`[${range(0x2190, 0x21ff)}${range(0x2700, 0x27bf)}${range(0x25a0, 0x25ff)}${range(0x2600, 0x26ff)}]`)
 
-const PRIVACY_IDS = ['controller', 'website', 'telemetry', 'hosted-bot', 'self-host', 'retention', 'rights', 'changes']
+const PRIVACY_IDS = ['controller', 'website', 'analytics', 'telemetry', 'hosted-bot', 'self-host', 'retention', 'rights', 'changes']
 const TERMS_IDS = ['service', 'acceptable-use', 'hosted-availability', 'software-license', 'no-affiliation', 'warranty', 'liability', 'changes', 'contact']
 
 const text = (sections: typeof PRIVACY_SECTIONS) => sections.flatMap((s) => [s.heading, ...s.body]).join('\n')
@@ -69,6 +69,19 @@ describe('legal content', () => {
 
   it('privacy states IPs are not stored', () => {
     expect(section(PRIVACY_SECTIONS, 'website')).toMatch(/never (stored|written)/i)
+  })
+
+  it('privacy describes the self-hosted analytics and session recorder for both sites', () => {
+    const analytics = section(PRIVACY_SECTIONS, 'analytics')
+    expect(analytics).toContain('https://umami.yonn2222.com')
+    expect(analytics).toContain('https://docs.mute.yonn2222.com')
+    expect(analytics).toMatch(/sets no cookies/i)
+    expect(analytics).toMatch(/does not store your IP address/i)
+    expect(analytics).toMatch(/session recorder/i)
+    expect(analytics).toMatch(/masked and not recorded/i)
+    expect(analytics).toMatch(/retention period the operator has set/i)
+    expect(analytics).toContain('Article 6(1)(f) GDPR')
+    expect(section(PRIVACY_SECTIONS, 'website')).not.toMatch(/runs no analytics/i)
   })
 
   it('privacy sections keep the fixed order', () => {

@@ -71,10 +71,28 @@ Without these mods DiscordMute works normally, minus the Blackmailer support.
 
 ## Features
 
-- Automatic mute sync with the round state
+**In the game**
+
+- Muted during tasks; meetings unmute the living, the dead stay muted
+- Voice rules per phase (free, muted, deafened) with delays, plus optional ghost chat
+- Spectators and other members who are not playing: leave alone, mute or treat as dead
+- Linking in Free Chat, or with two Quick Chat phrases when Free Chat is unavailable
+- Automatic relink by friend code after an Among Us rename, optional nickname sync
+- Several games at once on one server; each mutes the voice channel its host is in
 - EHR Blackmailer support
-- Self-service linking through Free Chat, or Quick Chat phrases when Free Chat is unavailable
 - Crash-safe mutes: after a crash or restart the bot unmutes the players it muted, and only those
+
+**For your server**
+
+- `/setup` panel with every setting in one place, in English and German
+- Link overview with Link/Unlink buttons, a paged list and admin controls
+- Log channel, live status message with a spoiler lobby code, and a match summary after each game
+- Self-host the bot or use a hosted one
+
+**For operators**
+
+- Optional Prometheus metrics endpoint and JSON logs
+- Update check and anonymous telemetry, both can be turned off
 - Optional forwarding of plugin and BepInEx logs to the bot console
 
 ## Server setup

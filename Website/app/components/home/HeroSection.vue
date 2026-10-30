@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ANALYTICS_EVENTS, trackAttrs } from '#shared/analytics'
 import { DOWNLOAD_URL, GITHUB_URL } from '#shared/site'
 
 const hosted = useHostedView()
@@ -33,7 +34,7 @@ const ui = {
         meetings, and the dead stay quiet.
       </template>
       <template #links>
-        <UButton :to="DOWNLOAD_URL" rel="noopener" size="lg" icon="i-lucide-download" label="Download the mod" class="justify-center" />
+        <UButton :to="DOWNLOAD_URL" rel="noopener" size="lg" icon="i-lucide-download" label="Download the mod" class="justify-center" v-bind="trackAttrs(ANALYTICS_EVENTS.download, { location: 'hero' })" />
         <UButton
           v-if="hosted.inviteUrl"
           :to="hosted.inviteUrl"
@@ -42,6 +43,7 @@ const ui = {
           icon="i-brand-discord"
           :label="hosted.cta.label"
           class="justify-center"
+          v-bind="trackAttrs(ANALYTICS_EVENTS.hostedCta, { location: 'hero' })"
         />
         <UButton
           :to="GITHUB_URL"
@@ -53,6 +55,7 @@ const ui = {
           trailing-icon="i-lucide-arrow-right"
           label="GitHub"
           class="group"
+          v-bind="trackAttrs(ANALYTICS_EVENTS.github, { location: 'hero' })"
           :ui="{ trailingIcon: 'transition-transform group-hover:translate-x-[3px]' }"
         />
       </template>

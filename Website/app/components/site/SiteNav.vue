@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { NavigationMenuItem } from '@nuxt/ui'
+import { ANALYTICS_EVENTS, trackAttrs, trackEvent } from '#shared/analytics'
 import { DOCS_URL, DOWNLOAD_URL, GITHUB_URL } from '#shared/site'
 
 const SECTIONS = ['how', 'features', 'setup', 'faq'] as const
@@ -15,11 +16,15 @@ const open = ref(false)
 const onHome = computed(() => route.path === '/')
 const section = useActiveSection(SECTIONS)
 
+const tracked = (name: string): Pick<NavigationMenuItem, 'onSelect'> => ({
+  onSelect: () => trackEvent(ANALYTICS_EVENTS.nav, { item: name }),
+})
+
 const items = computed<NavigationMenuItem[]>(() => [
-  { label: 'Home', to: '/', active: onHome.value && section.value === null },
-  ...SECTIONS.map((id) => ({ label: LABELS[id], to: `/#${id}`, active: onHome.value && section.value === id })),
-  { label: 'Docs', icon: 'i-lucide-book-open', to: DOCS_URL, target: '_self', rel: 'noopener', active: false },
-  { label: 'GitHub', icon: 'i-brand-github', to: GITHUB_URL, target: '_self', rel: 'noopener', active: false },
+  { label: 'Home', to: '/', active: onHome.value && section.value === null, ...tracked('home') },
+  ...SECTIONS.map((id) => ({ label: LABELS[id], to: `/#${id}`, active: onHome.value && section.value === id, ...tracked(id) })),
+  { label: 'Docs', icon: 'i-lucide-book-open', to: DOCS_URL, target: '_self', rel: 'noopener', active: false, ...tracked('docs') },
+  { label: 'GitHub', icon: 'i-brand-github', to: GITHUB_URL, target: '_self', rel: 'noopener', active: false, ...tracked('github') },
 ])
 </script>
 
@@ -41,12 +46,12 @@ const items = computed<NavigationMenuItem[]>(() => [
     <UNavigationMenu :items="items" variant="pill" color="neutral" highlight-color="neutral" class="site-nav" :ui="{ link: 'site-nav-link', linkLeadingIcon: 'site-nav-icon' }" />
 
     <template #right>
-      <UButton :to="DOWNLOAD_URL" rel="noopener" size="md" class="site-cta" label="Download" />
+      <UButton :to="DOWNLOAD_URL" rel="noopener" size="md" class="site-cta" label="Download" v-bind="trackAttrs(ANALYTICS_EVENTS.download, { location: 'nav' })" />
     </template>
 
     <template #body>
       <UNavigationMenu :items="items" orientation="vertical" variant="pill" color="neutral" class="site-nav-mobile" :ui="{ link: 'site-nav-mobile-link', linkLeadingIcon: 'site-nav-icon' }" />
-      <UButton :to="DOWNLOAD_URL" rel="noopener" size="lg" class="site-cta-mobile" icon="i-lucide-download" label="Download the mod" />
+      <UButton :to="DOWNLOAD_URL" rel="noopener" size="lg" class="site-cta-mobile" icon="i-lucide-download" label="Download the mod" v-bind="trackAttrs(ANALYTICS_EVENTS.download, { location: 'nav-mobile' })" />
     </template>
   </UHeader>
 </template>

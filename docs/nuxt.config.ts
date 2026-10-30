@@ -15,7 +15,7 @@ export default defineNuxtConfig({
         headers: {
           'X-Content-Type-Options': 'nosniff',
           'Referrer-Policy': 'strict-origin-when-cross-origin',
-          'X-Frame-Options': 'DENY',
+          'Content-Security-Policy': 'frame-ancestors https://umami.yonn2222.com',
           'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
         },
       },
@@ -29,7 +29,6 @@ export default defineNuxtConfig({
   app: {
     head: {
       link: [
-        { rel: 'icon', type: 'image/png', href: '/brand/favicon-64.png' },
         { rel: 'preload', as: 'font', type: 'font/woff2', href: '/fonts/outfit-variable.woff2', crossorigin: '' },
       ],
       meta: [{ name: 'theme-color', content: '#111118' }],

@@ -15,7 +15,7 @@
     { "pattern": "amongus-mute.yonn2222.com", "custom_domain": true }
   ],
   "d1_databases": [
-    { "binding": "DB", "database_name": "discordmute-website", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }
+    { "binding": "DB", "database_name": "discordmute-website", "database_id": "1fe5811c-3da2-4ac2-bbf2-0ee4ef690296", "migrations_dir": "migrations" }
   ],
   "ratelimits": [
     { "name": "INGEST_LIMITER", "namespace_id": "4101", "simple": { "limit": 20, "period": 60 } },

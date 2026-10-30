@@ -1,23 +1,25 @@
 <script setup lang="ts">
 import type { FooterColumn } from '@nuxt/ui'
+import { ANALYTICS_EVENTS, trackEvent } from '#shared/analytics'
 import { DOCS_URL, DOWNLOAD_URL, GITHUB_URL } from '#shared/site'
 
 const year = new Date().getFullYear()
+const tracked = (name: string) => ({ onSelect: () => trackEvent(ANALYTICS_EVENTS.footer, { item: name }) })
 const columns: FooterColumn[] = [
   {
     label: 'Project',
     children: [
-      { label: 'Releases', icon: 'i-lucide-download', to: DOWNLOAD_URL, rel: 'noopener' },
-      { label: 'GitHub', icon: 'i-brand-github', to: GITHUB_URL, rel: 'noopener' },
-      { label: 'Setup', icon: 'i-lucide-list-checks', to: '/#setup' },
-      { label: 'Docs', icon: 'i-lucide-book-open', to: DOCS_URL, rel: 'noopener' },
+      { label: 'Releases', icon: 'i-lucide-download', to: DOWNLOAD_URL, rel: 'noopener', ...tracked('releases') },
+      { label: 'GitHub', icon: 'i-brand-github', to: GITHUB_URL, rel: 'noopener', ...tracked('github') },
+      { label: 'Setup', icon: 'i-lucide-list-checks', to: '/#setup', ...tracked('setup') },
+      { label: 'Docs', icon: 'i-lucide-book-open', to: DOCS_URL, rel: 'noopener', ...tracked('docs') },
     ],
   },
   {
     label: 'Legal',
     children: [
-      { label: 'Privacy', icon: 'i-lucide-lock', to: '/privacy' },
-      { label: 'Terms', icon: 'i-lucide-scroll-text', to: '/terms' },
+      { label: 'Privacy', icon: 'i-lucide-lock', to: '/privacy', ...tracked('privacy') },
+      { label: 'Terms', icon: 'i-lucide-scroll-text', to: '/terms', ...tracked('terms') },
     ],
   },
 ]
