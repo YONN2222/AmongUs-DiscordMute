@@ -154,11 +154,9 @@ describe("MuteService", () => {
         expect(reply).toEqual({ ok: true, channelIds: ["c1"] });
         expect([...fx.voice.muted].sort()).toEqual(["u1", "u3"]);
         expect(await fx.ledgerIds()).toEqual(["u1", "u3"]);
-        expect(logger.error).toHaveBeenCalledWith(
-            expect.anything(),
-            expect.stringMatching(new RegExp(`${GUILD}.*u2`)),
-            expect.any(Error),
-        );
+        expect(logger.warn).toHaveBeenCalledWith(expect.anything(), expect.stringContaining(GUILD));
+        expect(logger.warn).not.toHaveBeenCalledWith(expect.anything(), expect.stringContaining("u2"));
+        expect(logger.debug).toHaveBeenCalledWith(expect.anything(), expect.stringMatching(new RegExp(`${GUILD}.*u2`)));
 
         fx.voice.failing.clear();
         fx.voice.failing.add("u1");

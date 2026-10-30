@@ -48,11 +48,15 @@ export type GameEventRequest = Extract<ClusterRequest, { kind: "game-event" }>;
 
 export type GameEventReply = RouterReply & { channelIds?: string[] };
 
+const DISCORD_MISSING_ACCESS = 50001;
 const DISCORD_MISSING_PERMISSIONS = 50013;
 
 function isMissingPermission(err: unknown): boolean {
-    return typeof err === "object" && err !== null && "code" in err && err.code === DISCORD_MISSING_PERMISSIONS;
+    if (typeof err !== "object" || err === null || !("code" in err)) return false;
+    return err.code === DISCORD_MISSING_PERMISSIONS || err.code === DISCORD_MISSING_ACCESS;
 }
+
+const memberKey = (guildId: string, discordId: string) => `${guildId}:${discordId}`;
 
 const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -92,6 +96,11 @@ export class MuteService {
     private readonly phases = new Map<string, Phase>();
     /** The player lists of the latest death per session, so a delayed phase change does not revive the dead. */
     private readonly latestDeath = new Map<string, Pick<GameEventRequest, "players" | "deadPlayers">>();
+    /**
+     * Members the bot lacked the permission to change, warned about once. The idle sweep skips them so it does not
+     * fail every minute; game events and voice changes still try, and a success takes them off the list.
+     */
+    private readonly noPermission = new Set<string>();
     private readonly sleep: (ms: number) => Promise<void>;
 
     constructor(private readonly deps: MuteServiceDeps) {
@@ -264,7 +273,10 @@ export class MuteService {
             [...withEntries].map((guildId) =>
                 this.enqueue(guildId, async () => {
                     try {
-                        logVoiceChangesIfAny(guildId, "idle sweep", await this.releaseUnowned(guildId));
+                        const entries = (await this.unownedEntries(guildId)).filter(
+                            (entry) => !this.noPermission.has(memberKey(guildId, entry.discordId)),
+                        );
+                        logVoiceChangesIfAny(guildId, "idle sweep", await this.releaseEntries(guildId, entries));
                     } catch (err) {
                         logger.error(logModules.Mute, `Could not sweep mutes in guild ${guildId}`, err);
                     }
@@ -414,11 +426,12 @@ export class MuteService {
 
     /** Rows of other running sessions stay; rows without a session or of a session that ended are lifted. */
     private async releaseUnowned(guildId: string): Promise<VoiceChange[]> {
+        return this.releaseEntries(guildId, await this.unownedEntries(guildId));
+    }
+
+    private async unownedEntries(guildId: string): Promise<MuteLedgerEntry[]> {
         const entries = await this.deps.ledger.listByGuild(guildId);
-        return this.releaseEntries(
-            guildId,
-            entries.filter((entry) => !this.activeSessions.has(guildId, entry.sessionId)),
-        );
+        return entries.filter((entry) => !this.activeSessions.has(guildId, entry.sessionId));
     }
 
     /** Lifts every row of the guild, whichever session owns it. */
@@ -441,14 +454,26 @@ export class MuteService {
         return changes.filter((change) => change !== undefined);
     }
 
-    /** Resolves to undefined when the action failed; the failure is logged. */
+    /** Resolves to undefined when the action failed; the failure is logged, the member id only at debug. */
     private async guarded<T>(guildId: string, discordId: string, action: () => Promise<T>): Promise<T | undefined> {
+        const key = memberKey(guildId, discordId);
         try {
-            return await action();
+            const result = await action();
+            this.noPermission.delete(key);
+            return result;
         } catch (err) {
-            logger.error(logModules.Mute, `Guild ${guildId}, member ${discordId}: voice update failed`, err);
-            if (isMissingPermission(err)) {
-                this.deps.events?.emit({ type: "voice-error", guildId, code: "missing-permission", discordId });
+            logger.debug(
+                logModules.Mute,
+                `Guild ${guildId}, member ${discordId}: voice update failed (${String(err)})`,
+            );
+            if (!isMissingPermission(err)) {
+                logger.error(logModules.Mute, `Guild ${guildId}: voice update failed`, err);
+                return undefined;
+            }
+            this.deps.events?.emit({ type: "voice-error", guildId, code: "missing-permission", discordId });
+            if (!this.noPermission.has(key)) {
+                this.noPermission.add(key);
+                logger.warn(logModules.Mute, `Guild ${guildId}: missing the permission to change a member's voice`);
             }
             return undefined;
         }

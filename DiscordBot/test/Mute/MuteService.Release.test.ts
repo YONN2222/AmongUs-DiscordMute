@@ -88,6 +88,38 @@ describe("MuteService", () => {
             expect(fx.voice.calls).toEqual([]);
         });
 
+        it("warns once and stops retrying a member the bot lacks permission for", async () => {
+            await fx.db.muteLedger.set(GUILD, "u1", { muted: true, deafened: false }, null);
+            fx.voice.channels.set("c1", ["u1"]);
+            fx.voice.muted.add("u1");
+            fx.voice.failing.add("u1");
+            const service = fx.createService();
+
+            await service.sweepIdle([GUILD]);
+            await service.sweepIdle([GUILD]);
+
+            expect(fx.voice.calls).toEqual([{ discordId: "u1", mute: false }]);
+            expect(logger.warn).toHaveBeenCalledTimes(1);
+            expect(vi.mocked(logger.warn).mock.calls[0][1]).not.toContain("u1");
+            expect(logger.error).not.toHaveBeenCalled();
+            expect(await fx.ledgerIds()).toEqual(["u1"]);
+        });
+
+        it("lifts a member it lacked permission for once a voice change succeeds", async () => {
+            await fx.db.muteLedger.set(GUILD, "u1", { muted: true, deafened: false }, null);
+            fx.voice.channels.set("c1", ["u1"]);
+            fx.voice.muted.add("u1");
+            fx.voice.failing.add("u1");
+            const service = fx.createService();
+            await service.sweepIdle([GUILD]);
+
+            fx.voice.failing.clear();
+            await service.releaseIfIdle(GUILD, "u1");
+
+            expect(fx.voice.muted.size).toBe(0);
+            expect(await fx.ledgerIds()).toEqual([]);
+        });
+
         it("asks the ledger once for all guilds", async () => {
             const listByGuilds = vi.spyOn(fx.db.muteLedger, "listByGuilds");
             const listByGuild = vi.spyOn(fx.db.muteLedger, "listByGuild");
@@ -156,7 +188,7 @@ describe("MuteService", () => {
 
             await expect(fx.createService().releaseIfIdle(GUILD, "u1")).resolves.toBeUndefined();
 
-            expect(logger.error).toHaveBeenCalled();
+            expect(logger.warn).toHaveBeenCalled();
             expect(await fx.ledgerIds()).toEqual(["u1"]);
         });
     });
