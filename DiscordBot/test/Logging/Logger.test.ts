@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { configureLogger, logger, logModules } from "../../src/Logging/Logger";
+import { configureLogger, logger, logModules, maskForLog, resolveLogLevel } from "../../src/Logging/Logger";
 
 const ESC = String.fromCharCode(27);
 
@@ -74,7 +74,7 @@ describe("logger json format", () => {
 
     it("json output has no ANSI escape codes", () => {
         const { out } = capture();
-        configureLogger({ format: "json", processName: "gateway" });
+        configureLogger({ format: "json", processName: "gateway", level: "debug" });
         logger.success(logModules.Bot, "ok");
         logger.warn(logModules.Updates, "warn");
         logger.debug(logModules.Telemetry, "dbg");
@@ -185,5 +185,77 @@ describe("logger json redaction and safety", () => {
         expect(() => logger.info(logModules.Bot, Object.create(null) as string)).not.toThrow();
         expect(out.length).toBeGreaterThanOrEqual(1);
         expect(JSON.parse(out[0] ?? "").msg).toBe("undefined");
+    });
+});
+
+const ANSI = new RegExp(`${ESC}\\[[0-9;]*m`, "g");
+
+function plain(line: string | undefined): string {
+    return (line ?? "").replace(ANSI, "").trimEnd();
+}
+
+describe("logger pretty format", () => {
+    it("writes time, level, module, process and message in aligned columns", () => {
+        const { out } = capture();
+        configureLogger({ format: "pretty", processName: "cluster-2" });
+        logger.success(logModules.Discord, "Logged in as DiscordMute#0001");
+        configureLogger({ format: "pretty", processName: "gateway" });
+        logger.warn(logModules.WebServer, "Plugin disconnected");
+
+        expect(plain(out[0])).toMatch(
+            /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} │ OK {4}│ discord {4}│ c2 {6}│ Logged in as DiscordMute#0001$/,
+        );
+        expect(plain(out[1])).toMatch(/│ WARN {2}│ web-server │ gateway │ Plugin disconnected$/);
+    });
+
+    it("still matches the level and module pattern log shippers use", () => {
+        const { out } = capture();
+        configureLogger({ format: "pretty", processName: "cluster-0" });
+        logger.info(logModules.Link, "hello");
+
+        const shipperPattern = new RegExp(
+            `^(?:${ESC}\\[[0-9;]*m)*\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}(?:${ESC}\\[[0-9;]*m|[ │])+(?<level>INFO|WARN|ERROR|OK|DEBUG)(?:${ESC}\\[[0-9;]*m|[ │])+(?<module>[a-z][a-z-]*)(?:${ESC}\\[[0-9;]*m|[ │])+(?<process>gateway|c\\d+)`,
+        );
+        const match = shipperPattern.exec(out[0] ?? "");
+        expect(match?.groups).toMatchObject({ level: "INFO", module: "link", process: "c0" });
+    });
+});
+
+describe("logger level", () => {
+    it("hides debug lines at the default info level", () => {
+        const { out } = capture();
+        configureLogger({ format: "json", processName: "gateway" });
+        logger.debug(logModules.Bot, "noise");
+        logger.info(logModules.Bot, "kept");
+
+        expect(out.map((line) => JSON.parse(line).msg)).toEqual(["kept"]);
+    });
+
+    it("shows debug lines at debug level and only warnings and errors at warn level", () => {
+        const { out } = capture();
+        configureLogger({ format: "json", processName: "gateway", level: "debug" });
+        logger.debug(logModules.Bot, "debug");
+        configureLogger({ format: "json", processName: "gateway", level: "warn" });
+        logger.info(logModules.Bot, "info");
+        logger.success(logModules.Bot, "success");
+        logger.warn(logModules.Bot, "warn");
+        logger.error(logModules.Bot, "error");
+
+        expect(out.map((line) => JSON.parse(line).msg)).toEqual(["debug", "warn", "error"]);
+    });
+
+    it("lets LOG_LEVEL override the configured level and ignores unknown values", () => {
+        expect(resolveLogLevel("info", { LOG_LEVEL: "debug" })).toBe("debug");
+        expect(resolveLogLevel("warn", { LOG_LEVEL: "DEBUG" })).toBe("debug");
+        expect(resolveLogLevel("warn", { LOG_LEVEL: "loud" })).toBe("warn");
+        expect(resolveLogLevel("info", {})).toBe("info");
+    });
+});
+
+describe("maskForLog", () => {
+    it("keeps only the first two characters of a link code or quick chat phrase", () => {
+        expect(maskForLog("link-VFD8")).toBe("li*******");
+        expect(maskForLog("3536-3542")).toBe("35*******");
+        expect(maskForLog("ab")).toBe("**");
     });
 });

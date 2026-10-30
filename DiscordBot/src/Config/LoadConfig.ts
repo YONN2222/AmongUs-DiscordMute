@@ -10,9 +10,7 @@ export function loadConfig(configPath = "config.json"): Config {
         const absolutePath = resolve(process.cwd(), configPath);
         const raw = readFileSync(absolutePath, "utf-8");
         const parsed = JSON.parse(raw);
-        const config = parseConfig(parsed);
-        logger.success(logModules.Bot, `Configuration loaded from ${configPath}`);
-        return config;
+        return parseConfig(parsed);
     } catch (error) {
         if (error instanceof z.ZodError) {
             logger.error(logModules.Bot, "Configuration validation failed", error.issues);

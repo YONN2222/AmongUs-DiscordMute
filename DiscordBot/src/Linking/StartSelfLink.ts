@@ -8,8 +8,8 @@ import {
 } from "discord.js";
 import type { CommandContext } from "../Commands/Command";
 import { localeFrom, t } from "../I18n/Index";
-import { logger, logModules } from "../Logging/Logger";
-import { ContainerBuilder, TITLE_ICON } from "../Utils/ContainerBuilder";
+import { logger, logModules, maskForLog } from "../Logging/Logger";
+import { ContainerBuilder } from "../Utils/ContainerBuilder";
 import { LINK_SELF_UNLINK_BUTTON_ID } from "./SelfUnlink";
 
 type SelfLinkInteraction = ChatInputCommandInteraction | ButtonInteraction;
@@ -29,9 +29,10 @@ export async function startSelfLink(interaction: SelfLinkInteraction, ctx: Comma
     const existing = await ctx.linking.getLink(guildId, interaction.user.id);
     if (existing) {
         const container = new ContainerBuilder()
-            .title(t(locale, "link.alreadyLinked.title"), "🔗")
+            .title(t(locale, "link.alreadyLinked.title"))
             .divider()
             .text(t(locale, "link.alreadyLinked.body", { name: existing.accountName }))
+            .footer()
             .info();
 
         const unlinkRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -54,21 +55,25 @@ export async function startSelfLink(interaction: SelfLinkInteraction, ctx: Comma
     ctx.events.emit({ type: "pending-changed", guildId, discordId: interaction.user.id });
     const pluginReady = await ctx.pushLinkPending(guildId, phrase, quickChatCode, interaction.user.id);
     if (!pluginReady) {
-        logger.warn(logModules.Command, "Plugin is not connected for this server; cannot send pending link");
+        logger.warn(
+            logModules.Link,
+            `Could not start a link for ${interaction.user.tag} in ${interaction.guild?.name ?? guildId}: the plugin is not connected`,
+        );
 
         await replyEphemeral(
             interaction,
             new ContainerBuilder()
-                .title(t(locale, "link.failed.title"), TITLE_ICON.warning)
+                .title(t(locale, "link.failed.title"))
                 .divider()
                 .text(t(locale, "link.pluginNotReady"))
+                .footer()
                 .warning(),
         );
         return;
     }
 
     const container = new ContainerBuilder()
-        .title(t(locale, "link.self.title"), "🔗")
+        .title(t(locale, "link.self.title"))
         .divider()
         .text(
             t(locale, "link.self.instructions", {
@@ -77,9 +82,10 @@ export async function startSelfLink(interaction: SelfLinkInteraction, ctx: Comma
                 quickChat2: quickChatLabels[1],
             }),
         )
+        .footer()
         .info();
 
-    logger.debug(logModules.Command, `Link phrase sent to ${interaction.user.id}: "${phrase}"`);
+    logger.debug(logModules.Link, `Sent link code ${maskForLog(phrase)} to ${interaction.user.tag}`);
 
     await replyEphemeral(interaction, container);
 

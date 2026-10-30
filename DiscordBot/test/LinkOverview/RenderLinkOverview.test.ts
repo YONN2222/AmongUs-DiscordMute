@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { LinkEntry } from "../../src/Data/Repositories/LinkRepository";
 import { PAGE_SIZE, renderLinkOverview } from "../../src/LinkOverview/RenderLinkOverview";
+import { FOOTER_TEXT } from "../../src/Utils/ContainerBuilder";
+import { renderText } from "../Helpers/RenderText";
 
 type Json = { type: number; custom_id?: string; disabled?: boolean; content?: string; components?: Json[] };
 
@@ -37,6 +39,39 @@ const button = (components: unknown[], id: string) => flatten(components).find((
 const base = { locale: "en", mode: "public", isAdmin: false } as const;
 
 describe("renderLinkOverview", () => {
+    it("lays out the public overview with counter, list, waiting members, footer and buttons", () => {
+        const out = renderText(
+            renderLinkOverview({
+                ...base,
+                entries: entries(2),
+                total: 2,
+                page: 0,
+                pending: { discordIds: ["1400000000000000002"], total: 1 },
+            }),
+        );
+        expect(out).toBe(
+            [
+                "## Linked players",
+                "-# 2 linked",
+                "---",
+                "- **Player0** <@130000000000000000>",
+                "- **Player1** <@130000000000000001>",
+                "---",
+                "-# Waiting for a link: <@1400000000000000002>",
+                "---",
+                FOOTER_TEXT,
+                "[Link] [Unlink] [Show more]",
+            ].join("\n"),
+        );
+    });
+
+    it("shows the page in the private view counter", () => {
+        const out = renderText(
+            renderLinkOverview({ ...base, mode: "ephemeral", entries: entries(1), total: 41, page: 1 }),
+        );
+        expect(out.split("\n")[1]).toBe("-# 41 linked | Page 2 of 3");
+    });
+
     it("escapes names and never pings", () => {
         const name = "`@everyone` **x**";
         const text = texts(renderLinkOverview({ ...base, entries: entries(1, () => name), total: 1, page: 0 }));

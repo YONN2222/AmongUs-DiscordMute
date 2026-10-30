@@ -14,14 +14,27 @@ export function escapeName(name: string): string {
     return escapeMarkdown(name).replace(/</g, "\\<");
 }
 
-/** One bullet per player (name, mention or not-linked text, dead marker), cut off with an "and N more" line at maxLength. */
+/**
+ * One player bullet: the bold name, struck through when dead, then the Discord mention when linked and a short
+ * italic note for what is missing or dead, e.g. "- ~~**Pink**~~ *(not linked, dead)*".
+ */
+function playerLine(player: ListedPlayer, locale: Locale): string {
+    const name = `**${escapeName(player.name)}**`;
+    const parts = [player.dead ? `~~${name}~~` : name];
+    if (player.discordId) parts.push(`<@${player.discordId}>`);
+    const notes: string[] = [];
+    if (!player.discordId) notes.push(t(locale, "status.notLinked"));
+    if (player.dead) notes.push(t(locale, "status.dead"));
+    if (notes.length > 0) parts.push(`*(${notes.join(", ")})*`);
+    return `- ${parts.join(" ")}`;
+}
+
+/** One bullet per player, cut off with an "and N more" line at maxLength. */
 export function playerListText(players: ListedPlayer[], locale: Locale, maxLength: number): string {
     const lines: string[] = [];
     let length = 0;
     for (const player of players) {
-        const who = player.discordId ? `<@${player.discordId}>` : t(locale, "status.notLinked");
-        const dead = player.dead ? ` (${t(locale, "status.dead")})` : "";
-        const line = `- ${escapeName(player.name)} - ${who}${dead}`;
+        const line = playerLine(player, locale);
         if (length + line.length + 1 > maxLength) break;
         lines.push(line);
         length += line.length + 1;

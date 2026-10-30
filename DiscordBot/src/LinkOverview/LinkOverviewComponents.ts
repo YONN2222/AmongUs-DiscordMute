@@ -42,8 +42,9 @@ async function replyMissingPermission(interaction: ComponentInteraction): Promis
     await replyText(
         interaction,
         new ContainerBuilder()
-            .title(t(locale, "error.title"), null)
+            .title(t(locale, "error.title"))
             .text(t(locale, "error.missingPermission"))
+            .footer()
             .warning(),
     );
 }
@@ -109,7 +110,7 @@ function parseUserId(text: string): string | null {
 }
 
 async function replyError(interaction: ModalSubmitInteraction, locale: Locale, text: string): Promise<void> {
-    await replyText(interaction, new ContainerBuilder().title(t(locale, "error.title"), null).text(text).warning());
+    await replyText(interaction, new ContainerBuilder().title(t(locale, "error.title")).text(text).footer().warning());
 }
 
 async function submitForce(interaction: ModalSubmitInteraction, ctx: CommandContext): Promise<void> {
@@ -131,16 +132,17 @@ async function submitForce(interaction: ModalSubmitInteraction, ctx: CommandCont
         await ctx.linking.forceLink(guildId, member.id, name, interaction.user.id);
     } catch (error) {
         if (!(error instanceof BlockedUserError)) throw error;
-        logger.info(logModules.Command, `Refused to force-link blocked user ${member.id}`);
+        logger.info(logModules.Link, `Refused to force-link blocked user ${member.id}`);
         await replyError(interaction, locale, t(locale, "link.force.blocked"));
         return;
     }
     await replyText(
         interaction,
         new ContainerBuilder()
-            .title(t(locale, "link.force.title"), null)
+            .title(t(locale, "link.force.title"))
             .divider()
             .text(t(locale, "link.force.body", { user: member.toString(), name: escapeName(name) }))
+            .footer()
             .success(),
     );
 }

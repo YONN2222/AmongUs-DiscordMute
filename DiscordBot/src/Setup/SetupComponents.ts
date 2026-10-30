@@ -59,7 +59,7 @@ export async function replyEphemeralText(
 ): Promise<void> {
     await interaction.reply({
         flags: EPHEMERAL,
-        components: [new ContainerBuilder().title(t(locale, "error.title"), null).text(t(locale, key)).warning()],
+        components: [new ContainerBuilder().title(t(locale, "error.title")).text(t(locale, key)).footer().warning()],
     });
 }
 

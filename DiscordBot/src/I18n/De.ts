@@ -96,11 +96,11 @@ export const de: Record<MessageKey, string> = {
     "overview.force.unknownUser": "Dieser Nutzer wurde auf diesem Server nicht gefunden.",
     "overview.force.invalidName": "Gib einen Namen mit 1 bis 64 Zeichen ein.",
 
-    "status.title": "Spielstatus",
-    "status.phase.lobby": "Lobby",
+    "status.subtitle": "Among-Us-Spielstatus",
+    "status.phase.lobby": "In der Lobby",
     "status.phase.tasks": "Runde läuft",
     "status.phase.meeting": "Besprechung",
-    "status.lobbyCode": "Lobby-Code: {code}",
+    "status.lobbyCode": "**Code:** {code}",
     "status.host": "Host: {host}",
     "status.players": "Spieler ({count})",
     "status.noPlayers": "Noch niemand ist beigetreten.",
@@ -108,9 +108,8 @@ export const de: Record<MessageKey, string> = {
     "status.dead": "tot",
 
     "summary.title": "Spielzusammenfassung",
-    "summary.result": "Ergebnis: {reason}",
-    "summary.winners": "Gewinner: {winners}",
-    "summary.duration": "Dauer: {duration}",
+    "summary.winners": "**Gewinner:** {winners}",
+    "summary.duration": "**Dauer:** {duration}",
     "summary.players": "Spieler ({count})",
 
     "setup.description": "Öffnet das Einstellungspanel des Servers (erfordert Server verwalten).",

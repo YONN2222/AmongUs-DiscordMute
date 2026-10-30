@@ -52,9 +52,9 @@ function winnerText(view: SummaryView): string {
 /** The components of the match summary posted after a game. */
 export function renderSummary(view: SummaryView): unknown[] {
     const { locale } = view;
-    const container = new ContainerBuilder().title(t(locale, "summary.title"), null).success();
+    const container = new ContainerBuilder().title(t(locale, "summary.title")).success();
     const header = [
-        t(locale, "summary.result", { reason: describeGameOverReason(view.reason, locale) }),
+        `**${describeGameOverReason(view.reason, locale)}**`,
         t(locale, "summary.winners", { winners: winnerText(view) }),
     ];
     if (view.durationMs !== null) {
@@ -68,5 +68,5 @@ export function renderSummary(view: SummaryView): unknown[] {
                 `**${t(locale, "summary.players", { count: view.players.length })}**\n${playerListText(view.players, locale, MAX_PLAYER_TEXT)}`,
             );
     }
-    return [container.toJSON()];
+    return [container.footer().toJSON()];
 }

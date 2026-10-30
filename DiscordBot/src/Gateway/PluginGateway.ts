@@ -3,7 +3,7 @@ import type { Duplex } from "node:stream";
 import { type RawData, WebSocket, WebSocketServer } from "ws";
 import type { PluginSessionInfo } from "../Admin/Contract";
 import type { LinkingService } from "../Linking/LinkingService";
-import { logger, logModules } from "../Logging/Logger";
+import { logger, logModules, maskForLog } from "../Logging/Logger";
 import type { PluginEventType } from "../Metrics/MetricNames";
 import {
     CLOSE_BLOCKED,
@@ -460,7 +460,7 @@ export class PluginGateway {
             accountName: message.accountName,
         });
         if (!confirmed) {
-            logger.warn(logModules.WebServer, `No pending link found for code "${message.code}"`);
+            logger.warn(logModules.Link, `No pending link for code ${maskForLog(message.code)}`);
             return;
         }
         const reply = await this.route(confirmed.guildId, {

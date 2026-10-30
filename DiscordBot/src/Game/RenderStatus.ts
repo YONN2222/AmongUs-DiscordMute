@@ -1,6 +1,6 @@
 import { type Locale, t } from "../I18n/Index";
 import type { Phase } from "../Mute/VoiceRules";
-import { ContainerBuilder } from "../Utils/ContainerBuilder";
+import { ContainerBuilder, subtext } from "../Utils/ContainerBuilder";
 import { type ListedPlayer, playerListText } from "./PlayerNames";
 
 export type StatusPlayer = ListedPlayer;
@@ -27,15 +27,28 @@ function playerText(view: StatusView): string {
     return playerListText(view.players, view.locale, MAX_PLAYER_TEXT);
 }
 
+function subtitle(view: StatusView): string {
+    const parts = [t(view.locale, "status.subtitle")];
+    if (view.hostDiscordId) parts.push(t(view.locale, "status.host", { host: `<@${view.hostDiscordId}>` }));
+    return subtext(parts.join(" | "));
+}
+
+/** Lobby, round and meeting each get their own accent so the phase is visible at a glance. */
+function applyPhaseAccent(container: ContainerBuilder, phase: Phase): ContainerBuilder {
+    if (phase === "tasks") return container.success();
+    if (phase === "meeting") return container.warning();
+    return container.info();
+}
+
 /** The components of the live game status message. */
 export function renderStatus(view: StatusView): unknown[] {
     const { locale } = view;
-    const container = new ContainerBuilder().title(t(locale, "status.title"), null).info();
-    const header = [t(locale, `status.phase.${view.phase}`), lobbyCodeText(view)];
-    if (view.hostDiscordId) header.push(t(locale, "status.host", { host: `<@${view.hostDiscordId}>` }));
-    container
-        .text(header.filter((line): line is string => line !== null).join("\n"))
+    const header = [subtitle(view), lobbyCodeText(view)].filter((line): line is string => line !== null);
+    const container = new ContainerBuilder()
+        .title(t(locale, `status.phase.${view.phase}`))
+        .text(header.join("\n"))
         .divider()
-        .text(`**${t(locale, "status.players", { count: view.players.length })}**\n${playerText(view)}`);
-    return [container.toJSON()];
+        .text(`**${t(locale, "status.players", { count: view.players.length })}**\n${playerText(view)}`)
+        .footer();
+    return [applyPhaseAccent(container, view.phase).toJSON()];
 }

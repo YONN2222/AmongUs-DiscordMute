@@ -367,7 +367,7 @@ describe("PluginGateway", () => {
         const result = nextMessage(ws);
         ws.send(JSON.stringify({ type: "link-chat", code: "link-ZZZZ", accountName: "Crew" }));
         await result;
-        expect(logger.warn).toHaveBeenCalledWith(expect.anything(), 'No pending link found for code "link-ZZZZ"');
+        expect(logger.warn).toHaveBeenCalledWith(expect.anything(), "No pending link for code li*******");
     });
 
     it("answers an unknown link code with link-result not-found", async () => {

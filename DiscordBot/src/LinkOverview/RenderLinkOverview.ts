@@ -9,7 +9,7 @@ import {
 import type { LinkEntry } from "../Data/Repositories/LinkRepository";
 import { escapeName } from "../Game/PlayerNames";
 import { type Locale, t } from "../I18n/Index";
-import { ContainerBuilder } from "../Utils/ContainerBuilder";
+import { ContainerBuilder, subtext } from "../Utils/ContainerBuilder";
 
 export const PAGE_SIZE = 20;
 export const PENDING_SHOWN = 10;
@@ -36,7 +36,7 @@ export function pageCount(total: number): number {
 }
 
 function entryLine(entry: LinkEntry): string {
-    return `<@${entry.discordId}> - ${escapeName(entry.accountName)}`;
+    return `- **${escapeName(entry.accountName)}** <@${entry.discordId}>`;
 }
 
 function button(customId: string, label: string, style: ButtonStyle, disabled = false): ButtonBuilder {
@@ -51,9 +51,11 @@ function pendingText(view: LinkOverviewView): string | null {
     if (!view.pending || view.pending.discordIds.length === 0) return null;
     const users = view.pending.discordIds.map((id) => `<@${id}>`).join(", ");
     const hidden = view.pending.total - view.pending.discordIds.length;
-    return t(view.locale, "overview.pending", {
-        users: hidden > 0 ? `${users} ${t(view.locale, "log.more", { count: hidden })}` : users,
-    });
+    return subtext(
+        t(view.locale, "overview.pending", {
+            users: hidden > 0 ? `${users} ${t(view.locale, "log.more", { count: hidden })}` : users,
+        }),
+    );
 }
 
 function navigationRow(view: LinkOverviewView, pages: number): ActionRowBuilder<ButtonBuilder> {
@@ -89,19 +91,20 @@ function adminRows(view: LinkOverviewView): ActionRowBuilder<ButtonBuilder | Str
 export function renderLinkOverview(view: LinkOverviewView): unknown[] {
     const { locale, mode } = view;
     const pages = pageCount(view.total);
-    const container = new ContainerBuilder().title(t(locale, "overview.title"), null).info();
+    const container = new ContainerBuilder().title(t(locale, "overview.title")).info();
 
     const counter =
         mode === "ephemeral"
             ? `${t(locale, "overview.count", { count: view.total })} | ${t(locale, "overview.page", { page: view.page + 1, pages })}`
             : t(locale, "overview.count", { count: view.total });
-    container.text(counter).divider();
+    container.text(subtext(counter)).divider();
 
     const shown = view.entries.slice(0, PAGE_SIZE);
     container.text(shown.length > 0 ? shown.map(entryLine).join("\n") : t(locale, "overview.empty"));
 
     const waiting = pendingText(view);
     if (waiting) container.divider().text(waiting);
+    container.footer();
 
     const components: { toJSON(): unknown }[] = [container];
     if (mode === "public") {

@@ -1,7 +1,7 @@
 import { type Client, Events } from "discord.js";
 import { Cluster, ShardingUtil } from "galactic.ts";
 import { Registry } from "prom-client";
-import type { CommandContext } from "../Commands/Command";
+import { type CommandContext, describeLoadedCommands } from "../Commands/Command";
 import { config } from "../Config/LoadedConfig";
 import { type Database, databaseOptionsFrom, openDatabase } from "../Data/Database";
 import { deployCommands } from "../DeployCommands";
@@ -11,7 +11,7 @@ import { SHUTDOWN_SIGNALS } from "../Gateway/Shutdown";
 import type { GuildLifecycle } from "../Hosted/GuildLifecycle";
 import { isHosted } from "../Hosted/HostedMode";
 import { LinkingService } from "../Linking/LinkingService";
-import { configureLogger, logger, logModules } from "../Logging/Logger";
+import { configureLogger, logger, logModules, resolveLogLevel } from "../Logging/Logger";
 import { createClusterMetrics, registerDiscordMetrics } from "../Metrics/ClusterMetrics";
 import { EXIT_CONFIG } from "../Process/ExitCodes";
 import { loginFailureExitCode } from "../Process/ProcessRole";
@@ -86,7 +86,9 @@ interface ReadyDeps {
 
 async function onReady({ client, cluster, services, lifecycle, markReady }: ReadyDeps): Promise<void> {
     const { mute, nicknameSync, overview, status } = services;
-    logger.success(logModules.Discord, `Cluster ${cluster.clusterID} logged in as ${client.user.tag}`);
+    logger.success(logModules.Discord, `Logged in as ${client.user.tag}`);
+    // Every cluster loads the same commands, so one of them is enough to report it.
+    if (cluster.clusterID === 0) logger.success(logModules.Command, `Loaded ${describeLoadedCommands()}`);
     const target = startupDeployTarget(cluster);
     if (target) {
         try {
@@ -99,16 +101,16 @@ async function onReady({ client, cluster, services, lifecycle, markReady }: Read
     // game event of a running game mutes again.
     await mute.recover(cachedGuildIds(client));
     lifecycle?.reconcile().catch((error: unknown) => {
-        logger.error(logModules.Bot, `Cluster ${cluster.clusterID} could not reconcile the hosted guild list`, error);
+        logger.error(logModules.Bot, `Could not reconcile the hosted guild list`, error);
     });
     await nicknameSync.recover(cachedGuildIds(client)).catch((error: unknown) => {
-        logger.error(logModules.Bot, `Cluster ${cluster.clusterID} could not restore nicknames`, error);
+        logger.error(logModules.Bot, `Could not restore nicknames`, error);
     });
     await status.recover(cachedGuildIds(client)).catch((error: unknown) => {
-        logger.error(logModules.Bot, `Cluster ${cluster.clusterID} could not remove leftover status messages`, error);
+        logger.error(logModules.Bot, `Could not remove leftover status messages`, error);
     });
     overview.resume(cachedGuildIds(client)).catch((error: unknown) => {
-        logger.error(logModules.Bot, `Cluster ${cluster.clusterID} could not refresh the link overviews`, error);
+        logger.error(logModules.Bot, `Could not refresh the link overviews`, error);
     });
     markReady();
     const members = client.guilds.cache.reduce((sum, guild) => sum + guild.memberCount, 0);
@@ -116,7 +118,6 @@ async function onReady({ client, cluster, services, lifecycle, markReady }: Read
 }
 
 interface IdleSweepDeps {
-    cluster: Cluster<Client>;
     client: Client;
     db: Database;
     services: Pick<ClusterServices, "mute" | "messagePort">;
@@ -124,18 +125,18 @@ interface IdleSweepDeps {
 }
 
 /** Lifts leftover mutes and deletes expired tracked messages every minute once the cluster is ready. */
-function startIdleSweeps({ cluster, client, db, services, isReady }: IdleSweepDeps): NodeJS.Timeout {
+function startIdleSweeps({ client, db, services, isReady }: IdleSweepDeps): NodeJS.Timeout {
     const sweepTimer = setInterval(() => {
         if (!isReady()) return;
         services.mute.sweepIdle(cachedGuildIds(client)).catch((error: unknown) => {
-            logger.error(logModules.Mute, `Cluster ${cluster.clusterID} could not sweep leftover mutes`, error);
+            logger.error(logModules.Mute, `Could not sweep leftover mutes`, error);
         });
         sweepTrackedMessages(
             { port: services.messagePort, tracked: db.trackedMessages },
             cachedGuildIds(client),
             Date.now(),
         ).catch((error: unknown) => {
-            logger.error(logModules.Bot, `Cluster ${cluster.clusterID} could not delete expired messages`, error);
+            logger.error(logModules.Bot, `Could not delete expired messages`, error);
         });
     }, IDLE_SWEEP_INTERVAL_MS);
     sweepTimer.unref();
@@ -187,7 +188,6 @@ function serveGatewayRequests({ cluster, client, db, registry, services, hosted,
 }
 
 interface StopDeps {
-    cluster: Cluster<Client>;
     client: Client;
     db: Database;
     logWriter: ClusterServices["logWriter"];
@@ -195,19 +195,19 @@ interface StopDeps {
 }
 
 /** Flushes the log channel first, then disconnects from Discord and closes the database. */
-function createStop({ cluster, client, db, logWriter, sweepTimer }: StopDeps): () => Promise<void> {
+function createStop({ client, db, logWriter, sweepTimer }: StopDeps): () => Promise<void> {
     return async () => {
         clearInterval(sweepTimer);
         try {
             await logWriter.flushAll();
         } catch (error) {
-            logger.error(logModules.Bot, `Cluster ${cluster.clusterID} could not flush the log channel`, error);
+            logger.error(logModules.Bot, `Could not flush the log channel`, error);
         }
         try {
             await client.destroy();
             await db.close();
         } catch (error) {
-            logger.error(logModules.Bot, `Cluster ${cluster.clusterID} did not stop cleanly`, error);
+            logger.error(logModules.Bot, "Did not stop cleanly", error);
         }
     };
 }
@@ -221,7 +221,7 @@ async function logInOrExit(
     let loggedIn = false;
     let fatalGatewayClose = false;
     onFatalGatewayClose(client, (message, shardId) => {
-        logger.error(logModules.Discord, `Cluster ${cluster.clusterID} shard ${shardId}: ${message}`);
+        logger.error(logModules.Discord, `Shard ${shardId}: ${message}`);
         fatalGatewayClose = true;
         // Before login resolves, the rejected login below handles the exit.
         if (loggedIn) stopAndExit(EXIT_CONFIG);
@@ -231,7 +231,7 @@ async function logInOrExit(
         await client.login(cluster.token);
         loggedIn = true;
     } catch (error) {
-        logger.error(logModules.Discord, `Cluster ${cluster.clusterID} failed to log in to Discord`, error);
+        logger.error(logModules.Discord, "Failed to log in to Discord", error);
         const exitCode = fatalGatewayClose ? EXIT_CONFIG : loginFailureExitCode(error);
         // galactic respawns at once, so a lasting outage would otherwise turn into a tight restart loop.
         if (exitCode !== EXIT_CONFIG) await new Promise((resolve) => setTimeout(resolve, LOGIN_RETRY_DELAY_MS));
@@ -242,7 +242,11 @@ async function logInOrExit(
 /** A cluster process runs the Discord client for its shards and serves the requests the gateway routes to it. */
 export async function runCluster(): Promise<void> {
     const cluster = Cluster.initial<Client>();
-    configureLogger({ format: config.logFormat, processName: `cluster-${cluster.clusterID}` });
+    configureLogger({
+        format: config.logFormat,
+        processName: `cluster-${cluster.clusterID}`,
+        level: resolveLogLevel(config.logLevel),
+    });
     // Ctrl+C, a process-group SIGTERM and closing the console reach every process; the gateway alone drives
     // shutdown so the clusters still lift every mute. A cluster exits through SELF_DESTRUCT from the gateway or a
     // lost IPC channel.
@@ -293,7 +297,7 @@ export async function runCluster(): Promise<void> {
     }
 
     let ready = false;
-    const sweepTimer = startIdleSweeps({ cluster, client, db, services, isReady: () => ready });
+    const sweepTimer = startIdleSweeps({ client, db, services, isReady: () => ready });
     serveGatewayRequests({ cluster, client, db, registry, services, hosted, isReady: () => ready });
 
     registerInteractionHandlers(
@@ -307,19 +311,18 @@ export async function runCluster(): Promise<void> {
             ready = true;
         };
         onReady({ client: readyClient, cluster, services, lifecycle: hosted?.lifecycle, markReady }).catch(
-            (error: unknown) =>
-                logger.error(logModules.Bot, `Cluster ${cluster.clusterID} failed to finish starting`, error),
+            (error: unknown) => logger.error(logModules.Bot, "Failed to finish starting", error),
         );
     });
 
-    const stop = createStop({ cluster, client, db, logWriter, sweepTimer });
+    const stop = createStop({ client, db, logWriter, sweepTimer });
     const stopAndExit = (exitCode: number): void => {
         void stop().finally(() => process.exit(exitCode));
     };
     cluster.onSelfDestruct = stop;
     // Without the IPC channel the gateway is gone; staying alive would leave an orphaned bot connected.
     process.once("disconnect", () => {
-        logger.warn(logModules.Bot, `Cluster ${cluster.clusterID} lost the gateway, exiting`);
+        logger.warn(logModules.Bot, "Lost the gateway, exiting");
         stopAndExit(0);
     });
 
