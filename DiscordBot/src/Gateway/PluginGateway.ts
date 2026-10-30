@@ -69,6 +69,8 @@ export interface PluginGatewayDeps {
     router: ClusterRouter;
     linking: LinkingService;
     observer?: GatewayObserver;
+    /** Self-host logs what its own plugin reports; the hosted bot never writes plugin text into its log. Default true. */
+    acceptPluginLogs?: boolean;
     helloTimeoutMs?: number;
     pingIntervalMs?: number;
     pongTimeoutMs?: number;
@@ -372,7 +374,7 @@ export class PluginGateway {
                 await this.onLinkChat(conn, session, message);
                 return;
             case "plugin-log":
-                logPluginMessage(message);
+                if (this.deps.acceptPluginLogs ?? true) logPluginMessage(message);
                 return;
             case "hello":
                 conn.ws.close(CLOSE_INVALID_MESSAGE, "Duplicate hello");

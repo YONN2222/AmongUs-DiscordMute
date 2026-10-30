@@ -386,6 +386,19 @@ describe("PluginGateway", () => {
         });
     });
 
+    it("a gateway that does not accept plugin logs writes nothing for plugin-log", async () => {
+        await fx.restart({ acceptPluginLogs: false });
+        const ws = await fx.authenticate();
+        ws.send(JSON.stringify({ type: "plugin-log", level: "fatal", source: "Mod", message: "flood" }));
+        ws.send(gameEvent());
+        await vi.waitFor(() => expect(fx.sentOfKind("game-event")).toHaveLength(1));
+
+        for (const level of ["info", "warn", "error", "debug", "success"] as const) {
+            expect(logger[level]).not.toHaveBeenCalledWith(expect.anything(), "[Mod] flood");
+        }
+        expect(fx.gateway.isConnected(GUILD)).toBe(true);
+    });
+
     it("plugin-log before hello is not accepted", async () => {
         const ws = await fx.connect();
         const closed = waitForClose(ws);

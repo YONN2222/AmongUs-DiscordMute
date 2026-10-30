@@ -281,6 +281,7 @@ export async function runGateway(
         router: new GalacticClusterRouter(instance),
         linking: new LinkingService(db, undefined, hosted?.blocks),
         observer: createGatewayMetricsObserver(gatewayMetrics),
+        acceptPluginLogs: !mode.hosted,
     });
     const metricsServer = config.metrics.enabled
         ? createMetricsServer({ collector, token: config.metrics.token })
