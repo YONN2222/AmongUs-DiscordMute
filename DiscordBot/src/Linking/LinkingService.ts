@@ -4,7 +4,7 @@ import type { LinkEntry as StoredLink } from "../Data/Repositories/LinkRepositor
 import type { GuildEventSink } from "../Events/GuildEvents";
 import type { BlockChecker } from "../Hosted/BlockChecker";
 import type { Locale } from "../I18n/Index";
-import { logger, logModules } from "../Logging/Logger";
+import { logger, logModules, maskForLog } from "../Logging/Logger";
 import { describePhrase, formatQuickChatCode, pickQuickChatPhrases } from "./QuickChatCatalog";
 
 const PENDING_TTL_MS = 5 * 60 * 1000;
@@ -124,8 +124,8 @@ export class LinkingService {
                 throw error;
             }
             logger.debug(
-                logModules.Command,
-                `Pending link created for ${discordId} in guild ${guildId}: "${phrase}" / quick chat "${quickChat.code}"`,
+                logModules.Link,
+                `Pending link for user ${discordId} in guild ${guildId} (code ${maskForLog(phrase)}, quick chat ${maskForLog(quickChat.code)})`,
             );
             return { phrase, quickChatCode: quickChat.code, quickChatLabels: quickChat.labels };
         }
@@ -157,8 +157,8 @@ export class LinkingService {
         await this.db.links.upsert(matched.guildId, matched.discordId, accountName);
         if (friendCode) await this.db.links.setFriendCode(matched.guildId, matched.discordId, friendCode);
         logger.info(
-            logModules.Command,
-            `Linked Discord ${matched.discordId} -> Among Us "${accountName}" in guild ${matched.guildId}`,
+            logModules.Link,
+            `Linked user ${matched.discordId} to "${accountName}" in guild ${matched.guildId}`,
         );
 
         return {
@@ -176,8 +176,8 @@ export class LinkingService {
         const previous = await this.db.links.get(guildId, discordId);
         await this.db.links.upsert(guildId, discordId, accountName);
         logger.info(
-            logModules.Command,
-            `Force Linked Discord ${discordId} -> Among Us "${accountName}" in guild ${guildId}`,
+            logModules.Link,
+            `Force-linked user ${discordId} to "${accountName}" in guild ${guildId} (by ${actorId})`,
         );
         this.events?.emit({
             type: "link-changed",
@@ -194,7 +194,7 @@ export class LinkingService {
         const previous = await this.db.links.get(guildId, discordId);
         const deleted = await this.db.links.remove(guildId, discordId);
         if (deleted) {
-            logger.info(logModules.Command, `Unlinked Discord ${discordId} in guild ${guildId}`);
+            logger.info(logModules.Link, `Unlinked user ${discordId} in guild ${guildId}`);
             this.events?.emit({
                 type: "link-changed",
                 guildId,
