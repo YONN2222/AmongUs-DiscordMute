@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Database } from "../../src/Data/Database";
+import { hashSecret } from "../../src/Gateway/GuildSecrets";
 import { BlockChecker } from "../../src/Hosted/BlockChecker";
-import { hashSecret } from "../../src/Hosted/GuildSecrets";
 import { HostedSecretResolver } from "../../src/Hosted/HostedSecretResolver";
 import { backendAvailable, backends, openBackend, purgeTestRows, uniqueId } from "../Helpers/TestDatabase";
 

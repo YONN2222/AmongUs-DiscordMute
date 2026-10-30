@@ -1,5 +1,5 @@
 import { QueryTypes, type Sequelize } from "sequelize";
-import { generateSecret, hashSecret } from "../../Hosted/GuildSecrets";
+import { generateSecret, hashSecret } from "../../Gateway/GuildSecrets";
 
 export interface GuildSecretInfo {
     createdAt: number;

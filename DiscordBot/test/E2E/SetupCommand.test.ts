@@ -1,7 +1,7 @@
 import { buildGuildCreateDispatch, buildSlashCommandInteractionDispatch, DEFAULT_IDS, extractText } from "probe.ts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { hashSecret } from "../../src/Gateway/GuildSecrets";
 import { BlockChecker } from "../../src/Hosted/BlockChecker";
-import { hashSecret } from "../../src/Hosted/GuildSecrets";
 import { type CommandProbe, createCommandProbe } from "../Helpers/CommandProbe";
 
 const GUILD = DEFAULT_IDS.guild;

@@ -5,7 +5,7 @@ import type { ProfileLookupResult } from "../../src/Admin/ProfileLookup";
 import type { Database } from "../../src/Data/Database";
 import { LEFT_GUILD_RETENTION_MS } from "../../src/Data/Repositories/HostedGuildRepository";
 import type { PendingLink } from "../../src/Data/Repositories/PendingLinkRepository";
-import { hashSecret } from "../../src/Hosted/GuildSecrets";
+import { hashSecret } from "../../src/Gateway/GuildSecrets";
 import { InMemoryClusterRouter } from "../../src/Routing/ClusterRouter";
 import { DEFAULT_SETTINGS } from "../../src/Settings/GuildSettings";
 import { unknownProfiles } from "../Helpers/ProfileLookupStub";

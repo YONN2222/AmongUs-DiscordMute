@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { generateSecret, hashSecret, SECRET_PREFIX } from "../../src/Hosted/GuildSecrets";
+import { generateSecret, hashSecret, SECRET_PREFIX } from "../../src/Gateway/GuildSecrets";
 
 describe("guild secrets", () => {
     it("hashSecret is sha256 hex", () => {

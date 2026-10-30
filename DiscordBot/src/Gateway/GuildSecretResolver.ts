@@ -1,5 +1,5 @@
 import type { GuildSecretRepository } from "../Data/Repositories/GuildSecretRepository";
-import { hashSecret, SECRET_PREFIX } from "../Hosted/GuildSecrets";
+import { hashSecret, SECRET_PREFIX } from "./GuildSecrets";
 import type { ResolvedSecret, SecretResolver } from "./SecretResolver";
 
 /** Generated secrets are far shorter; anything longer is rejected before it reaches the database. */
