@@ -100,6 +100,66 @@ export const GuildSummarySchema = z.object({
 });
 export type GuildSummary = z.infer<typeof GuildSummarySchema>;
 
+const VoiceActionSchema = z.enum(["free", "mute", "deafen"]);
+const VoiceRuleSchema = z.object({ alive: VoiceActionSchema, dead: VoiceActionSchema });
+const OptionalChannelSchema = SnowflakeSchema.nullable();
+
+/** The settings of a server as the bot stores them (a copy of the bot's GuildSettings type). */
+export const GuildSettingsViewSchema = z.object({
+    language: z.enum(["en", "de"]),
+    logChannelId: OptionalChannelSchema,
+    linkOverview: z.object({ channelId: OptionalChannelSchema, showPending: z.boolean() }),
+    voiceRules: z.object({ tasks: VoiceRuleSchema, meeting: VoiceRuleSchema }),
+    delaysMs: z.object({
+        gameStart: z.number().int(),
+        meetingStart: z.number().int(),
+        meetingEnd: z.number().int(),
+        lobby: z.number().int(),
+    }),
+    ghostChat: z.boolean(),
+    nonPlayers: z.enum(["ignore", "mute", "as-dead"]),
+    autoRelink: z.boolean(),
+    nicknameSync: z.boolean(),
+    status: z.object({ channelId: OptionalChannelSchema, lobbyCode: z.enum(["always", "spoiler", "never"]) }),
+    summary: z.object({ channelId: OptionalChannelSchema, deleteAfterMinutes: z.number().int() }),
+    voiceChannelIds: z.array(SnowflakeSchema),
+});
+export type GuildSettingsView = z.infer<typeof GuildSettingsViewSchema>;
+
+/** One connected plugin; the connection itself (address, socket) is never exposed. */
+export const PluginSessionInfoSchema = z.object({
+    sessionId: z.string(),
+    connectedAt: z.number(),
+    pluginVersion: z.string(),
+    gameVersion: z.string(),
+    protocolVersion: z.number().int(),
+});
+export type PluginSessionInfo = z.infer<typeof PluginSessionInfoSchema>;
+
+/** When and by whom the plugin secret was created; the secret and its hash stay in the bot. */
+export const SecretInfoSchema = z.object({ createdAt: z.number(), createdBy: ActorIdSchema });
+export type SecretInfo = z.infer<typeof SecretInfoSchema>;
+
+export const GuildDetailSchema = GuildSummarySchema.extend({
+    settings: GuildSettingsViewSchema,
+    secret: SecretInfoSchema.nullable(),
+    block: BlockSchema.nullable(),
+    ownerBlock: BlockSchema.nullable(),
+    /** Link requests that have not expired yet. */
+    pendingLinks: z.number().int(),
+    sessions: z.array(PluginSessionInfoSchema),
+});
+export type GuildDetail = z.infer<typeof GuildDetailSchema>;
+
+/** `linkedAt` is in milliseconds since the epoch, like every other time in this contract. */
+export const LinkedUserSchema = z.object({
+    discordId: SnowflakeSchema,
+    accountName: z.string(),
+    friendCode: z.string().nullable(),
+    linkedAt: z.number(),
+});
+export type LinkedUser = z.infer<typeof LinkedUserSchema>;
+
 export const CLUSTER_STATUSES = ["starting", "running", "stopped"] as const;
 export const ClusterStatusSchema = z.enum(CLUSTER_STATUSES);
 export type ClusterStatus = z.infer<typeof ClusterStatusSchema>;

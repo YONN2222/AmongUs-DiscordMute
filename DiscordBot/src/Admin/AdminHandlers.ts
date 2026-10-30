@@ -1,6 +1,7 @@
 import type { Database } from "../Data/Database";
 import type { BlockOutcome } from "../Data/Repositories/BlockRepository";
 import type { HostedGuildRow } from "../Data/Repositories/HostedGuildRepository";
+import type { LinkEntry } from "../Data/Repositories/LinkRepository";
 import type { PluginGateway } from "../Gateway/PluginGateway";
 import { LEAVE_DISCONNECTS } from "../Hosted/LeaveDisconnects";
 import { purgeAtOf, purgeGuildData } from "../Hosted/LeftGuildPurge";
@@ -15,10 +16,12 @@ import type {
     ClusterInfo,
     CreateAuditBody,
     CreateBlockBody,
+    GuildDetail,
     GuildListQuery,
     GuildSummary,
     Health,
     LeaveGuildBody,
+    LinkedUser,
     Overview,
     PageQuery,
     PurgeGuildBody,
@@ -43,6 +46,10 @@ export interface AdminHandlers {
     listGuilds(query: GuildListQuery): Promise<Page<GuildSummary>>;
     getGuild(guildId: string): Promise<GuildSummary | null>;
     /** Null when the guild is not in the hosted guild list. */
+    getGuildDetail(guildId: string): Promise<GuildDetail | null>;
+    /** Null when the guild is not in the hosted guild list. */
+    listGuildLinks(guildId: string, query: PageQuery): Promise<Page<LinkedUser> | null>;
+    /** Null when the guild is not in the hosted guild list. */
     leaveGuild(guildId: string, body: LeaveGuildBody): Promise<{ left: boolean } | null>;
     /** Deletes the data of a server the bot left; null when the guild is not in the hosted guild list. */
     purgeGuild(guildId: string, body: PurgeGuildBody): Promise<"purged" | "in-guild" | null>;
@@ -55,8 +62,11 @@ export interface AdminHandlers {
 }
 
 export interface AdminHandlerDeps {
-    db: Pick<Database, "hostedGuilds" | "guildSecrets" | "blocks" | "audit" | "telemetry" | "links">;
-    plugins: Pick<PluginGateway, "sessionCount" | "sessionsOfGuild" | "disconnectGuild">;
+    db: Pick<
+        Database,
+        "hostedGuilds" | "guildSecrets" | "blocks" | "audit" | "telemetry" | "links" | "settings" | "pendingLinks"
+    >;
+    plugins: Pick<PluginGateway, "sessionCount" | "sessionsOfGuild" | "sessionsInfo" | "disconnectGuild">;
     activeGames: () => Promise<number>;
     clusterInfo: () => Promise<ClusterInfo[]>;
     router: ClusterRouter;
@@ -71,6 +81,15 @@ function offsetOf({ page, limit }: PageQuery): number {
 
 function iconUrlOf(row: HostedGuildRow): string | null {
     return row.icon ? `https://cdn.discordapp.com/icons/${row.guildId}/${row.icon}.png?size=${GUILD_ICON_SIZE}` : null;
+}
+
+function toLinkedUser(link: LinkEntry): LinkedUser {
+    return {
+        discordId: link.discordId,
+        accountName: link.accountName,
+        friendCode: link.friendCode,
+        linkedAt: Date.parse(link.linkedAt),
+    };
 }
 
 export function createAdminHandlers(deps: AdminHandlerDeps): AdminHandlers {
@@ -182,6 +201,35 @@ export function createAdminHandlers(deps: AdminHandlerDeps): AdminHandlers {
         async getGuild(guildId) {
             const row = await db.hostedGuilds.get(guildId);
             return row ? (await summarize([row]))[0] : null;
+        },
+        async getGuildDetail(guildId) {
+            const row = await db.hostedGuilds.get(guildId);
+            if (!row) return null;
+            const [[summary], settings, secret, block, ownerBlock, pendingLinks] = await Promise.all([
+                summarize([row]),
+                db.settings.get(guildId),
+                db.guildSecrets.get(guildId),
+                db.blocks.get("guild", guildId),
+                db.blocks.get("user", row.ownerId),
+                db.pendingLinks.countActive(guildId, now()),
+            ]);
+            return {
+                ...summary,
+                settings,
+                secret,
+                block,
+                ownerBlock,
+                pendingLinks,
+                sessions: plugins.sessionsInfo(guildId),
+            };
+        },
+        async listGuildLinks(guildId, query) {
+            if (!(await db.hostedGuilds.get(guildId))) return null;
+            const [links, total] = await Promise.all([
+                db.links.listPage(guildId, offsetOf(query), query.limit),
+                db.links.countByGuild(guildId),
+            ]);
+            return { rows: links.map(toLinkedUser), total };
         },
         async leaveGuild(guildId, { actorId, reason }) {
             const guild = await db.hostedGuilds.get(guildId);

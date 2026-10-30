@@ -25,6 +25,7 @@ describe.each(backends)("admin handlers, actions (%s)", (backend) => {
                 plugins: {
                     sessionCount: () => 0,
                     sessionsOfGuild: () => 0,
+                    sessionsInfo: () => [],
                     disconnectGuild: (guildId, code, reason) => {
                         events.push(`disconnect:${guildId}`);
                         disconnects.push({ guildId, code, reason });

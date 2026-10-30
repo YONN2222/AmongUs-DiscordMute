@@ -19,6 +19,7 @@ import {
     MAX_BODY_BYTES,
     type PageMeta,
     type PageQuery,
+    PageQuerySchema,
     PurgeGuildBodySchema,
     RemoveBlockBodySchema,
     SnowflakeSchema,
@@ -146,6 +147,18 @@ function buildRoutes(handlers: AdminHandlers): Route[] {
             const guild = await handlers.getGuild(parse(GuildParamsSchema, params).guildId);
             if (!guild) throw fail("not-found", "Server not found");
             return ok(guild);
+        }),
+        route("GET", "/guilds/:guildId/detail", async ({ params }) => {
+            const detail = await handlers.getGuildDetail(parse(GuildParamsSchema, params).guildId);
+            if (!detail) throw fail("not-found", "Server not found");
+            return ok(detail);
+        }),
+        route("GET", "/guilds/:guildId/links", async ({ params, query }) => {
+            const { guildId } = parse(GuildParamsSchema, params);
+            const parsed = parse(PageQuerySchema, query);
+            const links = await handlers.listGuildLinks(guildId, parsed);
+            if (!links) throw fail("not-found", "Server not found");
+            return pageOf(parsed, links);
         }),
         route("POST", "/guilds/:guildId/leave", async ({ params, readBody }) => {
             const { guildId } = parse(GuildParamsSchema, params);

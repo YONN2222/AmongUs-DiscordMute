@@ -46,6 +46,22 @@ describe("PluginGateway", () => {
             expect(fx.gateway.sessionsOfGuild(GUILD)).toBe(1);
         });
 
+        it("sessionsInfo lists each session of the guild with only its public fields", async () => {
+            await authenticateWithKey(keyOf(1));
+            await authenticateWithKey(keyOf(2));
+
+            const sessions = fx.gateway.sessionsInfo(GUILD);
+
+            expect(sessions).toHaveLength(2);
+            for (const session of sessions) {
+                expect(Object.keys(session).sort()).toEqual(
+                    ["connectedAt", "gameVersion", "pluginVersion", "protocolVersion", "sessionId"].sort(),
+                );
+                expect(session).toMatchObject({ pluginVersion: "2.0.0", gameVersion: "2026.9.1" });
+            }
+            expect(fx.gateway.sessionsInfo("999999999999999999")).toEqual([]);
+        });
+
         it("same connection key replaces with 4004", async () => {
             const first = await authenticateWithKey(keyOf(1));
             const firstClosed = waitForClose(first);

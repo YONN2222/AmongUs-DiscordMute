@@ -154,6 +154,19 @@ export class PluginGateway {
         return this.connectionsOf(guildId).length;
     }
 
+    /** What the admin API may show about the guild's sessions; nothing about the connection itself. */
+    sessionsInfo(guildId: string): Omit<GameSession, "guildId">[] {
+        return this.connectionsOf(guildId)
+            .flatMap(({ session }) => (session ? [session] : []))
+            .map(({ sessionId, connectedAt, pluginVersion, gameVersion, protocolVersion }) => ({
+                sessionId,
+                connectedAt,
+                pluginVersion,
+                gameVersion,
+                protocolVersion,
+            }));
+    }
+
     /** Closes every session of the guild; each close ends its session like a normal disconnect. */
     disconnectGuild(guildId: string, code: number, reason: string): number {
         const connections = this.connectionsOf(guildId);

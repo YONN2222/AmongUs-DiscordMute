@@ -203,7 +203,12 @@ describe.each(backends)("leaving a guild during a game (%s)", (backend) => {
             admin = createAdminHandlers({
                 db,
                 // The plugin disconnect only starts the session end, so its session-ended arrives after the leave.
-                plugins: { sessionCount: () => 1, sessionsOfGuild: () => 1, disconnectGuild: () => 1 },
+                plugins: {
+                    sessionCount: () => 1,
+                    sessionsOfGuild: () => 1,
+                    sessionsInfo: () => [],
+                    disconnectGuild: () => 1,
+                },
                 activeGames: async () => 1,
                 clusterInfo: async () => [],
                 router,

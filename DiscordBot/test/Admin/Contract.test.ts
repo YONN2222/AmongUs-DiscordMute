@@ -6,11 +6,16 @@ import {
     ClusterParamsSchema,
     CreateAuditBodySchema,
     CreateBlockBodySchema,
+    GuildDetailSchema,
     GuildListQuerySchema,
+    type GuildSettingsView,
+    GuildSettingsViewSchema,
+    LinkedUserSchema,
     MAX_PAGE_LIMIT,
     ShardInfoSchema,
     SnowflakeSchema,
 } from "../../src/Admin/Contract";
+import { DEFAULT_SETTINGS, type GuildSettings } from "../../src/Settings/GuildSettings";
 
 const SNOWFLAKE = "123456789012345678";
 
@@ -96,6 +101,61 @@ describe("admin contract", () => {
         expect(ClusterParamsSchema.parse({ clusterId: "0" })).toEqual({ clusterId: 0 });
         expect(ClusterParamsSchema.safeParse({ clusterId: "-1" }).success).toBe(false);
         expect(ClusterParamsSchema.safeParse({ clusterId: "x" }).success).toBe(false);
+    });
+
+    it("the settings view covers every field of the bot's settings", () => {
+        const settings: GuildSettings = {
+            ...DEFAULT_SETTINGS,
+            logChannelId: SNOWFLAKE,
+            status: { channelId: SNOWFLAKE, lobbyCode: "never" },
+            voiceChannelIds: [SNOWFLAKE],
+        };
+        // Parsing drops unknown keys, so a field missing from the view would make these differ.
+        expect(GuildSettingsViewSchema.parse(settings)).toEqual(settings);
+        const view: GuildSettingsView = settings;
+        const back: GuildSettings = view;
+        expect(back).toBe(settings);
+    });
+
+    it("guild detail and linked users validate their shape", () => {
+        const summary = {
+            guildId: SNOWFLAKE,
+            name: "Crew",
+            iconUrl: null,
+            ownerId: SNOWFLAKE,
+            memberCount: 10,
+            joinedAt: 1,
+            botInstance: "a",
+            linkedUsers: 0,
+            connectedPlugins: 1,
+            hasSecret: true,
+            blocked: false,
+            ownerBlocked: false,
+            leftAt: null,
+            purgeAt: null,
+        };
+        const detail = {
+            ...summary,
+            settings: DEFAULT_SETTINGS,
+            secret: { createdAt: 1, createdBy: SNOWFLAKE },
+            block: null,
+            ownerBlock: null,
+            pendingLinks: 2,
+            sessions: [
+                {
+                    sessionId: "s",
+                    connectedAt: 1,
+                    pluginVersion: "3.0.0",
+                    gameVersion: "2026.9.29",
+                    protocolVersion: 3,
+                },
+            ],
+        };
+        expect(GuildDetailSchema.safeParse(detail).success).toBe(true);
+        expect(GuildDetailSchema.safeParse({ ...detail, pendingLinks: undefined }).success).toBe(false);
+        const link = { discordId: SNOWFLAKE, accountName: "Red", friendCode: null, linkedAt: 1 };
+        expect(LinkedUserSchema.safeParse(link).success).toBe(true);
+        expect(LinkedUserSchema.safeParse({ ...link, linkedAt: "2026-01-01" }).success).toBe(false);
     });
 
     it("list queries validate their filters", () => {

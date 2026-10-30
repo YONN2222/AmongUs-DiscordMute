@@ -94,7 +94,12 @@ describe.each(backends)("admin API block through the cluster (%s)", (backend) =>
             );
             const handlers = createAdminHandlers({
                 db,
-                plugins: { sessionCount: () => 0, sessionsOfGuild: () => 0, disconnectGuild: () => 1 },
+                plugins: {
+                    sessionCount: () => 0,
+                    sessionsOfGuild: () => 0,
+                    sessionsInfo: () => [],
+                    disconnectGuild: () => 1,
+                },
                 activeGames: async () => 0,
                 clusterInfo: async () => [],
                 router,

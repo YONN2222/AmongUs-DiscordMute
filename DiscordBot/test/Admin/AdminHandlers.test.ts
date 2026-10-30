@@ -1,19 +1,28 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createAdminHandlers } from "../../src/Admin/AdminHandlers";
-import type { ClusterInfo } from "../../src/Admin/Contract";
+import type { ClusterInfo, PluginSessionInfo } from "../../src/Admin/Contract";
 import type { Database } from "../../src/Data/Database";
 import { LEFT_GUILD_RETENTION_MS } from "../../src/Data/Repositories/HostedGuildRepository";
+import type { PendingLink } from "../../src/Data/Repositories/PendingLinkRepository";
+import { hashSecret } from "../../src/Hosted/GuildSecrets";
 import { InMemoryClusterRouter } from "../../src/Routing/ClusterRouter";
+import { DEFAULT_SETTINGS } from "../../src/Settings/GuildSettings";
 import { backendAvailable, backends, openBackend, purgeTestRows, uniqueId } from "../Helpers/TestDatabase";
 
 const HOUR_MS = 3600 * 1000;
 const NOW = 100 * 24 * HOUR_MS;
 const STARTED_AT = NOW - 90_000;
 
+function pendingLink(guildId: string, discordId: string, expiresAt: number): PendingLink {
+    const code = discordId.slice(-12);
+    return { guildId, discordId, phrase: `phrase ${code}`, quickChatCode: code, quickChatIds: [1, 2], expiresAt };
+}
+
 describe.each(backends)("admin handlers, read endpoints (%s)", (backend) => {
     describe.skipIf(!backendAvailable(backend))("suite", () => {
         let db: Database;
         let sessionsByGuild: Map<string, number>;
+        let sessionInfoByGuild: Map<string, PluginSessionInfo[]>;
         let clusters: ClusterInfo[];
 
         const handlers = () =>
@@ -22,6 +31,7 @@ describe.each(backends)("admin handlers, read endpoints (%s)", (backend) => {
                 plugins: {
                     sessionCount: () => [...sessionsByGuild.values()].reduce((sum, count) => sum + count, 0),
                     sessionsOfGuild: (guildId) => sessionsByGuild.get(guildId) ?? 0,
+                    sessionsInfo: (guildId) => sessionInfoByGuild.get(guildId) ?? [],
                     disconnectGuild: () => 0,
                 },
                 activeGames: async () => 4,
@@ -43,6 +53,7 @@ describe.each(backends)("admin handlers, read endpoints (%s)", (backend) => {
         beforeEach(async () => {
             db = await openBackend(backend);
             sessionsByGuild = new Map();
+            sessionInfoByGuild = new Map();
             clusters = [
                 {
                     id: 0,
@@ -148,6 +159,83 @@ describe.each(backends)("admin handlers, read endpoints (%s)", (backend) => {
                 leftAt: NOW,
                 purgeAt: NOW + LEFT_GUILD_RETENTION_MS,
             });
+        });
+
+        it("guild detail adds settings, secret metadata, blocks, open link requests and plugin sessions", async () => {
+            const guildId = uniqueId("detail");
+            const ownerId = uniqueId("owner");
+            await addGuild(guildId, "Detailed", ownerId, 1000);
+            await db.settings.save(guildId, { ...DEFAULT_SETTINGS, language: "de", ghostChat: true });
+            await db.guildSecrets.rotate(guildId, "123456789012345678", NOW - HOUR_MS);
+            await db.blocks.create({ type: "user", targetId: ownerId, reason: "spam", blockedBy: "system" }, NOW);
+            await db.pendingLinks.create(pendingLink(guildId, uniqueId("u"), NOW + HOUR_MS));
+            await db.pendingLinks.create(pendingLink(guildId, uniqueId("u"), NOW - HOUR_MS));
+            const session = {
+                sessionId: "session-1",
+                connectedAt: NOW - 60_000,
+                pluginVersion: "3.0.0",
+                gameVersion: "2026.9.29",
+                protocolVersion: 3,
+            };
+            sessionInfoByGuild.set(guildId, [session]);
+
+            const detail = await handlers().getGuildDetail(guildId);
+
+            expect(detail).toMatchObject({
+                guildId,
+                name: "Detailed",
+                ownerBlocked: true,
+                settings: { ...DEFAULT_SETTINGS, language: "de", ghostChat: true },
+                secret: { createdAt: NOW - HOUR_MS, createdBy: "123456789012345678" },
+                block: null,
+                ownerBlock: { type: "user", targetId: ownerId, reason: "spam" },
+                pendingLinks: 1,
+                sessions: [session],
+            });
+        });
+
+        it("guild detail never contains the secret, its hash, an interaction token or an address", async () => {
+            const guildId = uniqueId("private");
+            const discordId = uniqueId("u");
+            await addGuild(guildId, "Private", uniqueId("owner"), 1000);
+            const { secret } = await db.guildSecrets.rotate(guildId, "123456789012345678");
+            await db.pendingLinks.create(pendingLink(guildId, discordId, NOW + HOUR_MS));
+            await db.pendingLinks.attachInteraction(guildId, discordId, "app-id", "interaction-token-value");
+
+            const serialized = JSON.stringify(await handlers().getGuildDetail(guildId));
+
+            expect(serialized).not.toContain(secret);
+            expect(serialized).not.toContain(hashSecret(secret));
+            expect(serialized).not.toContain("interaction-token-value");
+            expect(serialized).not.toMatch(/secret_?hash|interaction_?token|"phrase"|quickChat/i);
+            expect(serialized).not.toMatch(/\b\d{1,3}(\.\d{1,3}){3}\b/);
+        });
+
+        it("guild detail of an unknown guild is null", async () => {
+            expect(await handlers().getGuildDetail(uniqueId("missing"))).toBeNull();
+        });
+
+        it("guild links come in pages with their total and the link time in milliseconds", async () => {
+            const guildId = uniqueId("links");
+            await addGuild(guildId, "Linked", uniqueId("owner"), 1000);
+            await db.links.upsert(guildId, "u1", "Alpha");
+            await db.links.upsert(guildId, "u2", "Bravo");
+            await db.links.setFriendCode(guildId, "u2", "bravo#1234");
+            await db.links.upsert(guildId, "u3", "Charlie");
+
+            const page = await handlers().listGuildLinks(guildId, { page: 2, limit: 1 });
+
+            expect(page).toEqual({
+                rows: [
+                    { discordId: "u2", accountName: "Bravo", friendCode: "bravo#1234", linkedAt: expect.any(Number) },
+                ],
+                total: 3,
+            });
+            expect(Number.isNaN(page?.rows[0]?.linkedAt)).toBe(false);
+        });
+
+        it("guild links of an unknown guild are null", async () => {
+            expect(await handlers().listGuildLinks(uniqueId("missing"), { page: 1, limit: 25 })).toBeNull();
         });
 
         it("getGuild unknown is null", async () => {

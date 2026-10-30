@@ -25,6 +25,8 @@ function fakeHandlers(overrides: Partial<AdminHandlers> = {}): AdminHandlers {
         getCluster: async () => null,
         listGuilds: async () => ({ rows: [], total: 0 }),
         getGuild: async () => null,
+        getGuildDetail: async () => null,
+        listGuildLinks: async () => null,
         leaveGuild: unused,
         purgeGuild: unused,
         listBlocks: async () => ({ rows: [], total: 0 }),
@@ -192,6 +194,41 @@ describe("admin server", () => {
         const response = await fetch(`${baseUrl}/guilds/${GUILD_ID}`, { headers: authorized });
 
         expect(response.status).toBe(404);
+    });
+
+    describe("guild detail and links", () => {
+        it("unknown guilds are 404 and a non-numeric id is 400", async () => {
+            await start(fakeHandlers());
+
+            for (const path of ["detail", "links"]) {
+                expect((await fetch(`${baseUrl}/guilds/${GUILD_ID}/${path}`, { headers: authorized })).status).toBe(
+                    404,
+                );
+                expect((await fetch(`${baseUrl}/guilds/abc/${path}`, { headers: authorized })).status).toBe(400);
+            }
+        });
+
+        it("serves the detail of a guild", async () => {
+            const getGuildDetail = vi.fn(async () => ({ guildId: GUILD_ID }) as never);
+            await start(fakeHandlers({ getGuildDetail }));
+
+            const response = await fetch(`${baseUrl}/guilds/${GUILD_ID}/detail`, { headers: authorized });
+
+            expect(getGuildDetail).toHaveBeenCalledWith(GUILD_ID);
+            expect(await response.json()).toEqual({ ok: true, data: { guildId: GUILD_ID } });
+        });
+
+        it("pages the linked users with a clamped limit", async () => {
+            const listGuildLinks = vi.fn(async () => ({ rows: [], total: 12 }));
+            await start(fakeHandlers({ listGuildLinks }));
+
+            const response = await fetch(`${baseUrl}/guilds/${GUILD_ID}/links?page=3&limit=500`, {
+                headers: authorized,
+            });
+
+            expect(listGuildLinks).toHaveBeenCalledWith(GUILD_ID, { page: 3, limit: 100 });
+            expect(await response.json()).toEqual({ ok: true, data: [], meta: { total: 12, page: 3, limit: 100 } });
+        });
     });
 
     describe("clusters", () => {
