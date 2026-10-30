@@ -34,7 +34,7 @@ export interface ClusterRequestHandlerDeps {
     onLinkConfirmed?: (link: ConfirmedLinkReply) => Promise<void>;
     /** Set only in hosted mode. */
     lifecycle?: Pick<GuildLifecycle, "leave">;
-    /** Guild count and ping of this cluster, for the admin API. */
+    /** Guilds, ping, shards and resources of this cluster, for the admin API. */
     clusterInfo: () => ClusterInfoReply;
     /** This cluster's metrics, for the gateway's metrics endpoint. */
     metricsSnapshot: () => Promise<MetricsSnapshotReply>;

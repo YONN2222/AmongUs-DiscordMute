@@ -3,7 +3,7 @@ import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AdminHandlers } from "../../src/Admin/AdminHandlers";
 import { createAdminServer } from "../../src/Admin/AdminServer";
-import { ADMIN_API_PREFIX, MAX_BODY_BYTES } from "../../src/Admin/Contract";
+import { ADMIN_API_PREFIX, type ClusterInfo, MAX_BODY_BYTES } from "../../src/Admin/Contract";
 import { logger } from "../../src/Logging/Logger";
 
 vi.mock("node:crypto", async (importOriginal) => {
@@ -21,6 +21,8 @@ function fakeHandlers(overrides: Partial<AdminHandlers> = {}): AdminHandlers {
     return {
         health: async () => ({ status: "ok", mode: "hosted", version: "3.0.0" }),
         overview: unused,
+        listClusters: async () => [],
+        getCluster: async () => null,
         listGuilds: async () => ({ rows: [], total: 0 }),
         getGuild: async () => null,
         leaveGuild: unused,
@@ -190,6 +192,51 @@ describe("admin server", () => {
         const response = await fetch(`${baseUrl}/guilds/${GUILD_ID}`, { headers: authorized });
 
         expect(response.status).toBe(404);
+    });
+
+    describe("clusters", () => {
+        const cluster: ClusterInfo = {
+            id: 1,
+            ok: false,
+            status: "stopped",
+            shardIds: [2, 3],
+            startedAt: 1000,
+            guilds: null,
+            wsPingMs: null,
+            uptimeSeconds: null,
+            memoryRssBytes: null,
+            shards: [],
+        };
+
+        it("lists every cluster", async () => {
+            await start(fakeHandlers({ listClusters: async () => [cluster] }));
+
+            const response = await fetch(`${baseUrl}/clusters`, { headers: authorized });
+
+            expect(response.status).toBe(200);
+            expect(await response.json()).toEqual({ ok: true, data: [cluster] });
+        });
+
+        it("serves one cluster by its numeric id", async () => {
+            const getCluster = vi.fn(async (id: number) => (id === 1 ? cluster : null));
+            await start(fakeHandlers({ getCluster }));
+
+            const found = await fetch(`${baseUrl}/clusters/1`, { headers: authorized });
+            const missing = await fetch(`${baseUrl}/clusters/7`, { headers: authorized });
+
+            expect(getCluster).toHaveBeenCalledWith(1);
+            expect(await found.json()).toEqual({ ok: true, data: cluster });
+            expect(missing.status).toBe(404);
+        });
+
+        it("a cluster id that is not a whole number from 0 is 400", async () => {
+            await start(fakeHandlers());
+
+            for (const id of ["abc", "-1", "1.5"]) {
+                const response = await fetch(`${baseUrl}/clusters/${id}`, { headers: authorized });
+                expect(response.status).toBe(400);
+            }
+        });
     });
 
     describe("purge", () => {

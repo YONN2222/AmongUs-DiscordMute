@@ -69,9 +69,17 @@ describe("createClusterRequestHandler", () => {
     });
 
     it("answers cluster-info while the cluster is still starting", async () => {
-        const clusterInfo = () => ({ ok: true as const, id: 2, guilds: 5, wsPingMs: 42 });
-        const reply = await handler(() => false, { clusterInfo })({ kind: "cluster-info" });
-        expect(reply).toEqual({ ok: true, id: 2, guilds: 5, wsPingMs: 42 });
+        const info = {
+            ok: true as const,
+            id: 2,
+            guilds: 5,
+            wsPingMs: 42,
+            uptimeSeconds: 30,
+            memoryRssBytes: 2048,
+            shards: [{ id: 4, status: 1, pingMs: null, guilds: 5, lastPingAt: null }],
+        };
+        const reply = await handler(() => false, { clusterInfo: () => info })({ kind: "cluster-info" });
+        expect(reply).toEqual(info);
     });
 
     it("answers metrics-snapshot while the cluster is still starting", async () => {

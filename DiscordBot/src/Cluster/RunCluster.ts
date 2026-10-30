@@ -27,6 +27,7 @@ import { onFatalGatewayClose } from "./FatalGatewayClose";
 import { bindGuildLifecycle, createHostedCluster, type HostedCluster } from "./HostedCluster";
 import { registerInteractionHandlers } from "./InteractionHandler";
 import { resolveLinkReplyLocale, updateOriginalLinkReply } from "./LinkReply";
+import { shardStats } from "./ShardStats";
 import { registerVoiceRejoin } from "./VoiceRejoin";
 
 const LOGIN_RETRY_DELAY_MS = 5000;
@@ -159,6 +160,12 @@ function serveGatewayRequests({ cluster, client, db, registry, services, hosted,
             id: cluster.clusterID,
             guilds: client.guilds.cache.size,
             wsPingMs: client.ws.ping,
+            uptimeSeconds: Math.floor(process.uptime()),
+            memoryRssBytes: process.memoryUsage.rss(),
+            shards: shardStats(
+                client.ws.shards.values(),
+                client.guilds.cache.map((guild) => guild.shardId),
+            ),
         }),
         metricsSnapshot: async () => ({
             ok: true,

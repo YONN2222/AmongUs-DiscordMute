@@ -11,6 +11,7 @@ import {
     AuditListQuerySchema,
     BlockListQuerySchema,
     BlockTypeSchema,
+    ClusterParamsSchema,
     CreateAuditBodySchema,
     CreateBlockBodySchema,
     GuildListQuerySchema,
@@ -131,6 +132,12 @@ function buildRoutes(handlers: AdminHandlers): Route[] {
     return [
         route("GET", "/health", async () => ok(await handlers.health())),
         route("GET", "/overview", async () => ok(await handlers.overview())),
+        route("GET", "/clusters", async () => ok(await handlers.listClusters())),
+        route("GET", "/clusters/:clusterId", async ({ params }) => {
+            const cluster = await handlers.getCluster(parse(ClusterParamsSchema, params).clusterId);
+            if (!cluster) throw fail("not-found", "Cluster not found");
+            return ok(cluster);
+        }),
         route("GET", "/guilds", async ({ query }) => {
             const parsed = parse(GuildListQuerySchema, query);
             return pageOf(parsed, await handlers.listGuilds(parsed));

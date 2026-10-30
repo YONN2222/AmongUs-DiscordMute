@@ -100,11 +100,35 @@ export const GuildSummarySchema = z.object({
 });
 export type GuildSummary = z.infer<typeof GuildSummarySchema>;
 
+export const CLUSTER_STATUSES = ["starting", "running", "stopped"] as const;
+export const ClusterStatusSchema = z.enum(CLUSTER_STATUSES);
+export type ClusterStatus = z.infer<typeof ClusterStatusSchema>;
+
+/** `status` is the discord.js shard status number; ping and last ping stay null until the first heartbeat. */
+export const ShardInfoSchema = z.object({
+    id: z.number().int(),
+    status: z.number().int(),
+    pingMs: z.number().nullable(),
+    guilds: z.number().int(),
+    lastPingAt: z.number().nullable(),
+});
+export type ShardInfo = z.infer<typeof ShardInfoSchema>;
+
+/**
+ * `ok` is false when the cluster did not answer. Status, shard ids and start time come from the gateway and are
+ * filled in either way; the other values come from the cluster and are null (or empty) without an answer.
+ */
 export const ClusterInfoSchema = z.object({
     id: z.number().int(),
     ok: z.boolean(),
+    status: ClusterStatusSchema,
+    shardIds: z.array(z.number().int()),
+    startedAt: z.number().nullable(),
     guilds: z.number().int().nullable(),
     wsPingMs: z.number().nullable(),
+    uptimeSeconds: z.number().nullable(),
+    memoryRssBytes: z.number().nullable(),
+    shards: z.array(ShardInfoSchema),
 });
 export type ClusterInfo = z.infer<typeof ClusterInfoSchema>;
 
@@ -176,6 +200,9 @@ export const PageQuerySchema = z.object({
 export type PageQuery = z.infer<typeof PageQuerySchema>;
 
 const SearchSchema = z.string().max(MAX_SEARCH_LENGTH).optional();
+
+export const ClusterParamsSchema = z.object({ clusterId: z.coerce.number().int().min(0) });
+export type ClusterParams = z.infer<typeof ClusterParamsSchema>;
 
 export const GuildListQuerySchema = PageQuerySchema.extend({ q: SearchSchema });
 export type GuildListQuery = z.infer<typeof GuildListQuerySchema>;

@@ -43,7 +43,20 @@ describe.each(backends)("admin handlers, read endpoints (%s)", (backend) => {
         beforeEach(async () => {
             db = await openBackend(backend);
             sessionsByGuild = new Map();
-            clusters = [{ id: 0, ok: true, guilds: 2, wsPingMs: 41 }];
+            clusters = [
+                {
+                    id: 0,
+                    ok: true,
+                    status: "running",
+                    shardIds: [0],
+                    startedAt: STARTED_AT,
+                    guilds: 2,
+                    wsPingMs: 41,
+                    uptimeSeconds: 90,
+                    memoryRssBytes: 1024,
+                    shards: [{ id: 0, status: 0, pingMs: 41, guilds: 2, lastPingAt: NOW }],
+                },
+            ];
         });
 
         afterEach(async () => {
@@ -151,6 +164,12 @@ describe.each(backends)("admin handlers, read endpoints (%s)", (backend) => {
 
             expect(blocks.rows.map((block) => block.targetId)).toEqual([target]);
             expect(audit.rows.map((entry) => entry.action)).toEqual(["block.create"]);
+        });
+
+        it("lists the clusters and finds one by id", async () => {
+            expect(await handlers().listClusters()).toEqual(clusters);
+            expect(await handlers().getCluster(0)).toEqual(clusters[0]);
+            expect(await handlers().getCluster(5)).toBeNull();
         });
 
         it("health reports mode and version", async () => {

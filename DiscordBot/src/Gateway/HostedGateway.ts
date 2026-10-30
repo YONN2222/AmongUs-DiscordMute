@@ -1,7 +1,7 @@
 import type { Server } from "node:http";
 import { createAdminHandlers } from "../Admin/AdminHandlers";
 import { createAdminServer } from "../Admin/AdminServer";
-import { collectClusterInfo } from "../Admin/ClusterInfo";
+import { type ClusterProcessState, collectClusterInfo } from "../Admin/ClusterInfo";
 import type { Config } from "../Config/ConfigSchema";
 import type { Database } from "../Data/Database";
 import { AUDIT_RETENTION_MS } from "../Data/Repositories/AuditLogRepository";
@@ -26,7 +26,7 @@ export function readHostedAdminTokenOrThrow(config: Config, env: Record<string, 
     return token;
 }
 
-export interface HostedGatewayDeps<TCluster> {
+export interface HostedGatewayDeps<TCluster extends ClusterProcessState> {
     token: string;
     db: Database;
     metrics: Pick<GatewayMetrics, "activeGames">;
@@ -41,7 +41,9 @@ export interface HostedGateway {
     createAdminServer(plugins: PluginGateway): Server;
 }
 
-export function createHostedGateway<TCluster>(deps: HostedGatewayDeps<TCluster>): HostedGateway {
+export function createHostedGateway<TCluster extends ClusterProcessState>(
+    deps: HostedGatewayDeps<TCluster>,
+): HostedGateway {
     const { db } = deps;
     const blocks = new BlockChecker({ blocks: db.blocks, hostedGuilds: db.hostedGuilds });
     return {

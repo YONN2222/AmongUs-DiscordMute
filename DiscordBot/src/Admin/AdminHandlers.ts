@@ -37,6 +37,9 @@ export interface Page<T> {
 export interface AdminHandlers {
     health(): Promise<Health>;
     overview(): Promise<Overview>;
+    listClusters(): Promise<ClusterInfo[]>;
+    /** Null when no cluster has this id. */
+    getCluster(clusterId: number): Promise<ClusterInfo | null>;
     listGuilds(query: GuildListQuery): Promise<Page<GuildSummary>>;
     getGuild(guildId: string): Promise<GuildSummary | null>;
     /** Null when the guild is not in the hosted guild list. */
@@ -161,6 +164,12 @@ export function createAdminHandlers(deps: AdminHandlerDeps): AdminHandlers {
                 auditEntries24h,
                 clusters,
             };
+        },
+        listClusters() {
+            return deps.clusterInfo();
+        },
+        async getCluster(clusterId) {
+            return (await deps.clusterInfo()).find((cluster) => cluster.id === clusterId) ?? null;
         },
         async listGuilds(query) {
             const { rows, total } = await db.hostedGuilds.search({

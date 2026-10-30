@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
     AuditListQuerySchema,
     BlockListQuerySchema,
+    ClusterInfoSchema,
+    ClusterParamsSchema,
     CreateAuditBodySchema,
     CreateBlockBodySchema,
     GuildListQuerySchema,
     MAX_PAGE_LIMIT,
+    ShardInfoSchema,
     SnowflakeSchema,
 } from "../../src/Admin/Contract";
 
@@ -63,6 +66,36 @@ describe("admin contract", () => {
         expect(GuildListQuerySchema.parse({ page: "3", limit: "500" })).toEqual({ page: 3, limit: MAX_PAGE_LIMIT });
         expect(GuildListQuerySchema.safeParse({ page: "0" }).success).toBe(false);
         expect(GuildListQuerySchema.safeParse({ q: "x".repeat(101) }).success).toBe(false);
+    });
+
+    it("cluster info stays valid for a cluster that did not answer", () => {
+        const silent = {
+            id: 2,
+            ok: false,
+            status: "starting",
+            shardIds: [4, 5],
+            startedAt: null,
+            guilds: null,
+            wsPingMs: null,
+            uptimeSeconds: null,
+            memoryRssBytes: null,
+            shards: [],
+        };
+        expect(ClusterInfoSchema.safeParse(silent).success).toBe(true);
+        expect(ClusterInfoSchema.safeParse({ ...silent, status: "crashed" }).success).toBe(false);
+    });
+
+    it("shard info allows a missing ping but needs whole numbers", () => {
+        const shard = { id: 0, status: 0, pingMs: null, guilds: 12, lastPingAt: null };
+        expect(ShardInfoSchema.safeParse(shard).success).toBe(true);
+        expect(ShardInfoSchema.safeParse({ ...shard, guilds: 1.5 }).success).toBe(false);
+    });
+
+    it("cluster params coerce a whole number from 0", () => {
+        expect(ClusterParamsSchema.parse({ clusterId: "3" })).toEqual({ clusterId: 3 });
+        expect(ClusterParamsSchema.parse({ clusterId: "0" })).toEqual({ clusterId: 0 });
+        expect(ClusterParamsSchema.safeParse({ clusterId: "-1" }).success).toBe(false);
+        expect(ClusterParamsSchema.safeParse({ clusterId: "x" }).success).toBe(false);
     });
 
     it("list queries validate their filters", () => {
