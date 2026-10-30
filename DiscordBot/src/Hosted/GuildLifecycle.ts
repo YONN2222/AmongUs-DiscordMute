@@ -83,8 +83,11 @@ export class GuildLifecycle {
      */
     async onGuildDelete(guildId: string): Promise<void> {
         this.deps.games.forget(guildId);
-        await this.deps.hostedGuilds.markLeft(guildId, this.now());
-        await this.deps.disconnectRemoved(guildId);
+        try {
+            await this.deps.hostedGuilds.markLeft(guildId, this.now());
+        } finally {
+            await this.deps.disconnectRemoved(guildId);
+        }
     }
 
     /**

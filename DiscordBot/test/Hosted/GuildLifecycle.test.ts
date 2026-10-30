@@ -229,6 +229,22 @@ describe.each(backends)("GuildLifecycle (%s)", (backend) => {
             expect(steps).toEqual([`forget games ${guildId}`, `disconnect ${guildId} removed`]);
         });
 
+        it("guild delete still disconnects the plugins when marking the guild as left fails", async () => {
+            const failing = new GuildLifecycle({
+                ...deps,
+                hostedGuilds: {
+                    ...db.hostedGuilds,
+                    markLeft: async () => {
+                        throw new Error("database is down");
+                    },
+                },
+            });
+
+            await expect(failing.onGuildDelete(guildId)).rejects.toThrow("database is down");
+
+            expect(steps).toEqual([`forget games ${guildId}`, `disconnect ${guildId} removed`]);
+        });
+
         it("a re-invite recovers the guild first, then clears the leave time and keeps the data", async () => {
             await lifecycle.onGuildCreate(info());
             await db.links.upsert(guildId, "u1", "Crew");
