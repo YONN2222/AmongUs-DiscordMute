@@ -11,7 +11,6 @@ import { logger } from "../src/Logging/Logger";
 import { EXIT_CONFIG } from "../src/Process/ExitCodes";
 import { postgresUrl } from "./Helpers/TestDatabase";
 
-const ADMIN_PORT = 9465;
 const TEST_ADMIN_TOKEN = "x".repeat(40);
 
 it("runs under the Bun runtime with bun:sqlite available", () => {
@@ -86,7 +85,7 @@ describe("gateway wiring", () => {
 
         expect(running).toBeDefined();
         expect(deps.exit).not.toHaveBeenCalled();
-        expect(await isListening(ADMIN_PORT)).toBe(false);
+        expect(await isListening(exampleConfig().adminApi.port)).toBe(false);
     });
 
     it("hosted start without ADMIN_API_TOKEN exits with the message", async () => {

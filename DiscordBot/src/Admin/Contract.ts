@@ -180,6 +180,7 @@ const SearchSchema = z.string().max(MAX_SEARCH_LENGTH).optional();
 export const GuildListQuerySchema = PageQuerySchema.extend({ q: SearchSchema });
 export type GuildListQuery = z.infer<typeof GuildListQuerySchema>;
 
+/** Unlike the guild list, `q` here is the exact target id of a block, not a text search. */
 export const BlockListQuerySchema = PageQuerySchema.extend({ type: BlockTypeSchema.optional(), q: SearchSchema });
 export type BlockListQuery = z.infer<typeof BlockListQuerySchema>;
 

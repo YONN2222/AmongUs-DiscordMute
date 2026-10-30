@@ -51,7 +51,7 @@ describe.each(backends)("admin handlers, actions (%s)", (backend) => {
                 return reply;
             });
 
-        const blocked = (result: Block | "conflict"): Block => {
+        const createdBlock = (result: Block | "conflict"): Block => {
             if (result === "conflict") throw new Error("expected a block");
             return result;
         };
@@ -77,7 +77,7 @@ describe.each(backends)("admin handlers, actions (%s)", (backend) => {
             await addGuild(guildId, uniqueId("owner"));
             leavesWith(guildId);
 
-            const block = blocked(
+            const block = createdBlock(
                 await handlers().createBlock({ type: "guild", targetId: guildId, reason: "spam", actorId: admin }),
             );
 
@@ -116,7 +116,7 @@ describe.each(backends)("admin handlers, actions (%s)", (backend) => {
         it('guild block on an unknown guild stores "Bot was not in the server"', async () => {
             const guildId = uniqueId("unknown");
 
-            const block = blocked(
+            const block = createdBlock(
                 await handlers().createBlock({ type: "guild", targetId: guildId, reason: "spam", actorId: admin }),
             );
 
@@ -130,7 +130,7 @@ describe.each(backends)("admin handlers, actions (%s)", (backend) => {
             await addGuild(guildId, uniqueId("owner"));
             leavesWith(guildId, { ok: false, error: "cluster starting" });
 
-            const block = blocked(
+            const block = createdBlock(
                 await handlers().createBlock({ type: "guild", targetId: guildId, reason: "spam", actorId: admin }),
             );
 
@@ -151,7 +151,7 @@ describe.each(backends)("admin handlers, actions (%s)", (backend) => {
             await addGuild(foreign, uniqueId("owner"));
             for (const guildId of [first, second, foreign]) leavesWith(guildId);
 
-            const block = blocked(
+            const block = createdBlock(
                 await handlers().createBlock({ type: "user", targetId: owner, reason: "abuse", actorId: admin }),
             );
 
@@ -174,7 +174,7 @@ describe.each(backends)("admin handlers, actions (%s)", (backend) => {
         });
 
         it('user block without servers stores "No servers owned by this user"', async () => {
-            const block = blocked(
+            const block = createdBlock(
                 await handlers().createBlock({
                     type: "user",
                     targetId: uniqueId("owner"),
@@ -199,7 +199,7 @@ describe.each(backends)("admin handlers, actions (%s)", (backend) => {
             leavesWith(good);
             leavesWith(bad, { ok: false, error: "not-in-guild" });
 
-            const block = blocked(
+            const block = createdBlock(
                 await handlers().createBlock({ type: "user", targetId: owner, reason: "abuse", actorId: admin }),
             );
 
@@ -223,7 +223,7 @@ describe.each(backends)("admin handlers, actions (%s)", (backend) => {
                 });
             }
 
-            const block = blocked(
+            const block = createdBlock(
                 await handlers().createBlock({ type: "user", targetId: owner, reason: "abuse", actorId: admin }),
             );
 
@@ -343,7 +343,7 @@ describe.each(backends)("admin handlers, actions (%s)", (backend) => {
             await addGuild(guildId, uniqueId("owner"));
             await db.hostedGuilds.markLeft(guildId, START);
 
-            const block = blocked(
+            const block = createdBlock(
                 await handlers().createBlock({ type: "guild", targetId: guildId, reason: "spam", actorId: admin }),
             );
 

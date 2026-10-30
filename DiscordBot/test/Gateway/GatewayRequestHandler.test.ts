@@ -56,6 +56,17 @@ describe("createGatewayRequestHandler", () => {
         expect(plugins.disconnectGuild).toHaveBeenCalledWith("g", 4001, "Secret rotated");
     });
 
+    it("disconnects with the bot-left close code", () => {
+        const handle = createGatewayRequestHandler(plugins);
+
+        expect(
+            handle({ kind: "disconnect-guild", guildId: "g", code: 4007, reason: "The bot left this server" }),
+        ).toEqual({
+            ok: true,
+        });
+        expect(plugins.disconnectGuild).toHaveBeenCalledWith("g", 4007, "The bot left this server");
+    });
+
     it("rejects a disconnect with another close code or a long reason", () => {
         const handle = createGatewayRequestHandler(plugins);
         const invalid = { ok: false, error: "invalid request" };
