@@ -2,13 +2,38 @@
   <img src="assets/AmongUsDiscordMuteLarge.png" alt="DiscordMute" width="600" />
 
   <p><strong>Automatic Discord voice muting for Among Us.</strong></p>
+
+  <p>
+    <img src="https://img.shields.io/badge/C%23-239120?style=for-the-badge&logo=csharp&logoColor=white" alt="C#" />
+    <img src="https://img.shields.io/badge/BepInEx-1f1f1f?style=for-the-badge" alt="BepInEx" />
+    <img src="https://img.shields.io/badge/Bun-000000?style=for-the-badge&logo=bun&logoColor=white" alt="Bun" />
+    <img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
+    <img src="https://img.shields.io/badge/discord.js-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="discord.js" />
+    <img src="https://img.shields.io/badge/GPLv3-blue?style=for-the-badge" alt="License" />
+  </p>
 </div>
 
 <br />
 
 DiscordMute keeps your Discord voice channel in sync with your Among Us game. Everyone is muted while tasks are running, living players are unmuted in meetings, and dead players stay muted.
 
-It has two parts: a small plugin for Among Us and a Discord bot. You can use the hosted bot, or run the bot yourself.
+I built it because my friend group kept talking during live rounds and nobody wanted to mute themselves every game. It has two parts: a small plugin for Among Us and a Discord bot. You can use the hosted bot, or run the bot yourself.
+
+> [!IMPORTANT]
+> **Only the host needs the plugin.** DiscordMute works only while you are the host of the lobby (online or LAN). Other players play the normal game and only have to be linked in Discord. If you join someone else's lobby, the plugin does nothing.
+
+## What it can do
+
+- **Automatic muting** for every phase, with your own rules for living and dead players and optional delays.
+- **Easy linking**: players link their Discord account with a one-time phrase in the lobby chat, or with Quick Chat on guest accounts.
+- **Setup in Discord**: one `/setup` panel for every server setting, no config files.
+- **Link overview** with buttons, so players can link and unlink without typing commands.
+- **Live status** of the running game and a **match summary** with winners after every game.
+- **Ghost chat**: dead players can talk while the living are deafened.
+- **Nickname sync**, **automatic relink** after a name change and a **log channel** for admins.
+- **Crash safe**: after a crash or restart the bot lifts every mute it set.
+- **EHR support**: blackmailed players stay muted in meetings.
+- English and German.
 
 ## Quick start
 
