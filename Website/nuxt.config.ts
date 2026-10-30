@@ -37,7 +37,7 @@ export default defineNuxtConfig({
         { rel: 'icon', type: 'image/png', href: '/brand/favicon-64.png' },
         { rel: 'preload', as: 'font', type: 'font/woff2', href: '/fonts/outfit-variable.woff2', crossorigin: '' },
       ],
-      meta: [{ name: 'theme-color', content: '#111118' }],
+      meta: [{ name: 'theme-color', content: '#0a0a0f' }],
     },
   },
   routeRules: {
