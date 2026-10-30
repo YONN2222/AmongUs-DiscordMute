@@ -185,6 +185,20 @@ describe("MuteService", () => {
             expect([...fx.voice.muted].sort()).toEqual(["u3", "u4"]);
         });
 
+        it("keeps a guild closed while a second, overlapping leave is still running", async () => {
+            const service = createParallelService();
+            await service.endGuild(GUILD);
+            await service.endGuild(GUILD);
+
+            service.reopenGuild(GUILD);
+            await service.handleGameEvent(eventOf("A", "game-start", ["Red", "Blue"]));
+            expect(fx.voice.muted.size).toBe(0);
+
+            service.reopenGuild(GUILD);
+            await service.handleGameEvent(eventOf("B", "game-start", ["Green", "Yellow"]));
+            expect([...fx.voice.muted].sort()).toEqual(["u3", "u4"]);
+        });
+
         it("endGuild cancels the delayed game start of a game that is still in the lobby", async () => {
             fx.settings = {
                 ...DEFAULT_SETTINGS,

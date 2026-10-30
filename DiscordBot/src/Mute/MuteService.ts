@@ -7,6 +7,7 @@ import type { SettingsService } from "../Settings/SettingsService";
 import { ActiveSessions } from "../Utils/ActiveSessions";
 import { EndedSessions } from "../Utils/EndedSessions";
 import { GuildQueue } from "../Utils/GuildQueue";
+import { LeavingGuilds } from "../Utils/LeavingGuilds";
 import { computeDesiredState, type DesiredState } from "./DesiredState";
 import { RELEASE, reconcileMember, wantedFlags } from "./ReconcileMember";
 import { delayFor, effectiveRules, type Phase, phaseOf } from "./VoiceRules";
@@ -80,7 +81,7 @@ export class MuteService {
     /** A late game event of an ended session must not start it again, or its mutes would stay until restart. */
     private readonly endedSessions = new EndedSessions();
     /** Guilds the bot is leaving; their games are over, so every event of them is dropped until the leave returned. */
-    private readonly leavingGuilds = new Set<string>();
+    private readonly leavingGuilds = new LeavingGuilds();
     /** Guilds that removed the bot; nothing of them is applied until recover runs for them. */
     private readonly removedGuilds = new Set<string>();
     /** Counts the events of a session in arrival order; a delayed event that was overtaken is dropped. */
@@ -200,7 +201,7 @@ export class MuteService {
      * delay, is dropped until reopenGuild. Rejects when the ledger cannot be read, so the bot stays.
      */
     endGuild(guildId: string): Promise<void> {
-        this.leavingGuilds.add(guildId);
+        this.leavingGuilds.enter(guildId);
         return this.enqueue(guildId, async () => {
             this.endSessionsOf(guildId);
             await this.releaseGuild(guildId);
@@ -209,7 +210,7 @@ export class MuteService {
 
     /** Called once the leave returned; if the bot is still in the guild, new games work again. */
     reopenGuild(guildId: string): void {
-        this.leavingGuilds.delete(guildId);
+        this.leavingGuilds.exit(guildId);
     }
 
     /**

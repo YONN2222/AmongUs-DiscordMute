@@ -6,6 +6,7 @@ import { logger, logModules } from "../Logging/Logger";
 import type { SettingsService } from "../Settings/SettingsService";
 import { ActiveSessions } from "../Utils/ActiveSessions";
 import { GuildQueue } from "../Utils/GuildQueue";
+import { LeavingGuilds } from "../Utils/LeavingGuilds";
 
 const MAX_NICKNAME_LENGTH = 32;
 const DISCORD_MISSING_PERMISSIONS = 50013;
@@ -60,7 +61,7 @@ export class NicknameSync {
     /** The sessions per guild that renamed members in their running game. */
     private readonly activeSessions = new ActiveSessions();
     /** Guilds the bot is leaving; nobody is renamed there until the leave returned. */
-    private readonly leavingGuilds = new Set<string>();
+    private readonly leavingGuilds = new LeavingGuilds();
 
     constructor(private readonly deps: NicknameSyncDeps) {}
 
@@ -101,13 +102,13 @@ export class NicknameSync {
      * Game events of the guild are ignored until reopenGuild.
      */
     endGuild(guildId: string): Promise<void> {
-        this.leavingGuilds.add(guildId);
+        this.leavingGuilds.enter(guildId);
         return this.restoreGuild(guildId);
     }
 
     /** Called once the leave returned; if the bot is still in the guild, new games rename again. */
     reopenGuild(guildId: string): void {
-        this.leavingGuilds.delete(guildId);
+        this.leavingGuilds.exit(guildId);
     }
 
     /** The guild removed the bot: forgets its games and keeps the ledger, which recover puts back later. */

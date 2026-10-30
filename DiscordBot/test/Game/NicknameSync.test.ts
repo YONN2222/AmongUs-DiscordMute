@@ -151,6 +151,21 @@ describe.each(backends)("NicknameSync (%s)", (backend) => {
             expect(adapter.nicks.get("u1")).toBe("Red");
         });
 
+        it("keeps a guild closed while a second, overlapping leave is still running", async () => {
+            await db.links.upsert(guildId, "u1", "Red");
+            adapter.join("u1", "Bob");
+            await sync.endGuild(guildId);
+            await sync.endGuild(guildId);
+
+            sync.reopenGuild(guildId);
+            await sync.handle(gameEvent("game-start", ["Red"]));
+            expect(adapter.nicks.get("u1")).toBe("Bob");
+
+            sync.reopenGuild(guildId);
+            await sync.handle(gameEvent("game-start", ["Red"]));
+            expect(adapter.nicks.get("u1")).toBe("Red");
+        });
+
         it("a member renamed by two games is restored only by the game that touched them last", async () => {
             await db.links.upsert(guildId, "u1", "Red");
             adapter.join("u1", "Bob");
