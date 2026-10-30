@@ -9,7 +9,7 @@ const COMMANDS = [
 
 const SPECS = [
   { icon: 'i-lucide-puzzle', title: 'TOHE and EHR', description: 'Better name matching. With EHR, a blackmailed player stays muted in meetings.' },
-  { icon: 'i-lucide-key-round', title: 'One socket, one secret', description: 'A single WebSocket with a shared secret, never sent in a URL.' },
+  { icon: 'i-lucide-key-round', title: 'One socket, one secret', description: 'One secret per server, sent over a single WebSocket and never in a URL.' },
   { icon: 'i-lucide-package', title: 'Just bot.exe', description: 'Releases are compiled. No Bun or Node.js to install.' },
   { icon: 'i-lucide-terminal', title: 'Log bridging', description: 'Optionally forward mod logs to the bot console.' },
 ]
