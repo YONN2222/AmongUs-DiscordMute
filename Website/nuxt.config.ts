@@ -22,6 +22,7 @@ export default defineNuxtConfig({
   ogImage: false,
   site: { url: CANONICAL_ORIGIN, name: SITE_NAME, description: SITE_DESCRIPTION, defaultLocale: 'en', env: 'production' },
   sitemap: { exclude: ['/api/**'] },
+  robots: { groups: [{ userAgent: '*', allow: '/', contentSignal: { search: 'yes', 'ai-input': 'yes', 'ai-train': 'yes' } }] },
   // Overridden at runtime by the Worker variables NUXT_PUBLIC_HOSTED_STATUS, NUXT_PUBLIC_HOSTED_BOT_CLIENT_ID and NUXT_PUBLIC_STATS.
   runtimeConfig: {
     public: {
