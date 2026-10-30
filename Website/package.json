@@ -1,0 +1,43 @@
+{
+  "name": "discordmute-website",
+  "private": true,
+  "type": "module",
+  "packageManager": "bun@1.4.4",
+  "dependencies": {
+    "@iconify-json/lucide": "1.2.148",
+    "@nuxt/ui": "4.12.0",
+    "@nuxtjs/seo": "6.0.1",
+    "nuxt": "4.6.3",
+    "tailwindcss": "4.3.3",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "1.4.10",
+    "@playwright/test": "1.64.1",
+    "@types/node": "26.6.6",
+    "typescript": "6.0.3",
+    "vitest": "5.0.5",
+    "vue-tsc": "3.3.13",
+    "wrangler": "4.155.0"
+  },
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "nuxt build",
+    "preview": "wrangler dev",
+    "typecheck": "nuxt typecheck",
+    "test": "bun run test:unit && bun run test:worker",
+    "test:unit": "vitest run",
+    "test:worker": "vitest run --config vitest.workers.config.ts",
+    "test:e2e": "bun run build && playwright test",
+    "e2e:serve": "bunx wrangler d1 migrations apply DB --local --persist-to .wrangler/e2e && bunx wrangler d1 execute DB --local --persist-to .wrangler/e2e --file test/e2e/seed.sql && bunx wrangler dev --port 8799 --persist-to .wrangler/e2e",
+    "e2e:serve:ingest": "bunx wrangler d1 migrations apply DB --local --persist-to .wrangler/e2e-ingest && bunx wrangler d1 execute DB --local --persist-to .wrangler/e2e-ingest --file test/e2e/seed.sql && bunx wrangler dev --port 8789 --persist-to .wrangler/e2e-ingest",
+    "e2e:serve:empty": "bunx wrangler d1 migrations apply DB --local --persist-to .wrangler/e2e-empty && bunx wrangler dev --port 8788 --persist-to .wrangler/e2e-empty",
+    "e2e:serve:available": "bunx wrangler d1 migrations apply DB --local --persist-to .wrangler/e2e-available && bunx wrangler d1 execute DB --local --persist-to .wrangler/e2e-available --file test/e2e/seed.sql && bunx wrangler dev --port 8790 --persist-to .wrangler/e2e-available --var NUXT_PUBLIC_HOSTED_STATUS:available",
+    "e2e:serve:unavailable": "bunx wrangler d1 migrations apply DB --local --persist-to .wrangler/e2e-unavailable && bunx wrangler d1 execute DB --local --persist-to .wrangler/e2e-unavailable --file test/e2e/seed.sql && bunx wrangler dev --port 8791 --persist-to .wrangler/e2e-unavailable --var NUXT_PUBLIC_HOSTED_STATUS:unavailable --var NUXT_PUBLIC_STATS:hidden",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "cf-typegen": "wrangler types",
+    "schema:export": "bun scripts/export-telemetry-schema.ts",
+    "check:entry": "bun scripts/check-worker-entry.ts",
+    "postinstall": "nuxt prepare"
+  }
+}

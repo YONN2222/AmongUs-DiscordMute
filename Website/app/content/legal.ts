@@ -1,0 +1,168 @@
+import { UMAMI_ORIGIN } from '#shared/analytics'
+import { DOCS_URL, GITHUB_URL } from '#shared/site'
+import { TELEMETRY_EVENT_NAMES, TELEMETRY_FEATURES, TELEMETRY_MODES } from '#shared/telemetry/schema'
+import { MIN_INTERVAL_SECONDS } from '#shared/telemetry/contract'
+
+export type LegalSection = { id: string; heading: string; body: string[] }
+
+export const LEGAL_UPDATED_AT = '2026-10-30'
+export const OPERATOR_URL = 'https://yonn2222.com'
+export const LICENSE_URL = `${GITHUB_URL}/blob/master/LICENSE`
+
+const list = (items: readonly string[]) => items.join(', ')
+
+export const PRIVACY_SECTIONS: readonly LegalSection[] = [
+  {
+    id: 'controller',
+    heading: 'Who is responsible',
+    body: [
+      `DiscordMute is a free, open source project run by an individual. The person responsible for the data processing described here is the operator, who you can reach through ${OPERATOR_URL}.`,
+      'This page covers this website, the telemetry that DiscordMute bots send to it, and the data of the hosted bot. It does not cover Discord, Among Us, GitHub or any other service you use alongside DiscordMute. Those have their own policies.',
+    ],
+  },
+  {
+    id: 'website',
+    heading: 'This website',
+    body: [
+      'The website sets no cookies and does not track you across other sites. It loads no third-party scripts, fonts, images or embeds; everything comes from this domain, apart from the self-hosted analytics scripts described under "Analytics and session recordings".',
+      'The site is served by Cloudflare. To deliver pages and to protect against abuse, Cloudflare, Inc. acts as processor for the operator and processes technical request data such as your IP address, user agent and the requested URL. This data may be processed outside the European Union under Cloudflare\'s data processing terms. The site also uses Cloudflare Workers Logs, which keep an operational log of each request for up to 7 days. These logs include the client IP address, the request method and URL, request headers such as the user agent, and approximate location and network data derived from the IP address. The operator uses them only for debugging and abuse prevention. Apart from a short rejection reason (the name of the field that failed a check, and the mode) that is logged when a report is rejected, telemetry contents are not written to these logs.',
+      'The legal basis for delivering and protecting the website, including rate limiting and these logs, is the legitimate interest of the operator in running a secure and working site (Article 6(1)(f) GDPR).',
+      'The telemetry endpoint reads the sender IP address only as a short-lived key for rate limiting. For IPv6 senders this is the /64 network prefix. The address is never stored in the database, and the telemetry code does not write it to any log of its own. The Cloudflare request logs described above are separate from this.',
+    ],
+  },
+  {
+    id: 'analytics',
+    heading: 'Analytics and session recordings',
+    body: [
+      `This website and the documentation at ${DOCS_URL} use Umami for analytics. The operator runs Umami himself on his own server at ${UMAMI_ORIGIN}, so no third-party analytics provider receives the data. Umami sets no cookies, does not track you across other sites and does not store your IP address. It counts page views, referrers, browser and device type, language and approximate country, and derives an anonymous session identifier that cannot be traced back to your IP address.`,
+      'Clicks on the main buttons and links, such as Download, Docs, GitHub, adding the hosted bot, the setup guides, the menu, the footer and opening a question in the FAQ, are recorded as events together with the name of the element. They contain no personal data.',
+      'Both sites also load the Umami session recorder. It records how a page is used, such as mouse movement, clicks, scrolling and what the page looked like, so the operator can see where visitors get stuck and improve the sites. What you type into input fields, for example the documentation search, is masked and not recorded. Recordings are stored on the operator\'s server, are used only to improve the sites, are not shared, and are deleted after the retention period the operator has set in Umami.',
+      'The legal basis is the legitimate interest of the operator in understanding and improving his sites (Article 6(1)(f) GDPR). You can object at any time; the simplest way is to block umami.yonn2222.com in your browser or with a content blocker, which does not affect how the sites work.',
+    ],
+  },
+  {
+    id: 'telemetry',
+    heading: 'Telemetry from bot instances',
+    body: [
+      `A DiscordMute bot sends one anonymous report about every 5 minutes to this website, and the website accepts at most one per ${MIN_INTERVAL_SECONDS} seconds per instance. Telemetry is on by default. The operator uses it to show the public counters on the home page and to see which versions and features are in use.`,
+      `A report contains exactly these fields. Identity: a random instance ID generated by the bot (not derived from any account, server or machine), a random ID per report, and the mode (${list(TELEMETRY_MODES)}). Versions: the bot version, the versions of connected mod plugins and of Among Us, each with a count of how many of them are connected. Current values: the number of linked users, active games, Discord servers and connected plugins. Totals since the last report: games muted, mutes, unmutes, rate limit hits and the number of events by type (${list(TELEMETRY_EVENT_NAMES)}). Discord mute latency: the average in milliseconds and the number of samples. Feature usage: how many Discord servers use each feature (${list(TELEMETRY_FEATURES)}).`,
+      'A report never contains Discord user, server or channel IDs, user or player names, server or channel names, tokens, secrets, IP addresses, or hashes of any of these. The format is strict, so the website rejects a report that carries any other field.',
+      'To turn telemetry off for a self-hosted bot, set disableTelemetry: true in the bot config.json. The bot then sends nothing.',
+      'The website stores the reports as daily aggregate counters per mode and as one row per instance ID holding the latest values and the first and last time that instance reported. Because the instance ID is random and no other identifier is sent, this data does not identify a person.',
+    ],
+  },
+  {
+    id: 'hosted-bot',
+    heading: 'The hosted bot',
+    body: [
+      'If you add the hosted bot to your Discord server, it stores the data it needs to work. This is the Discord user ID of each player who links their account, together with the in-game name and the Among Us friend code used when linking, so the bot can link a player again after they change their in-game name; the settings of your server; and a hash of the server secret that connects your Among Us host to the bot.',
+      'While a game runs with nickname sync turned on, the bot keeps the original server nickname of each player it renames and puts it back when the game ends.',
+      'To run the service the bot also stores the server name, the server icon, the Discord user ID of the server owner and the member count. This data is deleted together with the rest of the data of your server.',
+      'The bot keeps a record of the Discord user IDs of members it muted, deafened or renamed, until it has undone that. While a link phrase is open (5 minutes), it holds the Discord user ID and language of the person who asked for it.',
+      'The hosted bot keeps an operational log for debugging and abuse prevention. It contains Discord user and server IDs and the in-game names used for linking. Only the operator can read it.',
+      'The operator\'s admin tools can look up the public Discord profile of a user (username, display name and avatar) on demand. This data comes straight from Discord and is not stored.',
+      'The bot also keeps ban records, which are the Discord IDs of users or servers that were blocked from the hosted bot, so that a ban stays effective. A ban record includes the reason for the ban.',
+      'The operator keeps an audit log of moderation actions on the hosted bot, such as blocks and removals. An entry holds the Discord ID of the operator who acted and the Discord ID of the affected user or server. When the operator removes the bot from a server, the entry also holds the reason the operator gave. Entries made automatically, such as the deletion of server data, show "system" as the actor. Audit log entries are kept for 180 days.',
+      'The legal basis is your use of the service (Article 6(1)(b) GDPR) and the legitimate interest in keeping the service secure and free of abuse (Article 6(1)(f) GDPR). Data is not sold and not shared with third parties, apart from the hosting providers that run the bot. Connections from the Among Us plugin to the hosted bot pass through Cloudflare, Inc. (Cloudflare Tunnel), which acts as processor for the operator and sees the technical connection data such as your IP address.',
+      'When the bot is removed from a Discord server, the data of that server is deleted 7 days later, including its settings and the links of its players. The operator deletes it earlier on request.',
+    ],
+  },
+  {
+    id: 'self-host',
+    heading: 'Self-hosted bots',
+    body: [
+      'If you run the bot yourself, the links between Discord accounts and in-game names, your settings and your secret stay on your own machine. The operator never receives them and is not responsible for them. The only thing the operator receives from a self-hosted bot is the telemetry described above, unless you turn it off.',
+    ],
+  },
+  {
+    id: 'retention',
+    heading: 'How long data is kept',
+    body: [
+      'Aggregate counters and per-instance statistics are kept as long as they are useful for the public counters and for planning, and they contain no personal data.',
+      'Hosted bot data is kept while the bot is in your server and for 7 days after it was removed. Ban records are kept for as long as the ban applies. Audit log entries of moderation actions are kept for 180 days. Operational logs are kept for 30 days. Mute records are removed once the mute is undone, and open link requests after 5 minutes. You can ask for earlier deletion.',
+      'Request data held by Cloudflare is kept according to Cloudflare policy. Analytics data and session recordings are kept on the operator\'s Umami server for the retention period the operator has set there.',
+    ],
+  },
+  {
+    id: 'rights',
+    heading: 'Your rights',
+    body: [
+      'Under the GDPR you can ask for access to your personal data, correction, deletion, restriction of processing, a copy in a portable format, and you can object to processing based on legitimate interest. You can also complain to your local data protection authority.',
+      `To exercise a right, contact the operator through ${OPERATOR_URL} and include your Discord user ID so the data can be found. You can remove your own link at any time with the unlink subcommand of /link in Discord.`,
+    ],
+  },
+  {
+    id: 'changes',
+    heading: 'Changes to this policy',
+    body: [
+      'If the telemetry fields or the data of the hosted bot change, this page is updated before the change ships. The date at the top shows the last update. The full history is public in the project repository.',
+    ],
+  },
+]
+
+export const TERMS_SECTIONS: readonly LegalSection[] = [
+  {
+    id: 'service',
+    heading: 'The service',
+    body: [
+      'DiscordMute is a BepInEx mod for Among Us and a Discord bot that server-mutes and unmutes voice channel members in step with the game. These terms cover this website, the hosted bot and the telemetry endpoint. By using them you accept these terms.',
+    ],
+  },
+  {
+    id: 'acceptable-use',
+    heading: 'Acceptable use',
+    body: [
+      'Do not abuse the telemetry endpoint: no flooding, no forged or fabricated reports, no probing for other instances.',
+      'Do not circumvent bans or blocks, for example by re-adding the hosted bot under a different account after it has been blocked.',
+      'Do not use DiscordMute to harass others, and follow the Discord terms and community guidelines at all times.',
+    ],
+  },
+  {
+    id: 'hosted-availability',
+    heading: 'Hosted bot availability',
+    body: [
+      'The hosted bot is run on a best effort basis. There is no uptime guarantee and no support obligation. It can be slow, change or be unavailable at any time.',
+      'The operator may block servers or users from the hosted bot, for example for abuse, and may shut the hosted bot down.',
+    ],
+  },
+  {
+    id: 'software-license',
+    heading: 'Software license',
+    body: [
+      `The DiscordMute mod, bot and this website are free software under the GNU General Public License version 3. You can use, study, change and share them under that license. The full text is at ${LICENSE_URL}.`,
+    ],
+  },
+  {
+    id: 'no-affiliation',
+    heading: 'No affiliation',
+    body: [
+      'DiscordMute is a fan-made project. It is not affiliated with, endorsed by or sponsored by Innersloth or Discord. Among Us is a trademark of its owner and Discord is a trademark of Discord Inc.',
+    ],
+  },
+  {
+    id: 'warranty',
+    heading: 'No warranty',
+    body: [
+      'The service and the software are provided as they are, without warranty of any kind. The software modifies a running game, so you use it at your own risk.',
+    ],
+  },
+  {
+    id: 'liability',
+    heading: 'Limitation of liability',
+    body: [
+      'To the extent the law allows, the operator is not liable for damages arising from the use of the service or the software, including lost data, muted voice chats, game problems, or account actions taken by Discord or Innersloth. Liability for intent and gross negligence, and for injury to life, body or health, stays unaffected.',
+    ],
+  },
+  {
+    id: 'changes',
+    heading: 'Changes to these terms',
+    body: [
+      'These terms can change. The date at the top shows the last update, and continued use after a change means you accept the new version.',
+    ],
+  },
+  {
+    id: 'contact',
+    heading: 'Contact',
+    body: [`Questions about these terms can go to the operator through ${OPERATOR_URL}.`],
+  },
+]

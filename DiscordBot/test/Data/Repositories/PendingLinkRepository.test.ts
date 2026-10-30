@@ -1,0 +1,165 @@
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { Database } from "../../../src/Data/Database";
+import type { PendingLinkModel } from "../../../src/Data/Models/PendingLinkModel";
+import { createPendingLinkRepository, type PendingLink } from "../../../src/Data/Repositories/PendingLinkRepository";
+import { backendAvailable, backends, openBackend, purgeTestRows, uniqueId } from "../../Helpers/TestDatabase";
+
+describe("createPendingLinkRepository", () => {
+    it("refuses a model that was never initialised", () => {
+        expect(() => createPendingLinkRepository({} as typeof PendingLinkModel)).toThrow(/not initialised/);
+    });
+});
+
+describe.each(backends)("PendingLinkRepository (%s)", (backend) => {
+    describe.skipIf(!backendAvailable(backend))("suite", () => {
+        let db: Database;
+        let guildId: string;
+        const now = 1_000_000;
+
+        function pending(overrides: Partial<PendingLink> = {}): PendingLink {
+            return {
+                guildId,
+                discordId: "u1",
+                phrase: uniqueId("phrase"),
+                quickChatCode: uniqueId("qc"),
+                quickChatIds: [3, 7],
+                expiresAt: now + 60_000,
+                ...overrides,
+            };
+        }
+
+        beforeEach(async () => {
+            db = await openBackend(backend);
+            guildId = uniqueId("g");
+        });
+
+        afterEach(async () => {
+            await purgeTestRows(db);
+            await db.close();
+        });
+
+        it("create then getActive round-trips quick chat ids and expiry", async () => {
+            const p = pending();
+            await db.pendingLinks.create(p);
+            expect(await db.pendingLinks.getActive(guildId, "u1", now)).toEqual(p);
+        });
+
+        it("lists active pending links of a guild by expiry, with a limit and a total", async () => {
+            await db.pendingLinks.create(pending({ discordId: "u1", expiresAt: now + 3000 }));
+            await db.pendingLinks.create(pending({ discordId: "u2", expiresAt: now + 1000 }));
+            await db.pendingLinks.create(pending({ discordId: "u3", expiresAt: now + 2000 }));
+            await db.pendingLinks.create(pending({ discordId: "u4", expiresAt: now - 1 }));
+            await db.pendingLinks.create(pending({ guildId: uniqueId("other"), discordId: "u5" }));
+
+            expect((await db.pendingLinks.listActiveByGuild(guildId, now, 2)).map((p) => p.discordId)).toEqual([
+                "u2",
+                "u3",
+            ]);
+            expect(await db.pendingLinks.countActive(guildId, now)).toBe(3);
+        });
+
+        it("getActive ignores expired rows", async () => {
+            await db.pendingLinks.create(pending({ expiresAt: now - 1 }));
+            expect(await db.pendingLinks.getActive(guildId, "u1", now)).toBeNull();
+        });
+
+        it("consumeByCode matches text code", async () => {
+            const p = pending();
+            await db.pendingLinks.create(p);
+            expect(await db.pendingLinks.consumeByCode(guildId, p.phrase, now)).toEqual(p);
+            expect(await db.pendingLinks.getActive(guildId, "u1", now)).toBeNull();
+        });
+
+        it("consumeByCode matches quick chat code", async () => {
+            const p = pending();
+            await db.pendingLinks.create(p);
+            expect(await db.pendingLinks.consumeByCode(guildId, p.quickChatCode, now)).toEqual(p);
+        });
+
+        it("consumeByCode ignores expired", async () => {
+            const p = pending({ expiresAt: now - 1 });
+            await db.pendingLinks.create(p);
+            expect(await db.pendingLinks.consumeByCode(guildId, p.phrase, now)).toBeNull();
+        });
+
+        it("consumeByCode does not match a code of another guild and leaves that row in place", async () => {
+            const otherGuild = uniqueId("other");
+            const p = pending({ guildId: otherGuild });
+            await db.pendingLinks.create(p);
+
+            expect(await db.pendingLinks.consumeByCode(guildId, p.phrase, now)).toBeNull();
+            expect(await db.pendingLinks.consumeByCode(guildId, p.quickChatCode, now)).toBeNull();
+            expect(await db.pendingLinks.getActive(otherGuild, "u1", now)).toEqual(p);
+        });
+
+        it("the same codes can be open in two guilds at once", async () => {
+            const otherGuild = uniqueId("other");
+            const p = pending();
+            const sameCodesElsewhere = { ...p, guildId: otherGuild };
+            await db.pendingLinks.create(p);
+            await db.pendingLinks.create(sameCodesElsewhere);
+
+            expect(await db.pendingLinks.consumeByCode(otherGuild, p.quickChatCode, now)).toEqual(sameCodesElsewhere);
+            expect(await db.pendingLinks.consumeByCode(guildId, p.phrase, now)).toEqual(p);
+        });
+
+        it("a code can be consumed only once", async () => {
+            const p = pending();
+            await db.pendingLinks.create(p);
+            const results = await Promise.all([
+                db.pendingLinks.consumeByCode(guildId, p.phrase, now),
+                db.pendingLinks.consumeByCode(guildId, p.phrase, now),
+            ]);
+            expect(results.filter((r) => r !== null)).toHaveLength(1);
+        });
+
+        it("create replaces previous pending link of same user", async () => {
+            const first = pending();
+            const second = pending();
+            await db.pendingLinks.create(first);
+            await db.pendingLinks.create(second);
+            expect(await db.pendingLinks.consumeByCode(guildId, first.phrase, now)).toBeNull();
+            expect(await db.pendingLinks.consumeByCode(guildId, second.phrase, now)).toEqual(second);
+        });
+
+        it("attachInteraction stores the interaction data", async () => {
+            const p = pending();
+            await db.pendingLinks.create(p);
+            await db.pendingLinks.attachInteraction(guildId, "u1", "app", "token");
+            expect(await db.pendingLinks.consumeByCode(guildId, p.phrase, now)).toEqual({
+                ...p,
+                applicationId: "app",
+                interactionToken: "token",
+            });
+        });
+
+        it("attachInteraction stores the interaction locale in a nullable column", async () => {
+            const columns = await db.sequelize.getQueryInterface().describeTable("pending_links");
+            expect(columns.locale?.allowNull).toBe(true);
+
+            const p = pending();
+            await db.pendingLinks.create(p);
+            await db.pendingLinks.attachInteraction(guildId, "u1", "app", "token", "de");
+            expect(await db.pendingLinks.getActive(guildId, "u1", now)).toMatchObject({ locale: "de" });
+        });
+
+        it("stores interaction data as unbounded text", async () => {
+            const columns = await db.sequelize.getQueryInterface().describeTable("pending_links");
+            expect(columns.application_id?.type).toBe("TEXT");
+            expect(columns.interaction_token?.type).toBe("TEXT");
+
+            const p = pending();
+            const longToken = "t".repeat(1000);
+            await db.pendingLinks.create(p);
+            await db.pendingLinks.attachInteraction(guildId, "u1", "app", longToken);
+            expect((await db.pendingLinks.consumeByCode(guildId, p.phrase, now))?.interactionToken).toBe(longToken);
+        });
+
+        it("deleteExpired removes only expired rows", async () => {
+            await db.pendingLinks.create(pending({ discordId: "old", expiresAt: now - 1 }));
+            await db.pendingLinks.create(pending({ discordId: "fresh" }));
+            expect(await db.pendingLinks.deleteExpired(now)).toBeGreaterThanOrEqual(1);
+            expect(await db.pendingLinks.getActive(guildId, "fresh", now)).not.toBeNull();
+        });
+    });
+});

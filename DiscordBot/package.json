@@ -1,35 +1,44 @@
 {
   "name": "discord-mute-bot",
-  "version": "1.0.0",
+  "version": "3.0.0",
   "description": "DiscordMute Bot - Among Us voice mute controller",
-  "main": "dist/index.js",
   "scripts": {
-    "generate:commands": "bun run src/Scripts/generate-command-registry.ts",
-    "dev": "bun run generate:commands && bun run --watch src/index.ts",
-    "build": "bun run generate:commands && bun build src/index.ts --compile --target=bun-windows-x64 --outfile bot.exe --external sqlite3 --external pg-hstore --external pg --external mysql2 --external mariadb --external tedious --external oracledb --external snowflake-sdk --external ibm_db",
+    "generate:commands": "bun run src/Scripts/GenerateCommandRegistry.ts",
+    "dev": "bun run generate:commands && bun run --watch src/Index.ts",
+    "build": "bun run generate:commands && bun build src/Index.ts --compile --target=bun-windows-x64 --outfile bot.exe --external sqlite3 --external pg-native --external mysql2 --external mariadb --external tedious --external oracledb --external snowflake-sdk --external ibm_db",
     "typecheck": "bun run generate:commands && tsc --noEmit",
-    "deploy": "bun run generate:commands && bun run src/deploy-commands.ts",
-    "lint": "biome check src/",
-    "lint:fix": "biome check --write src/"
+    "deploy": "bun run generate:commands && bun run src/DeployCommands.ts",
+    "test": "bun --bun vitest run",
+    "test:postgres": "bun --bun vitest run --no-file-parallelism",
+    "lint": "biome check src/ test/ vitest.config.mts",
+    "lint:fix": "biome check --write src/ test/ vitest.config.mts"
   },
   "dependencies": {
     "chalk": "^6.0.0",
     "discord.js": "14.27.0",
-    "express": "^5.2.1",
+    "galactic.ts": "2.1.7",
+    "pg": "^8.23.1",
+    "pg-hstore": "^2.3.4",
+    "prom-client": "15.1.3",
     "sequelize": "^6.37.8",
     "sqlite3": "^5.1.7",
+    "umzug": "^3.8.3",
     "ws": "^8.18.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.8",
     "@types/bun": "^1.3.14",
-    "@types/express": "^5.0.6",
     "@types/node": "^26.2.0",
+    "@types/pg": "^8.23.1",
     "@types/ws": "^8.5.13",
-    "tsdown": "^0.22.14",
-    "typescript": "^6.0.3"
+    "probe.ts": "^0.0.6",
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.5"
   },
   "private": true,
-  "packageManager": "bun@1.3.14"
+  "packageManager": "bun@1.4.4",
+  "patchedDependencies": {
+    "galactic.ts@2.1.7": "patches/galactic.ts@2.1.7.patch"
+  }
 }

@@ -1,0 +1,129 @@
+import { z } from "zod";
+
+export const PROTOCOL_VERSION = 3;
+/**
+ * Protocol 2 is the hello of an unreleased 3.0 pre-release. Released 2.x plugins send the secret in the URL query
+ * instead and are refused as outdated in `PluginGateway.handleUpgrade`.
+ */
+export const MIN_PROTOCOL_VERSION = 2;
+
+export const CLOSE_HELLO_TIMEOUT = 4000;
+export const CLOSE_UNAUTHORIZED = 4001;
+export const CLOSE_PROTOCOL_TOO_OLD = 4002;
+export const CLOSE_INVALID_MESSAGE = 4003;
+export const CLOSE_REPLACED = 4004;
+export const CLOSE_BLOCKED = 4005;
+export const CLOSE_TOO_MANY_SESSIONS = 4006;
+/** An operator removed the bot from the server without blocking it. */
+export const CLOSE_BOT_LEFT = 4007;
+
+export const GAME_EVENT_NAMES = ["lobby", "game-start", "meeting-start", "meeting-end", "player-died"] as const;
+export type GameEventName = (typeof GAME_EVENT_NAMES)[number];
+
+const name = z.string().max(64);
+const nameList = z.array(name).max(128);
+// A malformed optional value is dropped instead of failing the whole message and closing the socket.
+const friendCode = z.string().max(32).optional().catch(undefined);
+
+const rosterEntrySchema = z.object({
+    name,
+    friendCode,
+    dead: z.boolean(),
+    disconnected: z.boolean(),
+});
+const roster = z.array(rosterEntrySchema).max(128);
+
+export type RosterEntry = z.infer<typeof rosterEntrySchema>;
+
+const helloSchema = z.object({
+    type: z.literal("hello"),
+    protocolVersion: z.number().int(),
+    secret: z.string().min(1).max(256),
+    pluginVersion: z.string().max(32),
+    gameVersion: z.string().max(32),
+    /** Tells several games in one guild apart; plugins without it share one session per guild. */
+    connectionKey: z
+        .string()
+        .regex(/^[0-9a-f]{32}$/)
+        .optional()
+        .catch(undefined),
+});
+
+const gameEventSchema = z.object({
+    type: z.literal("game-event"),
+    event: z.enum(GAME_EVENT_NAMES),
+    hostAccountName: name,
+    players: nameList,
+    deadPlayers: nameList,
+    roster: roster.optional(),
+    lobbyCode: z
+        .string()
+        .max(8)
+        .regex(/^[A-Z]{4,8}$/)
+        .optional()
+        .catch(undefined),
+});
+
+const gameEndSchema = z.object({
+    type: z.literal("game-end"),
+    reason: name,
+    winners: nameList,
+    roster,
+});
+
+const linkChatSchema = z.object({
+    type: z.literal("link-chat"),
+    code: name,
+    accountName: name,
+    friendCode,
+});
+
+const pluginLogSchema = z.object({
+    type: z.literal("plugin-log"),
+    level: z.enum(["debug", "info", "warning", "error", "fatal"]),
+    source: name,
+    message: z.string().max(2000),
+});
+
+const pluginMessageSchema = z.discriminatedUnion("type", [
+    helloSchema,
+    gameEventSchema,
+    gameEndSchema,
+    linkChatSchema,
+    pluginLogSchema,
+]);
+
+export type PluginMessage = z.infer<typeof pluginMessageSchema>;
+
+export const NOTICE_CODES = ["host-not-linked", "host-not-in-voice", "cluster-unavailable", "host-blocked"] as const;
+
+export interface GatewayNotice {
+    code: (typeof NOTICE_CODES)[number];
+    message: string;
+}
+
+export type GatewayMessage =
+    | { type: "welcome"; protocolVersion: number }
+    | {
+          type: "link-pending";
+          phrase: string;
+          quickChatCode: string;
+          discordId: string;
+      }
+    | ({ type: "notice" } & GatewayNotice)
+    | { type: "link-result"; status: "linked" | "not-found"; accountName: string };
+
+export function parsePluginMessage(raw: string): PluginMessage | null {
+    let json: unknown;
+    try {
+        json = JSON.parse(raw);
+    } catch {
+        return null;
+    }
+    const result = pluginMessageSchema.safeParse(json);
+    return result.success ? result.data : null;
+}
+
+export function serialize(msg: GatewayMessage): string {
+    return JSON.stringify(msg);
+}

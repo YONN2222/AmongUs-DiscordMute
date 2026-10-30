@@ -1,0 +1,34 @@
+import { type ButtonInteraction, MessageFlags } from "discord.js";
+import type { CommandContext } from "../Commands/Command";
+import { rejectBlockedUser } from "../Hosted/InteractionGate";
+import { localeFrom, t } from "../I18n/Index";
+import { ContainerBuilder } from "../Utils/ContainerBuilder";
+
+export const LINK_SELF_UNLINK_BUTTON_ID = "link-self-unlink";
+
+export async function unlinkSelf(interaction: ButtonInteraction, ctx: CommandContext): Promise<void> {
+    if (!interaction.guildId) return;
+    // A blocked user keeps the link so they stay muted; the interaction gate already refuses them, this is the second line.
+    if (await rejectBlockedUser(interaction, ctx.hosted?.blocks)) return;
+    const locale = localeFrom(interaction.locale);
+
+    const removed = await ctx.linking.removeLink(interaction.guildId, interaction.user.id, interaction.user.id);
+
+    const container = removed
+        ? new ContainerBuilder()
+              .title(t(locale, "link.reset.title"))
+              .divider()
+              .text(t(locale, "link.reset.selfDone"))
+              .footer()
+              .success()
+        : new ContainerBuilder()
+              .title(t(locale, "link.reset.noneTitle"))
+              .text(t(locale, "link.reset.selfNone"))
+              .footer()
+              .warning();
+
+    await interaction.reply({
+        flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+        components: [container],
+    });
+}

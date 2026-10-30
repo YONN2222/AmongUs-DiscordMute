@@ -2,18 +2,21 @@
 
 Thanks for your interest in contributing to DiscordMute.
 
-DiscordMute is a small monorepo with two main parts:
+DiscordMute is a small monorepo with four parts:
 
 - `DLL` - the Among Us plugin written in C#
 - `DiscordBot` - the companion Discord bot written in TypeScript
+- `Website` - the project website and telemetry endpoint (Nuxt on Cloudflare Workers)
+- `docs` - the documentation site (Docus)
 
 ## Requirements
 
 ### For the Among Us plugin
 
 - [.NET SDK 6](https://dotnet.microsoft.com/en-us/download/dotnet/6.0)
-- A local Among Us installation
-- BepInEx installed in your Among Us folder if you want to test the plugin in-game
+- A local 64-bit Among Us installation (Steam, Epic Games or Microsoft Store); the plugin builds against game libs 2026.9.29 (`AmongUs.GameLibs.Steam`), and later game updates need a GameLibs bump
+- itch.io builds are still 32-bit and are not supported
+- The 64-bit (`win-x64`) BepInEx Unity IL2CPP build from the README installed in your Among Us folder if you want to test the plugin in-game
 
 ### For the Discord bot
 
@@ -24,7 +27,9 @@ DiscordMute is a small monorepo with two main parts:
 
 ```text
 ├── DLL/         # C# Among Us plugin
-└── DiscordBot/  # TypeScript Discord bot
+├── DiscordBot/  # TypeScript Discord bot
+├── Website/     # Nuxt website and telemetry endpoint
+└── docs/        # Docus documentation site
 ```
 
 ## Local setup
@@ -68,6 +73,8 @@ cp config.example.json config.json
 
 Then fill in the required Discord bot values.
 
+`galactic.ts` comes from npm (version 2.1.7). `bun install` applies `patches/galactic.ts@2.1.7.patch` automatically, so there is nothing to check out or build.
+
 ### Build the bot executable
 
 The Discord bot is written in TypeScript, but releases use a compiled Windows executable.
@@ -91,9 +98,22 @@ The generated `bot.exe` is a local build artifact and should not be committed.
 From the `DiscordBot` folder:
 
 ```bash
+bun run test
 bun run lint
 bun run typecheck
 ```
+
+Tests run with Vitest under Bun. Discord-facing tests use `probe.ts` instead of hand-written discord.js mocks.
+
+If you change the website, run these from the `Website` folder:
+
+```bash
+bun run test
+bun run typecheck
+bun run build
+```
+
+If you change the docs, run `bun run build` in the `docs` folder.
 
 ## Development notes
 
@@ -102,7 +122,7 @@ bun run typecheck
 - Keep compatibility with the supported Among Us / BepInEx environment.
 - Prefer graceful fallbacks when optional host mods such as TOHE or EHR are not installed.
 - Avoid silent exception handling. If something fails, log a useful warning or error.
-- The plugin is stateless and doesn't run its own HTTP server anymore — it connects out to the bot over a WebSocket (`DLL/Core/PluginSocket.cs`). Treat that connection and the bot's HTTP endpoints as security-sensitive and keep secret validation intact.
+- The plugin is stateless and doesn't run its own HTTP server anymore — it connects out to the bot over a WebSocket (`DLL/Core/PluginSocket.cs`). Treat that connection (protocol v3, handshake with version check; it connects to your own bot or to the hosted gateway) as security-sensitive and keep secret validation intact.
 
 ### TypeScript bot
 
@@ -116,8 +136,10 @@ bun run typecheck
 Please make sure that:
 
 - the plugin builds successfully
+- the bot tests pass
 - the bot passes linting
 - the bot passes type checking
+- the website tests, type check and build pass, and the docs build, if you touched them
 - no secrets or local config files are included
 - your change is focused and easy to review
 
@@ -128,6 +150,7 @@ Useful commands:
 dotnet build -c Release
 
 # DiscordBot
+bun run test
 bun run lint
 bun run typecheck
 ```

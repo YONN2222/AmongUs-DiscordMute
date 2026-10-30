@@ -1,18 +1,19 @@
-import { ContainerBuilder as DiscordContainerBuilder, SeparatorSpacingSize, TextDisplayBuilder } from "discord.js";
-import { logTheme } from "../Logging/logger";
+import {
+    ContainerBuilder as DiscordContainerBuilder,
+    MediaGalleryBuilder,
+    MediaGalleryItemBuilder,
+    SeparatorSpacingSize,
+    TextDisplayBuilder,
+} from "discord.js";
+import { logTheme } from "../Logging/Logger";
 
-type HeadingDepth = 1 | 2 | 3;
+/** The brand banner at the bottom of every message; the website serves it from Website/public/brand. */
+export const FOOTER_BANNER_URL = "https://mute.yonn2222.com/brand/discord-footer.png";
+const FOOTER_BANNER_DESCRIPTION = "DiscordMute";
 
-const headingMarks: Record<HeadingDepth, string> = {
-    1: "#",
-    2: "##",
-    3: "###",
-};
-
-function normalizeHeadingDepth(depth: number): HeadingDepth {
-    if (depth <= 1) return 1;
-    if (depth === 2) return 2;
-    return 3;
+/** Discord's small grey subtext line. */
+export function subtext(content: string): string {
+    return `-# ${content}`;
 }
 
 function hexToNumber(color: number | string): number {
@@ -21,10 +22,9 @@ function hexToNumber(color: number | string): number {
 }
 
 export class ContainerBuilder extends DiscordContainerBuilder {
-    title(label: string, icon?: string | null, depth = 2): this {
-        const prefix = headingMarks[normalizeHeadingDepth(depth)];
-        const content = icon ? `${prefix} ${icon} ${label}` : `${prefix} ${label}`;
-        return this.text(content);
+    /** The heading of the message. The accent color carries success or failure, so there is no icon. */
+    title(label: string): this {
+        return this.text(`## ${label}`);
     }
 
     text(content: string): this {
@@ -34,6 +34,15 @@ export class ContainerBuilder extends DiscordContainerBuilder {
 
     divider(size: SeparatorSpacingSize = SeparatorSpacingSize.Small): this {
         this.addSeparatorComponents((separator) => separator.setSpacing(size));
+        return this;
+    }
+
+    /** Closes the message with the brand banner; call it last so it stays at the bottom. */
+    footer(): this {
+        const banner = new MediaGalleryItemBuilder()
+            .setURL(FOOTER_BANNER_URL)
+            .setDescription(FOOTER_BANNER_DESCRIPTION);
+        this.divider().addMediaGalleryComponents(new MediaGalleryBuilder().addItems(banner));
         return this;
     }
 

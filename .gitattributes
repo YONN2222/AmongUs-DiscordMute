@@ -1,0 +1,4 @@
+DiscordBot/bun.lock text eol=lf
+docs/bun.lock text eol=lf
+DiscordBot/src/Commands/Generated.ts text eol=lf
+DiscordBot/patches/*.patch text eol=lf

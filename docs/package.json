@@ -1,0 +1,18 @@
+{
+  "name": "docs",
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "nuxt build",
+    "preview": "wrangler dev",
+    "deploy": "nuxt build && bunx wrangler deploy"
+  },
+  "dependencies": {
+    "agents": "^0.29.0",
+    "docus": "^5.15.0",
+    "better-sqlite3": "^12.11.1",
+    "nuxt": "^4.4.8"
+  },
+  "devDependencies": {
+    "wrangler": "^4.40.0"
+  }
+}
