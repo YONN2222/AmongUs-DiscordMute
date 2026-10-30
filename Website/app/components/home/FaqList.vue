@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { AccordionItem } from '@nuxt/ui'
+import { ANALYTICS_EVENTS, trackAttrs, trackEvent } from '#shared/analytics'
 import { GITHUB_URL } from '#shared/site'
 import { faqFor } from '~/content/faq'
 
@@ -10,6 +11,14 @@ const items = computed<AccordionItem[]>(() =>
 const half = computed(() => Math.ceil(items.value.length / 2))
 const columns = computed(() => [items.value.slice(0, half.value), items.value.slice(half.value)])
 const open = computed(() => [[items.value[0]!.value as string], []])
+const openByColumn = ref(open.value.map((ids) => [...ids]))
+
+function trackFaqOpen(column: number, openIds: string[]) {
+  const before = openByColumn.value[column] ?? []
+  openByColumn.value[column] = openIds
+  for (const question of openIds.filter((id) => !before.includes(id))) trackEvent(ANALYTICS_EVENTS.faqOpen, { question })
+}
+
 const ui = {
   root: 'faq-col',
   item: 'faq-item',
@@ -24,7 +33,7 @@ const ui = {
   <SiteSection id="faq" title="Questions" tight>
     <template #description>
       Short answers to what people ask most. Still stuck?
-      <ULink :to="`${GITHUB_URL}/issues`" rel="noopener" class="issue-link">Open an issue on GitHub</ULink>.
+      <ULink :to="`${GITHUB_URL}/issues`" rel="noopener" class="issue-link" v-bind="trackAttrs(ANALYTICS_EVENTS.github, { location: 'faq' })">Open an issue on GitHub</ULink>.
     </template>
     <div class="faq-list">
       <div v-for="(column, index) in columns" :key="index" v-reveal="index * 90">
@@ -33,6 +42,7 @@ const ui = {
           :items="column"
           :default-value="open[index]"
           :unmount-on-hide="false"
+          @update:model-value="(ids) => trackFaqOpen(index, ids as string[])"
           trailing-icon="i-lucide-plus"
           :ui="ui"
         />

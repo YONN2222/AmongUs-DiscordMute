@@ -1,0 +1,35 @@
+/* Shared bento grid and mock ("proof") styles for the feature section. */
+.bento { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.wide { grid-column: span 2; }
+.bento :deep([data-slot="footer"]) { margin-top: auto; }
+.proof { border-radius: 12px; background: #0e0e14; border: 1px solid var(--line); padding: 16px; font-size: 14px; min-width: 0; }
+
+.log { display: grid; gap: 10px; color: var(--muted); }
+.log span { display: flex; gap: 12px; align-items: baseline; }
+.log b { font-weight: 400; color: var(--dim); font-variant-numeric: tabular-nums; font-size: 13px; }
+.log .ok { color: var(--talk); }
+.log .warn { color: var(--warn); }
+
+.channel { display: grid; gap: 6px; }
+.ch { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; color: var(--dim); min-width: 0; }
+.ch-icon { width: 16px; height: 16px; flex: none; }
+.ch.on { background: rgba(220, 47, 53, .1); color: var(--text); }
+.ch.on .ch-icon { color: var(--accent-text); }
+
+/* A tile that stacks several small features without their own mock. */
+.stack { display: grid; border-radius: var(--radius-card); border: 1px solid var(--line); }
+.stack > * + * { border-top: 1px solid var(--line); }
+
+@media (max-width: 1023px) {
+  .bento { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .wide, .stack { grid-column: 1 / -1; }
+  .wide.half-on-tablet { grid-column: auto; }
+  .stack { grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+  .stack > * + * { border-top: 0; border-left: 1px solid var(--line); }
+}
+
+@media (max-width: 760px) {
+  .bento { grid-template-columns: minmax(0, 1fr); }
+  .stack { grid-auto-flow: row; }
+  .stack > * + * { border-left: 0; border-top: 1px solid var(--line); }
+}

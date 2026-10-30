@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ANALYTICS_EVENTS, trackAttrs, trackEvent } from '#shared/analytics'
 import { DOWNLOAD_URL } from '#shared/site'
 </script>
 
@@ -13,7 +14,7 @@ import { DOWNLOAD_URL } from '#shared/site'
           <p>Free and open source under GPLv3. One mod, one bot.</p>
         </div>
         <div class="cta-actions">
-          <UButton :to="DOWNLOAD_URL" rel="noopener" size="lg" icon="i-lucide-download" label="Download the mod" class="justify-center" />
+          <UButton :to="DOWNLOAD_URL" rel="noopener" size="lg" icon="i-lucide-download" label="Download the mod" class="justify-center" v-bind="trackAttrs(ANALYTICS_EVENTS.download, { location: 'cta' })" />
           <UButton
             to="/#setup"
             size="lg"
@@ -22,6 +23,7 @@ import { DOWNLOAD_URL } from '#shared/site'
             trailing-icon="i-lucide-arrow-right"
             label="Setup"
             class="group"
+            @click="trackEvent(ANALYTICS_EVENTS.setup, { location: 'cta' })"
             :ui="{ trailingIcon: 'transition-transform group-hover:translate-x-[3px]' }"
           />
         </div>

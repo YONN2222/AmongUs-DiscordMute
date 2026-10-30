@@ -1,3 +1,5 @@
+import { UMAMI_ORIGIN } from '../../shared/analytics'
+
 const SCRIPT_TAG = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi
 const NUXT_PAYLOAD = /^\s*window\.__NUXT__\s*=/
 
@@ -22,11 +24,11 @@ async function sha256Source(code: string): Promise<string> {
 export function buildPolicy(scriptHashes: readonly string[] = []): string {
   return [
     "default-src 'self'",
-    ['script-src', "'self'", ...scriptHashes].join(' '),
+    ['script-src', "'self'", UMAMI_ORIGIN, ...scriptHashes].join(' '),
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data:",
     "font-src 'self'",
-    "connect-src 'self'",
+    `connect-src 'self' ${UMAMI_ORIGIN}`,
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",

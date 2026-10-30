@@ -97,11 +97,9 @@ const CARD_UI = { container: 'h-full', wrapper: 'h-full', footer: 'w-full pt-5' 
   </SiteSection>
 </template>
 
+<style scoped src="./bento.css"></style>
+
 <style scoped>
-.bento { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-.wide { grid-column: span 2; }
-.bento :deep([data-slot="footer"]) { margin-top: auto; }
-.proof { border-radius: 12px; background: #0e0e14; border: 1px solid var(--line); padding: 16px; font-size: 14px; min-width: 0; }
 .chat { display: grid; gap: 10px; }
 .bubble { display: flex; align-items: flex-start; gap: 10px; }
 .bubble-avatar { flex: none; }
@@ -112,35 +110,23 @@ const CARD_UI = { container: 'h-full', wrapper: 'h-full', footer: 'w-full pt-5' 
 .qc em { font-style: normal; color: var(--dim); font-size: 12px; }
 .ok-line { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--talk); font-size: 13px; }
 .ok-icon { width: 16px; height: 16px; }
-.log { display: grid; gap: 10px; color: var(--muted); }
-.log span { display: flex; gap: 12px; align-items: baseline; }
-.log b { font-weight: 400; color: var(--dim); font-variant-numeric: tabular-nums; font-size: 13px; }
-.log .ok { color: var(--talk); }
-.log .warn { color: var(--warn); }
 .cmds { display: grid; gap: 6px; margin: 0; }
 .cmd { display: grid; grid-template-columns: minmax(0, 250px) minmax(0, 1fr); gap: 4px 16px; align-items: baseline; padding: 10px 12px; border-radius: 8px; transition: background-color .15s; }
 .cmd:nth-child(odd) { background: rgba(255, 255, 255, .025); }
 .cmd:hover { background: rgba(255, 255, 255, .05); }
 .cmd code { font-family: var(--font-mono); color: #fff; font-size: 13.5px; overflow-wrap: anywhere; }
 .cmd dd { margin: 0; color: var(--muted); font-size: 14px; }
-.channel { display: grid; gap: 6px; }
-.ch { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; color: var(--dim); }
-.ch-icon { width: 16px; height: 16px; }
-.ch.on { background: rgba(220, 47, 53, .1); color: var(--text); }
-.ch.on .ch-icon { color: var(--accent-text); }
 .specs { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-radius: var(--radius-card); border: 1px solid var(--line); }
 .spec + .spec { border-left: 1px solid var(--line); }
 
 @media (max-width: 1023px) {
-  .bento { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .wide { grid-column: 1 / -1; }
   .specs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .spec:nth-child(3) { border-left: 0; }
   .spec:nth-child(n+3) { border-top: 1px solid var(--line); }
 }
 
 @media (max-width: 760px) {
-  .bento, .specs { grid-template-columns: minmax(0, 1fr); }
+  .specs { grid-template-columns: minmax(0, 1fr); }
   .spec + .spec { border-left: 0; border-top: 1px solid var(--line); }
   .cmd { grid-template-columns: minmax(0, 1fr); }
 }

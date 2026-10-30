@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import type { TabsItem, TimelineItem } from '@nuxt/ui'
+import { ANALYTICS_EVENTS, trackAttrs } from '#shared/analytics'
 import { DOCS_URL, DOWNLOAD_URL } from '#shared/site'
 
 const BEPINEX_URL = 'https://builds.bepinex.dev/projects/bepinex_be/735/BepInEx-Unity.IL2CPP-win-x64-6.0.0-be.735%2B5fef357.zip'
 const DEVELOPER_PORTAL_URL = 'https://discord.com/developers/applications'
 const SELF_HOST_GUIDE_URL = `${DOCS_URL}/getting-started/self-host-setup`
 const HOSTED_GUIDE_URL = `${DOCS_URL}/getting-started/hosted-setup`
+const guideLink = (guide: string) => trackAttrs(ANALYTICS_EVENTS.guide, { guide })
 
 const hosted = useHostedView()
 const hostedClosed = computed(() => hosted.value.status !== 'available')
@@ -67,14 +69,14 @@ const TIMELINE_UI = {
           <template #bepinex-description>
             <p>
               Already using a mod that ships BepInEx? Skip this. Otherwise get the
-              <ULink :to="BEPINEX_URL" rel="noopener" class="inline-link">64-bit BepInEx 6.0.0-be.735 (IL2CPP)</ULink> build. It
+              <ULink :to="BEPINEX_URL" rel="noopener" class="inline-link" v-bind="guideLink('bepinex')">64-bit BepInEx 6.0.0-be.735 (IL2CPP)</ULink> build. It
               works for Steam, Epic Games and the Microsoft Store. Extract it into your Among Us folder. itch.io builds are 32-bit
               and not supported.
             </p>
           </template>
           <template #mod-description>
             <p>
-              Download the <ULink :to="DOWNLOAD_URL" rel="noopener" class="inline-link">latest release</ULink>, copy
+              Download the <ULink :to="DOWNLOAD_URL" rel="noopener" class="inline-link" v-bind="trackAttrs(ANALYTICS_EVENTS.download, { location: 'setup' })">latest release</ULink>, copy
               <code class="code">DiscordMute.dll</code> into <code class="code">BepInEx/plugins</code>, then start Among Us once
               and close it. That creates <code class="code">BepInEx/DiscordMute/config.json</code>.
             </p>
@@ -83,7 +85,7 @@ const TIMELINE_UI = {
             <p>
               In the <code class="code">DiscordBot</code> folder of the release, rename <code class="code">config.example.json</code>
               to <code class="code">config.json</code>. Create an application and bot in the
-              <ULink :to="DEVELOPER_PORTAL_URL" rel="noopener" class="inline-link">Discord Developer Portal</ULink> and fill in the
+              <ULink :to="DEVELOPER_PORTAL_URL" rel="noopener" class="inline-link" v-bind="guideLink('developer-portal')">Discord Developer Portal</ULink> and fill in the
               values. Pick your own <code class="code">secret</code>.
             </p>
 <pre><code>{
@@ -127,7 +129,7 @@ const TIMELINE_UI = {
         </UTimeline>
         <UAlert color="neutral" variant="outline" icon="i-lucide-book-open" class="mt-2" :ui="{ icon: 'text-(--indigo-text)', description: 'text-[15px] text-muted' }">
           <template #description>
-            Every config key is explained in the <ULink :to="SELF_HOST_GUIDE_URL" rel="noopener" class="inline-link">self-hosting guide</ULink>.
+            Every config key is explained in the <ULink :to="SELF_HOST_GUIDE_URL" rel="noopener" class="inline-link" v-bind="guideLink('self-host')">self-hosting guide</ULink>.
           </template>
         </UAlert>
       </template>
@@ -151,7 +153,7 @@ const TIMELINE_UI = {
           </template>
           <template #invite-description>
             <p>Add the DiscordMute bot to your server. There is no bot of your own to run.</p>
-            <UButton v-if="hosted.inviteUrl" :to="hosted.inviteUrl" rel="noopener" size="lg" icon="i-brand-discord" :label="hosted.cta.label" class="mt-4" />
+            <UButton v-if="hosted.inviteUrl" :to="hosted.inviteUrl" rel="noopener" size="lg" icon="i-brand-discord" :label="hosted.cta.label" class="mt-4" v-bind="trackAttrs(ANALYTICS_EVENTS.hostedCta, { location: 'setup' })" />
           </template>
           <template #install-description>
             <p>
@@ -174,7 +176,7 @@ const TIMELINE_UI = {
           </template>
         </UTimeline>
         <p class="mt-2">
-          More detail in the <ULink :to="HOSTED_GUIDE_URL" rel="noopener" class="inline-link">hosted setup guide</ULink>.
+          More detail in the <ULink :to="HOSTED_GUIDE_URL" rel="noopener" class="inline-link" v-bind="guideLink('hosted')">hosted setup guide</ULink>.
         </p>
       </template>
     </UTabs>

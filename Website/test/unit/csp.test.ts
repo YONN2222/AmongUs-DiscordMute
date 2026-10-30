@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
+import { UMAMI_ORIGIN } from '../../shared/analytics'
 import { contentSecurityPolicy } from '../../server/security/csp'
 import { withSecurityHeaders } from '../../server/security/headers'
 
@@ -14,15 +15,17 @@ const IMPORT_MAP = '{"imports":{"#entry":"/_nuxt/entry.js"}}'
 const PAYLOAD = 'window.__NUXT__={};window.__NUXT__.config={public:{}}'
 
 describe('contentSecurityPolicy', () => {
-  it('allows only self for every fetch directive', async () => {
+  it('allows only self and the Umami host, and nothing else external', async () => {
     const csp = await contentSecurityPolicy(parts({}))
     expect(csp).toContain("default-src 'self'")
-    expect(csp).toContain("connect-src 'self'")
+    expect(csp).toContain(`script-src 'self' ${UMAMI_ORIGIN};`)
+    expect(csp).toContain(`connect-src 'self' ${UMAMI_ORIGIN};`)
     expect(csp).toContain("font-src 'self'")
     expect(csp).toContain("frame-ancestors 'none'")
     expect(csp).toContain("object-src 'none'")
-    expect(csp).not.toMatch(/https?:/)
+    expect(csp.match(/https?:\/\/[^\s;]+/g)).toEqual([UMAMI_ORIGIN, UMAMI_ORIGIN])
     expect(csp).not.toContain('unsafe-eval')
+    expect(csp).not.toMatch(/script-src[^;]*unsafe-inline/)
   })
 
   it('hashes the Nuxt import map and payload script', async () => {
@@ -32,7 +35,7 @@ describe('contentSecurityPolicy', () => {
         bodyAppend: [`<script>${PAYLOAD}</script>`],
       }),
     )
-    expect(csp).toContain(`script-src 'self' ${sha(IMPORT_MAP)} ${sha(PAYLOAD)};`)
+    expect(csp).toContain(`script-src 'self' ${UMAMI_ORIGIN} ${sha(IMPORT_MAP)} ${sha(PAYLOAD)};`)
   })
 
   it('does not hash an arbitrary inline script, even in a framework part', async () => {
@@ -50,7 +53,7 @@ describe('contentSecurityPolicy', () => {
 
   it('ignores JSON data scripts', async () => {
     const csp = await contentSecurityPolicy(parts({ bodyAppend: ['<script type="application/json" id="__NUXT_DATA__">[1]</script>'] }))
-    expect(csp).toContain("script-src 'self';")
+    expect(csp).toContain(`script-src 'self' ${UMAMI_ORIGIN};`)
   })
 })
 
