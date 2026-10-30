@@ -159,6 +159,7 @@ export const de: Record<MessageKey, string> = {
     "setup.voice.delays":
         "Verzögerungen: Spielstart {gameStart} s, Meetingstart {meetingStart} s, Meetingende {meetingEnd} s, Lobby {lobby} s",
     "setup.voice.channels": "Ausweich-Sprachkanäle (genutzt, wenn der Host in keinem Sprachkanal ist)",
+    "setup.voiceChannels.placeholder": "Kein Ausweich-Kanal - wähle die Sprachkanäle, in denen ihr spielt",
     "setup.voice.editDelays": "Verzögerungen ändern",
     "setup.delays.title": "Verzögerungen in Sekunden",
     "setup.delays.gameStart": "Spielstart (0-5)",

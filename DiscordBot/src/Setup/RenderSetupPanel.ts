@@ -68,7 +68,7 @@ function channelSelect(field: string, locale: Locale, current: string | null): R
 function voiceChannelSelect(locale: Locale, current: string[]): Row {
     const select = new ChannelSelectMenuBuilder()
         .setCustomId(`${SETUP_PREFIX}:${VOICE_CHANNELS_FIELD}`)
-        .setPlaceholder(t(locale, "setup.channel.placeholder"))
+        .setPlaceholder(t(locale, "setup.voiceChannels.placeholder"))
         .setChannelTypes(ChannelType.GuildVoice, ChannelType.GuildStageVoice)
         .setMinValues(0)
         .setMaxValues(MAX_VOICE_CHANNELS);

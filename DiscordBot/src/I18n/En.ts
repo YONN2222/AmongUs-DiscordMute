@@ -157,6 +157,7 @@ export const en = {
     "setup.voice.delays":
         "Delays: game start {gameStart} s, meeting start {meetingStart} s, meeting end {meetingEnd} s, lobby {lobby} s",
     "setup.voice.channels": "Fallback voice channels (used when the host is not in a voice channel)",
+    "setup.voiceChannels.placeholder": "No fallback channel - pick the voice channels you play in",
     "setup.voice.editDelays": "Edit delays",
     "setup.delays.title": "Delays in seconds",
     "setup.delays.gameStart": "Game start (0-5)",

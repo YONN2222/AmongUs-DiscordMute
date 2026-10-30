@@ -102,9 +102,15 @@ describe("renderSetupPanel", () => {
         it("offers the voice channel select with the stored channels preselected", () => {
             const settings = mergeSettings(DEFAULT_SETTINGS, { voiceChannelIds: [CHANNEL] });
             const select = byId(renderHosted("voice", null, settings), "setup:voiceChannelIds") as
-                | (WithChildren & { min_values?: number; max_values?: number; channel_types?: number[] })
+                | (WithChildren & {
+                      min_values?: number;
+                      max_values?: number;
+                      channel_types?: number[];
+                      placeholder?: string;
+                  })
                 | undefined;
 
+            expect(select?.placeholder).toBe("No fallback channel - pick the voice channels you play in");
             expect(select?.min_values).toBe(0);
             expect(select?.max_values).toBe(10);
             expect(select?.channel_types).toEqual([ChannelType.GuildVoice, ChannelType.GuildStageVoice]);
