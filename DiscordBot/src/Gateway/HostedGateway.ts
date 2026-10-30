@@ -1,9 +1,8 @@
 import type { Server } from "node:http";
-import { REST } from "discord.js";
 import { createAdminHandlers } from "../Admin/AdminHandlers";
 import { createAdminServer } from "../Admin/AdminServer";
 import { type ClusterProcessState, collectClusterInfo } from "../Admin/ClusterInfo";
-import { createProfileLookup } from "../Admin/ProfileLookup";
+import { createProfileLookup, createProfileRest } from "../Admin/ProfileLookup";
 import type { Config } from "../Config/ConfigSchema";
 import type { Database } from "../Data/Database";
 import { AUDIT_RETENTION_MS } from "../Data/Repositories/AuditLogRepository";
@@ -20,7 +19,6 @@ import type { PluginGateway } from "./PluginGateway";
 import type { SecretResolver } from "./SecretResolver";
 
 const CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
-const DISCORD_API_VERSION = "10";
 
 /** Checks what hosted mode needs before anything starts; returns the admin API token or throws a message for the operator. */
 export function readHostedAdminTokenOrThrow(config: Config, env: Record<string, string | undefined>): string {
@@ -61,7 +59,7 @@ export function createHostedGateway<TCluster extends ClusterProcessState>(
                 activeGames: async () => (await deps.metrics.activeGames.get()).values[0]?.value ?? 0,
                 clusterInfo: () => collectClusterInfo(deps.instance),
                 profiles: createProfileLookup({
-                    rest: new REST({ version: DISCORD_API_VERSION }).setToken(deps.botToken),
+                    rest: createProfileRest(deps.botToken),
                     now: Date.now,
                 }),
                 router: new GalacticClusterRouter(deps.instance),

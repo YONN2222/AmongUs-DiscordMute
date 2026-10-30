@@ -1,4 +1,4 @@
-import { Routes } from "discord.js";
+import { RateLimitError, REST, Routes } from "discord.js";
 import { z } from "zod";
 import { logger, logModules } from "../Logging/Logger";
 import type { DiscordProfile } from "./Contract";
@@ -10,10 +10,21 @@ const DEFAULT_TIMEOUT_MS = 3_000;
 const AVATAR_SIZE = 128;
 const ANIMATED_AVATAR_PREFIX = "a_";
 const NOT_FOUND = 404;
+const TOO_MANY_REQUESTS = 429;
+const DISCORD_API_VERSION = "10";
+const USER_ROUTE_PREFIX = "/users";
 
-/** The one call this module makes; discord.js's REST client fits it and handles Discord's rate limits. */
+/** The one call this module makes; discord.js's REST client fits it. */
 export interface ProfileRest {
     get(route: `/${string}`, options: { signal: AbortSignal }): Promise<unknown>;
+}
+
+/**
+ * A REST client used only for profile lookups. A rate limit rejects at once instead of sleeping, because the
+ * client's rate limit sleeps ignore the abort signal and would hold a lookup slot past its time budget.
+ */
+export function createProfileRest(botToken: string): REST {
+    return new REST({ version: DISCORD_API_VERSION, rejectOnRateLimit: [USER_ROUTE_PREFIX] }).setToken(botToken);
 }
 
 export type ProfileLookupResult =
@@ -120,8 +131,10 @@ export function createProfileLookup({
     }
 
     async function askDiscord(userId: string): Promise<ProfileLookupResult> {
-        // The budget covers the wait for a free slot as well as Discord's answer, including rate limit waits.
-        const signal = AbortSignal.timeout(timeoutMs);
+        // The budget covers the wait for a free slot as well as Discord's answer.
+        const budget = new AbortController();
+        const timer = setTimeout(() => budget.abort(new Error("Discord profile lookup timed out")), timeoutMs);
+        const { signal } = budget;
         try {
             const raw = await Promise.race([
                 limit(() => {
@@ -140,7 +153,7 @@ export function createProfileLookup({
             logger.debug(logModules.WebServer, "Discord profile lookup found the user");
             return result;
         } catch (error) {
-            const status = httpStatusOf(error);
+            const status = error instanceof RateLimitError ? TOO_MANY_REQUESTS : httpStatusOf(error);
             if (status === NOT_FOUND) {
                 remember(userId, { status: "unknown" });
                 logger.debug(logModules.WebServer, "Discord profile lookup: unknown user (HTTP 404)");
@@ -149,6 +162,8 @@ export function createProfileLookup({
             const reason = signal.aborted ? "timed out" : `failed (HTTP ${status ?? "none"})`;
             logger.warn(logModules.WebServer, `Discord profile lookup ${reason}`);
             return { status: "failed" };
+        } finally {
+            clearTimeout(timer);
         }
     }
 
