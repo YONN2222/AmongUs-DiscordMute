@@ -41,7 +41,7 @@ The hosted bot is the easy way. There is nothing to run on your PC besides the g
 
 1. Add the bot to your server with the **Add the bot** button on [mute.yonn2222.com](https://mute.yonn2222.com).
 2. In Discord, run `/setup`, open the **General** page and press **Create secret**. Copy it, it is only shown once.
-3. Install [BepInEx and `DiscordMute.dll`](https://docs.mute.yonn2222.com/getting-started/self-host-setup) in your Among Us folder (Steam, x64).
+3. Install [BepInEx and `DiscordMute.dll`](https://docs.mute.yonn2222.com/getting-started/hosted-setup) in your Among Us folder (Steam, x64).
 4. Start Among Us once, then open `BepInEx/DiscordMute/config.json` and set:
 
    ```json

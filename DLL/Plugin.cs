@@ -40,27 +40,48 @@ public class DiscordMutePlugin : BasePlugin
             BepInEx.Logging.Logger.Listeners.Add(new BotLogListener());
 
             _harmony = new Harmony(PluginInfo.Id);
-            _harmony.PatchAll(typeof(HudManagerUpdatePatch));
-            _harmony.PatchAll(typeof(MainMenuPatch));
-            _harmony.PatchAll(typeof(ExitGamePatch));
-            _harmony.PatchAll(typeof(DisconnectedPatch));
-            _harmony.PatchAll(typeof(BecomeHostPatch));
-            _harmony.PatchAll(typeof(PlayerLeftPatch));
-            _harmony.PatchAll(typeof(DmLobbyStartPatch));
-            _harmony.PatchAll(typeof(GameStartPatch));
-            _harmony.PatchAll(typeof(GameEndPatch));
-            _harmony.PatchAll(typeof(MeetingStartPatch));
-            _harmony.PatchAll(typeof(MeetingEndPatch));
-            _harmony.PatchAll(typeof(ChatCommandPatch));
-            _harmony.PatchAll(typeof(RemoteChatInterceptPatch));
-            _harmony.PatchAll(typeof(QuickChatLinkSendPatch));
-            _harmony.PatchAll(typeof(QuickChatLinkReceivePatch));
+            ApplyPatches();
 
             PluginLog.LogInfo($"{PluginInfo.Name} v{PluginInfo.Version} loaded.");
         }
         catch (Exception ex)
         {
-            PluginLog.LogError($"Error loading plugin: {ex.Message}");
+            PluginLog.LogError($"Error loading plugin: {ex}");
+        }
+    }
+
+    private static readonly Type[] PatchTypes =
+    [
+        typeof(HudManagerUpdatePatch),
+        typeof(MainMenuPatch),
+        typeof(ExitGamePatch),
+        typeof(DisconnectedPatch),
+        typeof(BecomeHostPatch),
+        typeof(PlayerLeftPatch),
+        typeof(DmLobbyStartPatch),
+        typeof(GameStartPatch),
+        typeof(GameEndPatch),
+        typeof(MeetingStartPatch),
+        typeof(MeetingEndPatch),
+        typeof(ChatCommandPatch),
+        typeof(RemoteChatInterceptPatch),
+        typeof(QuickChatLinkSendPatch),
+        typeof(QuickChatLinkReceivePatch),
+    ];
+
+    /// <summary>A patch that fails on one platform must not take the others down with it.</summary>
+    private void ApplyPatches()
+    {
+        foreach (var patchType in PatchTypes)
+        {
+            try
+            {
+                _harmony.PatchAll(patchType);
+            }
+            catch (Exception ex)
+            {
+                PluginLog.LogError($"Could not apply {patchType.Name}: {ex}");
+            }
         }
     }
     private static string _configPath;
