@@ -7,6 +7,7 @@ import { type GatewayObserver, PluginGateway } from "../../src/Gateway/PluginGat
 import { SelfHostSecretResolver } from "../../src/Gateway/SecretResolver";
 import { LinkingService } from "../../src/Linking/LinkingService";
 import { logger } from "../../src/Logging/Logger";
+import { PairingService } from "../../src/Pairing/PairingService";
 import { PROTOCOL_VERSION } from "../../src/Protocol/PluginProtocol";
 import { InMemoryClusterRouter } from "../../src/Routing/ClusterRouter";
 import { createTestDatabase } from "../Helpers/TestDatabase";
@@ -55,6 +56,7 @@ describe("PluginGateway observer", () => {
             resolver: new SelfHostSecretResolver({ secret: SECRET, guildId: GUILD }),
             router,
             linking,
+            pairing: new PairingService(db),
             observer,
         });
         server = createServer();

@@ -16,6 +16,11 @@ export const CLOSE_BLOCKED = 4005;
 export const CLOSE_TOO_MANY_SESSIONS = 4006;
 /** An operator removed the bot from the server without blocking it. */
 export const CLOSE_BOT_LEFT = 4007;
+/** Pairing ended without a token: it timed out, too many wrong codes were sent, or it failed on the bot side. */
+export const CLOSE_PAIRING_FAILED = 4008;
+
+export const PLATFORMS = ["windows", "android"] as const;
+export type Platform = (typeof PLATFORMS)[number];
 
 export const GAME_EVENT_NAMES = ["lobby", "game-start", "meeting-start", "meeting-end", "player-died"] as const;
 export type GameEventName = (typeof GAME_EVENT_NAMES)[number];
@@ -47,6 +52,21 @@ const helloSchema = z.object({
         .regex(/^[0-9a-f]{32}$/)
         .optional()
         .catch(undefined),
+    platform: z.enum(PLATFORMS).optional().catch(undefined),
+});
+
+/** Sent instead of hello by a plugin that has no secret yet; it then sends the Quick Chat code shown in /setup. */
+const pairStartSchema = z.object({
+    type: z.literal("pair-start"),
+    protocolVersion: z.number().int(),
+    pluginVersion: z.string().max(32),
+    gameVersion: z.string().max(32),
+    platform: z.enum(PLATFORMS),
+});
+
+const pairChatSchema = z.object({
+    type: z.literal("pair-chat"),
+    code: name,
 });
 
 const gameEventSchema = z.object({
@@ -87,6 +107,8 @@ const pluginLogSchema = z.object({
 
 const pluginMessageSchema = z.discriminatedUnion("type", [
     helloSchema,
+    pairStartSchema,
+    pairChatSchema,
     gameEventSchema,
     gameEndSchema,
     linkChatSchema,
@@ -111,7 +133,10 @@ export type GatewayMessage =
           discordId: string;
       }
     | ({ type: "notice" } & GatewayNotice)
-    | { type: "link-result"; status: "linked" | "not-found"; accountName: string };
+    | { type: "link-result"; status: "linked" | "not-found"; accountName: string }
+    /** The device token to store and send as `secret` in every later hello; the gateway closes right after. */
+    | { type: "paired"; secret: string; guildName: string }
+    | { type: "pair-result"; ok: false; attemptsLeft: number };
 
 export function parsePluginMessage(raw: string): PluginMessage | null {
     let json: unknown;

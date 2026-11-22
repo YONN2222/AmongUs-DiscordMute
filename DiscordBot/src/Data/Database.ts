@@ -19,20 +19,25 @@ import { ledgerSessionsMigration } from "./Migrations/0015-ledger-sessions";
 import { hostedGuildLeftAtMigration } from "./Migrations/0016-hosted-guild-left-at";
 import { pendingLinkGuildCodesMigration } from "./Migrations/0017-pending-link-guild-codes";
 import { linksDiscordIndexMigration } from "./Migrations/0018-links-discord-index";
+import { devicePairingMigration } from "./Migrations/0019-device-pairing";
+import { initDeviceTokenModel } from "./Models/DeviceTokenModel";
 import { initGuildSettingsModel } from "./Models/GuildSettingsModel";
 import { initLinkModel } from "./Models/LinkModel";
 import { initMuteLedgerModel } from "./Models/MuteLedgerModel";
 import { initNicknameLedgerModel } from "./Models/NicknameLedgerModel";
+import { initPairingCodeModel } from "./Models/PairingCodeModel";
 import { initPendingLinkModel } from "./Models/PendingLinkModel";
 import { initTrackedMessageModel } from "./Models/TrackedMessageModel";
 import { type AuditLogRepository, createAuditLogRepository } from "./Repositories/AuditLogRepository";
 import { type BlockRepository, createBlockRepository } from "./Repositories/BlockRepository";
+import { createDeviceTokenRepository, type DeviceTokenRepository } from "./Repositories/DeviceTokenRepository";
 import { createGuildSecretRepository, type GuildSecretRepository } from "./Repositories/GuildSecretRepository";
 import { createGuildSettingsRepository, type GuildSettingsRepository } from "./Repositories/GuildSettingsRepository";
 import { createHostedGuildRepository, type HostedGuildRepository } from "./Repositories/HostedGuildRepository";
 import { createLinkRepository, type LinkRepository } from "./Repositories/LinkRepository";
 import { createMuteLedgerRepository, type MuteLedgerRepository } from "./Repositories/MuteLedgerRepository";
 import { createNicknameLedgerRepository, type NicknameLedgerRepository } from "./Repositories/NicknameLedgerRepository";
+import { createPairingCodeRepository, type PairingCodeRepository } from "./Repositories/PairingCodeRepository";
 import { createPendingLinkRepository, type PendingLinkRepository } from "./Repositories/PendingLinkRepository";
 import { createTelemetryRepository, type TelemetryRepository } from "./Repositories/TelemetryRepository";
 import { createTrackedMessageRepository, type TrackedMessageRepository } from "./Repositories/TrackedMessageRepository";
@@ -50,6 +55,8 @@ export interface Database {
     hostedGuilds: HostedGuildRepository;
     blocks: BlockRepository;
     audit: AuditLogRepository;
+    pairingCodes: PairingCodeRepository;
+    deviceTokens: DeviceTokenRepository;
     close(): Promise<void>;
 }
 
@@ -97,6 +104,7 @@ async function runMigrations(sequelize: Sequelize): Promise<void> {
             hostedGuildLeftAtMigration,
             pendingLinkGuildCodesMigration,
             linksDiscordIndexMigration,
+            devicePairingMigration,
         ],
         context: sequelize.getQueryInterface(),
         storage: new SequelizeStorage({ sequelize, tableName: "schema_migrations" }),
@@ -142,6 +150,8 @@ export async function openDatabase(
         hostedGuilds: createHostedGuildRepository(sequelize),
         blocks: createBlockRepository(sequelize),
         audit: createAuditLogRepository(sequelize),
+        pairingCodes: createPairingCodeRepository(initPairingCodeModel(sequelize)),
+        deviceTokens: createDeviceTokenRepository(initDeviceTokenModel(sequelize)),
         close: () => sequelize.close(),
     };
 }

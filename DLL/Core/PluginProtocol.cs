@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
@@ -17,6 +18,7 @@ internal static class PluginProtocol
     internal const int CloseBlocked = 4005;
     internal const int CloseTooManySessions = 4006;
     internal const int CloseBotLeft = 4007;
+    internal const int ClosePairingFailed = 4008;
 
     internal const string HostedGatewayUrl = "wss://gateway-mute.yonn2222.com/ws";
 
@@ -27,6 +29,8 @@ internal static class PluginProtocol
     internal const int MaxFriendCodeLength = 32;
 
     internal static readonly JsonSerializerOptions JsonOptions = new();
+
+    internal static string Platform => OperatingSystem.IsAndroid() ? "android" : "windows";
 
     internal static string Truncate(string value, int max)
     {
@@ -50,6 +54,22 @@ internal sealed class HelloMessage
     [JsonPropertyName("pluginVersion")] public string PluginVersion { get; set; }
     [JsonPropertyName("gameVersion")] public string GameVersion { get; set; }
     [JsonPropertyName("connectionKey")] public string ConnectionKey { get; set; }
+    [JsonPropertyName("platform")] public string Platform { get; set; }
+}
+
+internal sealed class PairStartMessage
+{
+    [JsonPropertyName("type")] public string Type => "pair-start";
+    [JsonPropertyName("protocolVersion")] public int ProtocolVersion { get; set; }
+    [JsonPropertyName("pluginVersion")] public string PluginVersion { get; set; }
+    [JsonPropertyName("gameVersion")] public string GameVersion { get; set; }
+    [JsonPropertyName("platform")] public string Platform { get; set; }
+}
+
+internal sealed class PairChatMessage
+{
+    [JsonPropertyName("type")] public string Type => "pair-chat";
+    [JsonPropertyName("code")] public string Code { get; set; }
 }
 
 internal sealed class GameEventMessage

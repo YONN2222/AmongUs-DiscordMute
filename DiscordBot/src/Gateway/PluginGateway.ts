@@ -5,10 +5,12 @@ import type { PluginSessionInfo } from "../Admin/Contract";
 import type { LinkingService } from "../Linking/LinkingService";
 import { logger, logModules, maskForLog } from "../Logging/Logger";
 import type { PluginEventType } from "../Metrics/MetricNames";
+import type { PairingService } from "../Pairing/PairingService";
 import {
     CLOSE_BLOCKED,
     CLOSE_HELLO_TIMEOUT,
     CLOSE_INVALID_MESSAGE,
+    CLOSE_PAIRING_FAILED,
     CLOSE_PROTOCOL_TOO_OLD,
     CLOSE_REPLACED,
     CLOSE_TOO_MANY_SESSIONS,
@@ -16,6 +18,7 @@ import {
     type GameEventName,
     type GatewayMessage,
     MIN_PROTOCOL_VERSION,
+    type Platform,
     type PluginMessage,
     PROTOCOL_VERSION,
     parsePluginMessage,
@@ -23,6 +26,7 @@ import {
 } from "../Protocol/PluginProtocol";
 import { type ClusterRouter, sendWithTimeout } from "../Routing/ClusterRouter";
 import type { ClusterRequest, RouterReply } from "../Routing/Messages";
+import { SlidingWindowLimiter } from "../Utils/SlidingWindowLimiter";
 import { unauthorizedMessage } from "../Utils/UnauthorizedHint";
 import { createGameSession, type GameSession } from "./GameSession";
 import { logPluginMessage } from "./PluginLog";
@@ -41,6 +45,12 @@ const MAX_PENDING_ACTIVE = 64;
 /** Link codes are typed by hand; a full lobby of 15 linking at once stays well below this, guessing does not. */
 export const LINK_CHAT_LIMIT_PER_MINUTE = 30;
 const LINK_CHAT_WINDOW_MS = 60_000;
+const DEFAULT_PAIRING_TIMEOUT_MS = 15 * 60 * 1000;
+/** Pairing connections per client address; a few retries pass, guessing codes from one address does not. */
+export const PAIR_START_LIMIT = 10;
+const PAIR_START_WINDOW_MS = 10 * 60 * 1000;
+export const MAX_PAIRING_ATTEMPTS = 5;
+const TOO_MANY_PAIRING_ATTEMPTS_REASON = "Too many pairing attempts";
 const OUTDATED_REASON = "Plugin outdated, please update DiscordMute";
 const TOO_MANY_SESSIONS_REASON = "Too many games on this server";
 const BLOCKED_REASON = "Blocked";
@@ -53,6 +63,8 @@ type GameEventMessage = Extract<PluginMessage, { type: "game-event" }>;
 type GameEndMessage = Extract<PluginMessage, { type: "game-end" }>;
 type LinkChatMessage = Extract<PluginMessage, { type: "link-chat" }>;
 type HelloMessage = Extract<PluginMessage, { type: "hello" }>;
+type PairStartMessage = Extract<PluginMessage, { type: "pair-start" }>;
+type PairChatMessage = Extract<PluginMessage, { type: "pair-chat" }>;
 
 function sessionKeyOf(guildId: string, connectionKey: string | undefined): string {
     return `${guildId}:${connectionKey ?? DEFAULT_CONNECTION_KEY}`;
@@ -69,10 +81,15 @@ export interface PluginGatewayDeps {
     resolver: SecretResolver;
     router: ClusterRouter;
     linking: LinkingService;
+    pairing: Pick<PairingService, "pair">;
     observer?: GatewayObserver;
     /** Self-host logs what its own plugin reports; the hosted bot never writes plugin text into its log. Default true. */
     acceptPluginLogs?: boolean;
+    /** Lower-case name of the header a trusted proxy puts the client address into; unset uses the socket address. */
+    clientIpHeader?: string;
     helloTimeoutMs?: number;
+    /** How long an unpaired plugin may wait for the host to send the pairing code. */
+    pairingTimeoutMs?: number;
     pingIntervalMs?: number;
     pongTimeoutMs?: number;
     routeTimeoutMs?: number;
@@ -82,7 +99,10 @@ export interface PluginGatewayDeps {
 
 interface Connection {
     ws: WebSocket;
-    state: "awaiting-hello" | "active";
+    clientIp: string;
+    /** An unpaired plugin sends pair-start instead of hello and stays in "pairing" until it got its token. */
+    state: "awaiting-hello" | "pairing" | "active";
+    pairing?: { platform: Platform; attemptsLeft: number };
     session?: GameSession;
     /** Guild and connection key; a new hello with the same key replaces this connection. */
     sessionKey?: string;
@@ -90,12 +110,11 @@ interface Connection {
     /** Messages are handled strictly one after another, in the order they arrived. */
     queue: Promise<void>;
     pending: number;
-    /** When the recent link-chat messages arrived, for the per-connection limit. */
-    linkChatTimes: number[];
     /** Resolves once the socket closed and any session-ended routing finished. */
     finished: Promise<void>;
     markFinished: () => void;
     helloTimer?: NodeJS.Timeout;
+    pairingTimer?: NodeJS.Timeout;
     pingTimer?: NodeJS.Timeout;
     pongDeadline?: NodeJS.Timeout;
 }
@@ -104,7 +123,10 @@ export class PluginGateway {
     private readonly wss = new WebSocketServer({ noServer: true, maxPayload: MAX_PAYLOAD_BYTES });
     private readonly sessions = new Map<string, Connection>();
     private readonly connections = new Set<Connection>();
+    private readonly linkChats = new SlidingWindowLimiter<Connection>(LINK_CHAT_LIMIT_PER_MINUTE, LINK_CHAT_WINDOW_MS);
+    private readonly pairStarts = new SlidingWindowLimiter<string>(PAIR_START_LIMIT, PAIR_START_WINDOW_MS);
     private readonly helloTimeoutMs: number;
+    private readonly pairingTimeoutMs: number;
     private readonly pingIntervalMs: number;
     private readonly pongTimeoutMs: number;
     private readonly routeTimeoutMs: number;
@@ -117,6 +139,7 @@ export class PluginGateway {
 
     constructor(private readonly deps: PluginGatewayDeps) {
         this.helloTimeoutMs = deps.helloTimeoutMs ?? DEFAULT_HELLO_TIMEOUT_MS;
+        this.pairingTimeoutMs = deps.pairingTimeoutMs ?? DEFAULT_PAIRING_TIMEOUT_MS;
         this.pingIntervalMs = deps.pingIntervalMs ?? DEFAULT_PING_INTERVAL_MS;
         this.pongTimeoutMs = deps.pongTimeoutMs ?? DEFAULT_PONG_TIMEOUT_MS;
         this.routeTimeoutMs = deps.routeTimeoutMs ?? DEFAULT_ROUTE_TIMEOUT_MS;
@@ -159,12 +182,13 @@ export class PluginGateway {
     sessionsInfo(guildId: string): PluginSessionInfo[] {
         return this.connectionsOf(guildId)
             .flatMap(({ session }) => (session ? [session] : []))
-            .map(({ sessionId, connectedAt, pluginVersion, gameVersion, protocolVersion }) => ({
+            .map(({ sessionId, connectedAt, pluginVersion, gameVersion, protocolVersion, platform }) => ({
                 sessionId,
                 connectedAt,
                 pluginVersion,
                 gameVersion,
                 protocolVersion,
+                ...(platform ? { platform } : {}),
             }));
     }
 
@@ -207,21 +231,28 @@ export class PluginGateway {
             });
             return;
         }
-        this.wss.handleUpgrade(req, socket, head, (ws) => this.accept(ws));
+        this.wss.handleUpgrade(req, socket, head, (ws) => this.accept(ws, this.clientIpOf(req)));
     };
 
-    private accept(ws: WebSocket): void {
+    private clientIpOf(req: IncomingMessage): string {
+        const header = this.deps.clientIpHeader;
+        const forwarded = header ? req.headers[header] : undefined;
+        if (typeof forwarded === "string" && forwarded !== "") return forwarded;
+        return req.socket.remoteAddress ?? "unknown";
+    }
+
+    private accept(ws: WebSocket, clientIp: string): void {
         let markFinished = (): void => {};
         const finished = new Promise<void>((resolve) => {
             markFinished = resolve;
         });
         const conn: Connection = {
             ws,
+            clientIp,
             state: "awaiting-hello",
             replaced: false,
             queue: Promise.resolve(),
             pending: 0,
-            linkChatTimes: [],
             finished,
             markFinished,
         };
@@ -269,11 +300,15 @@ export class PluginGateway {
         }
 
         if (conn.state === "awaiting-hello") {
-            if (message.type !== "hello") {
-                conn.ws.close(CLOSE_INVALID_MESSAGE, "Expected hello");
-                return;
-            }
-            await this.onHello(conn, message);
+            if (message.type === "hello") await this.onHello(conn, message);
+            else if (message.type === "pair-start") this.onPairStart(conn, message);
+            else conn.ws.close(CLOSE_INVALID_MESSAGE, "Expected hello");
+            return;
+        }
+
+        if (conn.state === "pairing") {
+            if (message.type === "pair-chat") await this.onPairChat(conn, message);
+            else conn.ws.close(CLOSE_INVALID_MESSAGE, "Expected pair-chat");
             return;
         }
 
@@ -310,13 +345,62 @@ export class PluginGateway {
             conn.ws.close(CLOSE_BLOCKED, BLOCKED_REASON);
             return;
         }
-        if (hello.protocolVersion < MIN_PROTOCOL_VERSION) {
-            logger.warn(logModules.WebServer, `Rejected plugin with protocol version ${hello.protocolVersion}`);
-            conn.ws.close(CLOSE_PROTOCOL_TOO_OLD, OUTDATED_REASON);
-            return;
-        }
+        if (this.refuseOutdated(conn, hello.protocolVersion)) return;
 
         this.activate(conn, resolved.guildId, hello);
+    }
+
+    /** Closes the connection when the plugin speaks a protocol the gateway no longer supports. */
+    private refuseOutdated(conn: Connection, protocolVersion: number): boolean {
+        if (protocolVersion >= MIN_PROTOCOL_VERSION) return false;
+        logger.warn(logModules.WebServer, `Rejected plugin with protocol version ${protocolVersion}`);
+        conn.ws.close(CLOSE_PROTOCOL_TOO_OLD, OUTDATED_REASON);
+        return true;
+    }
+
+    private onPairStart(conn: Connection, start: PairStartMessage): void {
+        if (!this.pairStarts.tryHit(conn.clientIp)) {
+            logger.warn(logModules.WebServer, "Too many pairing connections from one address, closing");
+            conn.ws.close(CLOSE_PAIRING_FAILED, TOO_MANY_PAIRING_ATTEMPTS_REASON);
+            return;
+        }
+        if (this.refuseOutdated(conn, start.protocolVersion)) return;
+
+        clearTimeout(conn.helloTimer);
+        conn.state = "pairing";
+        conn.pairing = { platform: start.platform, attemptsLeft: MAX_PAIRING_ATTEMPTS };
+        conn.pairingTimer = setTimeout(
+            () => conn.ws.close(CLOSE_PAIRING_FAILED, "Pairing timeout"),
+            this.pairingTimeoutMs,
+        );
+        this.startHeartbeat(conn);
+        logger.info(
+            logModules.WebServer,
+            `Plugin ${start.pluginVersion} (game ${start.gameVersion}, ${start.platform}) is waiting to be paired`,
+        );
+    }
+
+    private async onPairChat(conn: Connection, message: PairChatMessage): Promise<void> {
+        const pairing = conn.pairing;
+        if (!pairing) return;
+        let paired: Awaited<ReturnType<PairingService["pair"]>>;
+        try {
+            paired = await this.deps.pairing.pair(message.code, pairing.platform);
+        } catch (error) {
+            logger.error(logModules.WebServer, "Pairing a device failed", error);
+            conn.ws.close(CLOSE_PAIRING_FAILED, "Pairing failed, please try again");
+            return;
+        }
+        if (!paired) {
+            pairing.attemptsLeft--;
+            this.send(conn, { type: "pair-result", ok: false, attemptsLeft: pairing.attemptsLeft });
+            if (pairing.attemptsLeft <= 0) conn.ws.close(CLOSE_PAIRING_FAILED, TOO_MANY_PAIRING_ATTEMPTS_REASON);
+            return;
+        }
+        this.send(conn, { type: "paired", secret: paired.secret, guildName: paired.guildName });
+        logger.success(logModules.WebServer, `Paired a ${pairing.platform} device with guild ${paired.guildId}`);
+        // The plugin reconnects with a normal hello and its new token.
+        conn.ws.close(1000, "Paired");
     }
 
     private activate(conn: Connection, guildId: string, hello: HelloMessage): void {
@@ -336,7 +420,14 @@ export class PluginGateway {
         }
 
         clearTimeout(conn.helloTimer);
-        conn.session = createGameSession(guildId, pluginVersion, gameVersion, protocolVersion, sessionId);
+        conn.session = createGameSession(
+            guildId,
+            pluginVersion,
+            gameVersion,
+            protocolVersion,
+            sessionId,
+            hello.platform,
+        );
         conn.sessionKey = sessionKey;
         conn.state = "active";
         this.sessions.set(sessionKey, conn);
@@ -344,7 +435,7 @@ export class PluginGateway {
         this.send(conn, { type: "welcome", protocolVersion: PROTOCOL_VERSION });
         logger.success(
             logModules.WebServer,
-            `Plugin ${pluginVersion} (game ${gameVersion}) connected for guild ${guildId}${previous ? ", replacing the previous connection" : ""}`,
+            `Plugin ${pluginVersion} (game ${gameVersion}, ${hello.platform ?? "unknown platform"}) connected for guild ${guildId}${previous ? ", replacing the previous connection" : ""}`,
         );
         const session = conn.session;
         this.observe((observer) => observer.sessionStarted(session));
@@ -380,7 +471,7 @@ export class PluginGateway {
                 await this.onGameEnd(session, message);
                 return;
             case "link-chat":
-                if (this.linkChatLimitReached(conn)) {
+                if (!this.linkChats.tryHit(conn)) {
                     logger.warn(logModules.WebServer, `Too many link codes from guild ${session.guildId}, closing`);
                     conn.ws.close(CLOSE_INVALID_MESSAGE, "Too many link codes");
                     return;
@@ -393,15 +484,11 @@ export class PluginGateway {
             case "hello":
                 conn.ws.close(CLOSE_INVALID_MESSAGE, "Duplicate hello");
                 return;
+            case "pair-start":
+            case "pair-chat":
+                conn.ws.close(CLOSE_INVALID_MESSAGE, "Already paired");
+                return;
         }
-    }
-
-    private linkChatLimitReached(conn: Connection): boolean {
-        const now = Date.now();
-        conn.linkChatTimes = conn.linkChatTimes.filter((time) => now - time < LINK_CHAT_WINDOW_MS);
-        if (conn.linkChatTimes.length >= LINK_CHAT_LIMIT_PER_MINUTE) return true;
-        conn.linkChatTimes.push(now);
-        return false;
     }
 
     private async onGameEvent(conn: Connection, session: GameSession, message: GameEventMessage): Promise<void> {
@@ -479,6 +566,7 @@ export class PluginGateway {
     private async onClose(conn: Connection): Promise<void> {
         this.clearTimers(conn);
         this.connections.delete(conn);
+        this.linkChats.forget(conn);
         try {
             await this.endSession(conn);
         } finally {
@@ -530,7 +618,8 @@ export class PluginGateway {
 
     private armPongDeadline(conn: Connection): void {
         clearTimeout(conn.pongDeadline);
-        if (conn.state !== "active" || conn.replaced) return;
+        // A pairing connection gets pings too, so proxies do not drop it while the host is still in the menus.
+        if (conn.state === "awaiting-hello" || conn.replaced) return;
         conn.pongDeadline = setTimeout(() => {
             logger.warn(logModules.WebServer, "Plugin did not answer pings, terminating connection");
             conn.ws.terminate();
@@ -552,6 +641,7 @@ export class PluginGateway {
 
     private clearTimers(conn: Connection): void {
         clearTimeout(conn.helloTimer);
+        clearTimeout(conn.pairingTimer);
         clearInterval(conn.pingTimer);
         clearTimeout(conn.pongDeadline);
     }

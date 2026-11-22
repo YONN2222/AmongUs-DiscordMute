@@ -20,7 +20,8 @@ internal static class UpdateChecker
 
     internal static void StartOnce()
     {
-        if (DiscordMutePlugin.Cfg.DisableUpdateCheck) return;
+        // Starlight updates its mods itself.
+        if (DiscordMutePlugin.Cfg.DisableUpdateCheck || OperatingSystem.IsAndroid()) return;
         if (Interlocked.Exchange(ref _started, 1) != 0) return;
         _ = Task.Run(CheckAsync);
     }

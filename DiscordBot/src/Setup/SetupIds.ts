@@ -5,6 +5,10 @@ export const SETUP_PREFIX = "setup";
 export const SECRET_FIELD = "secret";
 export const SECRET_CONFIRM_FIELD = "secret-confirm";
 
+/** The button that shows a pairing code and the select that removes a paired device. */
+export const PAIR_FIELD = "pair";
+export const DEVICE_REMOVE_FIELD = "device-remove";
+
 /** Fields of the page select and of the button that opens the delays modal. */
 export const PAGE_FIELD = "page";
 export const DELAYS_FIELD = "delays";

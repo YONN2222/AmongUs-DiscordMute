@@ -70,6 +70,8 @@ export const GUILD_SCOPED_TABLES = [
     "mute_ledger",
     "nickname_ledger",
     "guild_secrets",
+    "pairing_codes",
+    "device_tokens",
     "hosted_guilds",
 ] as const;
 

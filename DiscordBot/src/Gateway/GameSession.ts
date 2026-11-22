@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { Platform } from "../Protocol/PluginProtocol";
 
 export interface GameSession {
     sessionId: string;
@@ -7,6 +8,8 @@ export interface GameSession {
     pluginVersion: string;
     gameVersion: string;
     protocolVersion: number;
+    /** Unset for plugins that do not report it. */
+    platform?: Platform;
 }
 
 export function createGameSession(
@@ -15,6 +18,15 @@ export function createGameSession(
     gameVersion: string,
     protocolVersion: number,
     sessionId: string = randomUUID(),
+    platform?: Platform,
 ): GameSession {
-    return { sessionId, guildId, connectedAt: Date.now(), pluginVersion, gameVersion, protocolVersion };
+    return {
+        sessionId,
+        guildId,
+        connectedAt: Date.now(),
+        pluginVersion,
+        gameVersion,
+        protocolVersion,
+        ...(platform ? { platform } : {}),
+    };
 }

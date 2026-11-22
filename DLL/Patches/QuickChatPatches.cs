@@ -14,6 +14,7 @@ internal static class QuickChatLinkSendPatch
     static bool Prefix(PlayerControl __instance, QuickChatPhraseBuilderResult data)
     {
         if (!HostGate.IsActive || !__instance.AmOwner) return true;
+        if (PairingHandler.IsNeeded) return !PairingHandler.TryHandleQuickChat(data, __instance);
         return !LinkHandler.TryHandleQuickChatPhrase(data, __instance);
     }
 }

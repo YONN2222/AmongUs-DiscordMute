@@ -7,6 +7,7 @@ import { PluginGateway, type PluginGatewayDeps } from "../../src/Gateway/PluginG
 import { SelfHostSecretResolver } from "../../src/Gateway/SecretResolver";
 import { LinkingService } from "../../src/Linking/LinkingService";
 import { logger } from "../../src/Logging/Logger";
+import { PairingService } from "../../src/Pairing/PairingService";
 import { PROTOCOL_VERSION } from "../../src/Protocol/PluginProtocol";
 import { InMemoryClusterRouter } from "../../src/Routing/ClusterRouter";
 import type { ClusterRequest } from "../../src/Routing/Messages";
@@ -58,7 +59,7 @@ export function nextMessage(ws: WebSocket): Promise<Record<string, unknown>> {
 }
 
 type ClientOptions = ConstructorParameters<typeof WebSocket>[2];
-type StartOptions = Partial<Omit<PluginGatewayDeps, "router" | "linking">>;
+type StartOptions = Partial<Omit<PluginGatewayDeps, "router" | "linking" | "pairing">>;
 
 /** A running gateway on a random local port; a test may restart it with other options. */
 export interface PluginGatewayFixture {
@@ -67,6 +68,7 @@ export interface PluginGatewayFixture {
     router: InMemoryClusterRouter;
     db: Database;
     linking: LinkingService;
+    pairing: PairingService;
     url: string;
     /** Every socket a test opened; all of them are terminated after the test. */
     clients: WebSocket[];
@@ -114,6 +116,7 @@ export function usePluginGatewayFixture(): PluginGatewayFixture {
                 resolver: new SelfHostSecretResolver({ secret: SECRET, guildId: GUILD }),
                 router: fx.router,
                 linking: fx.linking,
+                pairing: fx.pairing,
                 ...options,
             });
             fx.server = createServer();
@@ -137,6 +140,7 @@ export function usePluginGatewayFixture(): PluginGatewayFixture {
         fx.router.register(GUILD, async () => ({ ok: true }));
         fx.db = await createTestDatabase();
         fx.linking = new LinkingService(fx.db);
+        fx.pairing = new PairingService(fx.db);
         await fx.start({ helloTimeoutMs: FIXTURE_HELLO_TIMEOUT_MS });
     });
 

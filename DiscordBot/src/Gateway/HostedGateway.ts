@@ -51,7 +51,12 @@ export function createHostedGateway<TCluster extends KnownClusterProcess>(
     const blocks = new BlockChecker({ blocks: db.blocks, hostedGuilds: db.hostedGuilds });
     return {
         blocks,
-        resolver: new HostedSecretResolver({ secrets: db.guildSecrets, blocks, hostedGuilds: db.hostedGuilds }),
+        resolver: new HostedSecretResolver({
+            secrets: db.guildSecrets,
+            deviceTokens: db.deviceTokens,
+            blocks,
+            hostedGuilds: db.hostedGuilds,
+        }),
         createAdminServer: (plugins) => {
             const handlers = createAdminHandlers({
                 db,
@@ -72,11 +77,11 @@ export function createHostedGateway<TCluster extends KnownClusterProcess>(
 }
 
 /**
- * Deletes audit entries past their retention and the data of servers the bot left long enough ago, now and then
- * every hour; returns the function that stops it.
+ * Deletes audit entries past their retention, expired pairing codes and the data of servers the bot left long enough
+ * ago, now and then every hour; returns the function that stops it.
  */
 export function startHourlyCleanup(
-    db: Pick<Database, "audit" | "hostedGuilds">,
+    db: Pick<Database, "audit" | "hostedGuilds" | "pairingCodes">,
     now: () => number = Date.now,
 ): () => void {
     const cleanUp = (): void => {
@@ -86,6 +91,9 @@ export function startHourlyCleanup(
             },
             (error: unknown) => logger.error(logModules.Database, "Pruning the audit log failed", error),
         );
+        db.pairingCodes.deleteExpired(now()).catch((error: unknown) => {
+            logger.error(logModules.Database, "Deleting expired pairing codes failed", error);
+        });
         purgeLeftGuilds(db, now()).then(
             (purged) => {
                 if (purged > 0) logger.info(logModules.Database, `Deleted the data of ${purged} left server(s)`);

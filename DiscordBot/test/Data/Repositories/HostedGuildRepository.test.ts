@@ -218,6 +218,13 @@ describe.each(backends)("HostedGuildRepository (%s)", (backend) => {
                 });
                 await db.muteLedger.set(id, "user-1", { muted: true, deafened: false }, null);
                 await db.nicknameLedger.set(id, "user-1", "Bob", "Red", null);
+                await db.pairingCodes.replace({
+                    guildId: id,
+                    guildName: "Guild",
+                    code: uniqueId("pairing"),
+                    expiresAt: Date.now() + 60_000,
+                });
+                await db.deviceTokens.create(id, "android", Date.now());
             };
             await seed(guildId);
             await seed(other);
@@ -234,6 +241,8 @@ describe.each(backends)("HostedGuildRepository (%s)", (backend) => {
                 "mute_ledger",
                 "nickname_ledger",
                 "guild_secrets",
+                "pairing_codes",
+                "device_tokens",
                 "hosted_guilds",
             ];
             for (const table of tables) {

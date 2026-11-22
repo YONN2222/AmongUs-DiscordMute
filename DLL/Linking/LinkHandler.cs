@@ -30,36 +30,20 @@ public static class LinkHandler
         return true;
     }
 
-    private static readonly ConcurrentDictionary<byte, (List<int> Keys, DateTime SentAt)> RecentQuickChatKeys = new();
+    private const int MaxCombinedMessages = 3;
+    private static readonly ConcurrentDictionary<byte, List<(List<int> Keys, DateTime SentAt)>> RecentQuickChats = new();
     private static readonly TimeSpan QuickChatCombineWindow = TimeSpan.FromSeconds(20);
 
     public static bool TryHandleQuickChatPhrase(QuickChatPhraseBuilderResult data, PlayerControl sender)
     {
         if (DiscordMutePlugin.PendingLinks.IsEmpty) return false;
 
-        var keys = ExtractPhraseKeys(data);
-        if (keys.Count == 0) return false;
+        var matchedCode = RememberQuickChat(data, sender.PlayerId)
+            .Select(BuildQuickChatCode)
+            .FirstOrDefault(code => code != null && DiscordMutePlugin.PendingLinks.ContainsKey(code));
+        if (matchedCode == null) return false;
 
-        var playerId = sender.PlayerId;
-        var ownCode = BuildQuickChatCode(keys);
-        string matchedCode = ownCode != null && DiscordMutePlugin.PendingLinks.ContainsKey(ownCode) ? ownCode : null;
-
-        if (matchedCode == null &&
-            RecentQuickChatKeys.TryGetValue(playerId, out var previous) &&
-            DateTime.UtcNow - previous.SentAt <= QuickChatCombineWindow)
-        {
-            var combinedCode = BuildQuickChatCode(previous.Keys.Concat(keys).ToList());
-            if (combinedCode != null && DiscordMutePlugin.PendingLinks.ContainsKey(combinedCode))
-                matchedCode = combinedCode;
-        }
-
-        if (matchedCode == null)
-        {
-            RecentQuickChatKeys[playerId] = (keys, DateTime.UtcNow);
-            return false;
-        }
-
-        RecentQuickChatKeys.TryRemove(playerId, out _);
+        RecentQuickChats.TryRemove(sender.PlayerId, out _);
 
         var playerName = GetPlayerName(sender);
         if (string.IsNullOrWhiteSpace(playerName)) return false;
@@ -78,7 +62,34 @@ public static class LinkHandler
         return keys.Distinct().ToList();
     }
 
-    private static string BuildQuickChatCode(List<int> keys)
+    /// <summary>
+    /// Remembers a Quick Chat message and returns the phrase keys of the sender's newest one, two and three messages,
+    /// newest first, so a code can be sent as several messages. Messages further apart than the combine window are
+    /// not combined.
+    /// </summary>
+    internal static List<List<int>> RememberQuickChat(QuickChatPhraseBuilderResult data, byte playerId)
+    {
+        var keys = ExtractPhraseKeys(data);
+        if (keys.Count == 0) return new List<List<int>>();
+
+        var now = DateTime.UtcNow;
+        var recent = new List<(List<int> Keys, DateTime SentAt)>();
+        if (RecentQuickChats.TryGetValue(playerId, out var previous) && now - previous[^1].SentAt <= QuickChatCombineWindow)
+            recent.AddRange(previous.TakeLast(MaxCombinedMessages - 1));
+        recent.Add((keys, now));
+        RecentQuickChats[playerId] = recent;
+
+        var combinations = new List<List<int>>();
+        var combined = new List<int>();
+        for (var i = recent.Count - 1; i >= 0; i--)
+        {
+            combined.AddRange(recent[i].Keys);
+            combinations.Add(combined.Distinct().ToList());
+        }
+        return combinations;
+    }
+
+    internal static string BuildQuickChatCode(List<int> keys)
     {
         var distinct = keys.Distinct().OrderBy(k => k).ToList();
         return distinct.Count >= 2 ? string.Join("-", distinct) : null;
@@ -128,7 +139,7 @@ public static class LinkHandler
     internal static void Reset()
     {
         SentLinkCodes.Clear();
-        RecentQuickChatKeys.Clear();
+        RecentQuickChats.Clear();
     }
 
     internal static void HandleLinkResult(string status, string accountName)

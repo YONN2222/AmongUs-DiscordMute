@@ -11,7 +11,16 @@ const NOW = 500 * 24 * HOUR_MS;
 function fakeDb(pruneOlderThan: () => Promise<number>, listLeftBefore: () => Promise<string[]> = async () => []) {
     const audit = { pruneOlderThan: vi.fn(pruneOlderThan), record: vi.fn(async () => ({})) };
     const hostedGuilds = { listLeftBefore: vi.fn(listLeftBefore), purgeGuild: vi.fn(async () => {}) };
-    return { audit, hostedGuilds, db: { audit, hostedGuilds } as unknown as Pick<Database, "audit" | "hostedGuilds"> };
+    const pairingCodes = { deleteExpired: vi.fn(async () => 0) };
+    return {
+        audit,
+        hostedGuilds,
+        pairingCodes,
+        db: { audit, hostedGuilds, pairingCodes } as unknown as Pick<
+            Database,
+            "audit" | "hostedGuilds" | "pairingCodes"
+        >,
+    };
 }
 
 describe("startHourlyCleanup", () => {

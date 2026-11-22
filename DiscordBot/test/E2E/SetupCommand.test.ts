@@ -2,6 +2,8 @@ import { buildGuildCreateDispatch, buildSlashCommandInteractionDispatch, DEFAULT
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { hashSecret } from "../../src/Gateway/GuildSecrets";
 import { BlockChecker } from "../../src/Hosted/BlockChecker";
+import { describePhrase, formatQuickChatCode, QUICK_CHAT_CATALOG } from "../../src/Linking/QuickChatCatalog";
+import { PairingService } from "../../src/Pairing/PairingService";
 import { type CommandProbe, createCommandProbe } from "../Helpers/CommandProbe";
 
 const GUILD = DEFAULT_IDS.guild;
@@ -299,5 +301,44 @@ describe("/setup secret in hosted mode", () => {
         await bot.db.guildSecrets.rotate(GUILD, ACTOR);
         await bot.probe.slashCommand("setup").withContext(adminAsActor).invoke();
         expect(extractText(reply())).toContain("Plugin secret: created");
+    });
+});
+
+describe("/setup paired devices", () => {
+    let bot: CommandProbe;
+
+    beforeEach(async () => {
+        bot = await createCommandProbe();
+        bot.probe.injectDispatch(buildGuildCreateDispatch());
+    });
+
+    afterEach(async () => {
+        await bot.close();
+    });
+
+    const reply = () => bot.probe.lastReply() ?? {};
+
+    it("shows three Quick Chat phrases whose code pairs a device of this guild", async () => {
+        await bot.probe.button("setup:pair").withContext(admin).click();
+
+        expect(Number(reply().flags) & EPHEMERAL).toBe(EPHEMERAL);
+        const text = extractText(reply());
+        expect(text).toContain("Pair a device");
+        const shown = QUICK_CHAT_CATALOG.filter((phrase) => text.includes(`**${describePhrase(phrase.id)}**`));
+        expect(shown).toHaveLength(3);
+
+        const paired = await new PairingService(bot.db).pair(formatQuickChatCode(shown.map((p) => p.id)), "android");
+        expect(paired?.guildId).toBe(GUILD);
+    });
+
+    it("lists a paired device and removes it with the select", async () => {
+        await bot.db.deviceTokens.create(GUILD, "android", Date.now());
+        await bot.probe.slashCommand("setup").withContext(admin).invoke();
+        expect(extractText(reply())).toContain("Android, paired");
+
+        const [device] = await bot.db.deviceTokens.list(GUILD, 25);
+        await bot.probe.selectMenu("setup:device-remove").withValues([device.id]).withContext(admin).select();
+
+        await vi.waitFor(async () => expect(await bot.db.deviceTokens.list(GUILD, 25)).toEqual([]));
     });
 });

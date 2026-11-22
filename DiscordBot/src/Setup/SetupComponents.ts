@@ -23,9 +23,18 @@ import {
     VOICE_CHANNELS_FIELD,
 } from "./ApplySetupInput";
 import { checkChannelAccess, checkVoiceChannelAccess } from "./ChannelAccess";
+import { handlePairButton } from "./DevicePanel";
 import { renderSetupPanel, SETUP_PAGES, type SetupPage } from "./RenderSetupPanel";
 import { handleSecretButton, handleSecretConfirmButton } from "./SecretPanel";
-import { DELAYS_FIELD, PAGE_FIELD, SECRET_CONFIRM_FIELD, SECRET_FIELD, SETUP_PREFIX } from "./SetupIds";
+import {
+    DELAYS_FIELD,
+    DEVICE_REMOVE_FIELD,
+    PAGE_FIELD,
+    PAIR_FIELD,
+    SECRET_CONFIRM_FIELD,
+    SECRET_FIELD,
+    SETUP_PREFIX,
+} from "./SetupIds";
 
 const EPHEMERAL = MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral;
 const MANAGE_MESSAGES_FIELDS = new Set(["linkOverview.channelId", "status.channelId"]);
@@ -35,6 +44,8 @@ const SECRET_BUTTONS = new Map([
 ]);
 /** Character limit of the delay inputs in the delays modal. */
 const MAX_DELAY_INPUT_LENGTH = 5;
+/** A select menu holds at most 25 options, one per device that can be removed. */
+const MAX_LISTED_DEVICES = 25;
 
 const topLevel = (components: unknown[]) => components as APIMessageTopLevelComponent[];
 
@@ -44,12 +55,13 @@ export async function buildSetupPanel(
     page: SetupPage,
     locale: Locale,
 ): Promise<APIMessageTopLevelComponent[]> {
-    const [settings, connected, secret] = await Promise.all([
+    const [settings, connected, secret, devices] = await Promise.all([
         ctx.settings.get(guildId),
         ctx.isPluginConnected(guildId),
         ctx.pluginSecret.secrets.get(guildId),
+        ctx.devices.tokens.list(guildId, MAX_LISTED_DEVICES),
     ]);
-    return topLevel(renderSetupPanel(settings, page, locale, connected, secret?.createdAt ?? null));
+    return topLevel(renderSetupPanel(settings, page, locale, connected, secret?.createdAt ?? null, devices));
 }
 
 export async function replyEphemeralText(
@@ -149,6 +161,15 @@ async function handleSetup(interaction: ComponentInteraction, ctx: CommandContex
     }
     if (field === DELAYS_FIELD && interaction.isButton()) {
         await showDelaysModal(interaction, ctx);
+        return;
+    }
+    if (field === PAIR_FIELD && interaction.isButton()) {
+        await handlePairButton(interaction, ctx);
+        return;
+    }
+    if (field === DEVICE_REMOVE_FIELD && interaction.isStringSelectMenu()) {
+        await ctx.devices.tokens.remove(guildId, interaction.values[0]);
+        await showPanel(interaction, ctx, "general");
         return;
     }
 

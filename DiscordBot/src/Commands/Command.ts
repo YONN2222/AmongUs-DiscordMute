@@ -1,10 +1,12 @@
 import type { ChatInputCommandInteraction, SlashCommandBuilder } from "discord.js";
 import type { AuditLogRepository } from "../Data/Repositories/AuditLogRepository";
+import type { DeviceTokenRepository } from "../Data/Repositories/DeviceTokenRepository";
 import type { GuildSecretRepository } from "../Data/Repositories/GuildSecretRepository";
 import type { GuildEventBus } from "../Events/GuildEvents";
 import type { BlockChecker } from "../Hosted/BlockChecker";
 import type { LinkingService } from "../Linking/LinkingService";
 import { logger, logModules } from "../Logging/Logger";
+import type { PairingService } from "../Pairing/PairingService";
 import type { CLOSE_BLOCKED, CLOSE_UNAUTHORIZED } from "../Protocol/PluginProtocol";
 import type { SettingsService } from "../Settings/SettingsService";
 import { commandConstructors } from "./Generated";
@@ -22,6 +24,12 @@ export interface SecretCommandContext {
     ): Promise<boolean>;
 }
 
+/** What /setup needs to pair devices and to list and remove the paired ones. */
+export interface DeviceCommandContext {
+    pairing: Pick<PairingService, "createCode">;
+    tokens: Pick<DeviceTokenRepository, "list" | "remove">;
+}
+
 export interface HostedCommandContext extends SecretCommandContext {
     audit: Pick<AuditLogRepository, "record">;
     blocks: BlockChecker;
@@ -34,6 +42,7 @@ export interface CommandContext {
     pushLinkPending(guildId: string, phrase: string, quickChatCode: string, discordId: string): Promise<boolean>;
     isPluginConnected(guildId: string): Promise<boolean>;
     pluginSecret: SecretCommandContext;
+    devices: DeviceCommandContext;
     /** Set only in hosted mode. */
     hosted?: HostedCommandContext;
 }
