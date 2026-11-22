@@ -138,6 +138,17 @@ export const de: Record<MessageKey, string> = {
     "setup.secret.title": "Plugin-Secret",
     "setup.secret.shownOnce": "Kopiere dieses Secret jetzt. Es wird nur einmal angezeigt.",
     "setup.secret.configHint": "Trage das in die Plugin-Konfiguration ein:",
+    "setup.devices.none":
+        "Keine gekoppelten Geräte. Kopple ein Handy oder einen PC, um es ohne Secret in der Plugin-Konfiguration zu verbinden.",
+    "setup.devices.title": "Gekoppelte Geräte:",
+    "setup.devices.entry": "**{number}.** {platform}, gekoppelt {created}, zuletzt verbunden {lastUsed}",
+    "setup.devices.neverUsed": "nie",
+    "setup.devices.pair": "Gerät koppeln",
+    "setup.devices.remove": "Gerät entfernen",
+    "setup.devices.option": "{number}. {platform}",
+    "setup.pair.title": "Gerät koppeln",
+    "setup.pair.instructions":
+        "Starte Among Us mit DiscordMute auf dem Gerät, hoste eine Lobby und sende diese drei Quick-Chat-Phrasen als einzelne Nachrichten, in beliebiger Reihenfolge:\n\n**{phrase1}**\n**{phrase2}**\n**{phrase3}**\n\nDas Gerät verbindet sich danach von selbst mit diesem Server. Der Code gilt einmal und läuft {time} ab.",
     "setup.links.overview": "Kanal der Verknüpfungsübersicht",
     "setup.links.showPending": "Wartende Verknüpfungen anzeigen",
     "setup.links.autoRelink": "Rückkehrende Spieler neu verknüpfen",

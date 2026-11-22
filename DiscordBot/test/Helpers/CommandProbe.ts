@@ -4,6 +4,7 @@ import type { Database } from "../../src/Data/Database";
 import type { GuildEvent } from "../../src/Events/GuildEvents";
 import { LinkingService } from "../../src/Linking/LinkingService";
 import { logger } from "../../src/Logging/Logger";
+import { PairingService } from "../../src/Pairing/PairingService";
 import { SettingsService } from "../../src/Settings/SettingsService";
 import { createTestProbe } from "./Probe";
 import { createTestDatabase } from "./TestDatabase";
@@ -44,6 +45,7 @@ export async function createCommandProbe(
         pushLinkPending,
         isPluginConnected: async () => true,
         pluginSecret: { secrets: db.guildSecrets, disconnectGuild },
+        devices: { pairing: new PairingService(db), tokens: db.deviceTokens },
         ...(typeof overrides === "function" ? overrides(db) : overrides),
     });
     const probe = createTestProbe(client);

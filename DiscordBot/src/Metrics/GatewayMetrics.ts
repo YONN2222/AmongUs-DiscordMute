@@ -4,12 +4,15 @@ import type { GatewayObserver } from "../Gateway/PluginGateway";
 import { BoundedLabelSet, MAX_VERSION_LABELS, sanitizeVersionLabel } from "./Labels";
 import { MetricNames } from "./MetricNames";
 
+/** The label of sessions whose plugin does not report a platform. */
+const UNKNOWN_PLATFORM_LABEL = "unknown";
+
 export interface GatewayMetrics {
     pluginEvents: Counter<"type">;
     gamesMuted: Counter;
     pluginsConnected: Gauge;
     activeGames: Gauge;
-    pluginSessions: Gauge<"plugin_version" | "game_version">;
+    pluginSessions: Gauge<"plugin_version" | "game_version" | "platform">;
     clusterSnapshotFailures: Counter;
     processResidentMemory: Gauge<"process">;
 }
@@ -23,11 +26,12 @@ export function createGatewayMetricsObserver(metrics: GatewayMetrics): GatewayOb
     const sessions = new Map<string, TrackedSession>();
     const pluginVersions = new BoundedLabelSet(MAX_VERSION_LABELS);
     const gameVersions = new BoundedLabelSet(MAX_VERSION_LABELS);
-    const knownLabels = new Map<string, { plugin_version: string; game_version: string }>();
+    const knownLabels = new Map<string, { plugin_version: string; game_version: string; platform: string }>();
 
     const labelsFor = (session: GameSession) => ({
         plugin_version: pluginVersions.admit(sanitizeVersionLabel(session.pluginVersion)),
         game_version: gameVersions.admit(sanitizeVersionLabel(session.gameVersion)),
+        platform: session.platform ?? UNKNOWN_PLATFORM_LABEL,
     });
 
     const refresh = (): void => {
@@ -46,7 +50,7 @@ export function createGatewayMetricsObserver(metrics: GatewayMetrics): GatewayOb
     return {
         sessionStarted(session) {
             const labels = labelsFor(session);
-            const versionKey = `${labels.plugin_version}\n${labels.game_version}`;
+            const versionKey = `${labels.plugin_version}\n${labels.game_version}\n${labels.platform}`;
             knownLabels.set(versionKey, labels);
             sessions.set(session.sessionId, {
                 versionKey,
@@ -96,10 +100,10 @@ export function createGatewayMetrics(registry: Registry): GatewayMetrics {
             help: "Games currently in progress",
             registers,
         }),
-        pluginSessions: new Gauge<"plugin_version" | "game_version">({
+        pluginSessions: new Gauge<"plugin_version" | "game_version" | "platform">({
             name: MetricNames.pluginSessions,
-            help: "Connected plugin sessions per plugin and game version",
-            labelNames: ["plugin_version", "game_version"],
+            help: "Connected plugin sessions per plugin version, game version and platform",
+            labelNames: ["plugin_version", "game_version", "platform"],
             registers,
         }),
         clusterSnapshotFailures: new Counter({

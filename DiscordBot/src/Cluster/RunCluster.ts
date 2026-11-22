@@ -13,6 +13,7 @@ import { isHosted } from "../Hosted/HostedMode";
 import { LinkingService } from "../Linking/LinkingService";
 import { configureLogger, logger, logModules, resolveLogLevel } from "../Logging/Logger";
 import { createClusterMetrics, registerDiscordMetrics } from "../Metrics/ClusterMetrics";
+import { PairingService } from "../Pairing/PairingService";
 import { EXIT_CONFIG } from "../Process/ExitCodes";
 import { loginFailureExitCode } from "../Process/ProcessRole";
 import { GalacticGatewayLink } from "../Routing/ClusterRouter";
@@ -51,6 +52,7 @@ function createCommandContext(
         events,
         settings,
         pluginSecret: hosted?.commands ?? { secrets: db.guildSecrets, disconnectGuild: createGuildDisconnect(gateway) },
+        devices: { pairing: new PairingService(db), tokens: db.deviceTokens },
         hosted: hosted?.commands,
         pushLinkPending: async (guildId, phrase, quickChatCode, discordId) =>
             (await gateway.send({ kind: "push-link-pending", guildId, phrase, quickChatCode, discordId })).ok,

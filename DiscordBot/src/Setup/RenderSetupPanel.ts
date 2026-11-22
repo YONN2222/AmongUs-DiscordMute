@@ -7,7 +7,9 @@ import {
     StringSelectMenuBuilder,
     StringSelectMenuOptionBuilder,
 } from "discord.js";
+import type { DeviceToken } from "../Data/Repositories/DeviceTokenRepository";
 import { type Locale, type MessageKey, t } from "../I18n/Index";
+import type { Platform } from "../Protocol/PluginProtocol";
 import { type GuildSettings, MAX_VOICE_CHANNELS } from "../Settings/GuildSettings";
 import { ContainerBuilder } from "../Utils/ContainerBuilder";
 import {
@@ -20,7 +22,7 @@ import {
     VOICE_ACTIONS,
     VOICE_CHANNELS_FIELD,
 } from "./ApplySetupInput";
-import { DELAYS_FIELD, PAGE_FIELD, SECRET_FIELD, SETUP_PREFIX } from "./SetupIds";
+import { DELAYS_FIELD, DEVICE_REMOVE_FIELD, PAGE_FIELD, PAIR_FIELD, SECRET_FIELD, SETUP_PREFIX } from "./SetupIds";
 
 export type SetupPage = "general" | "links" | "voice" | "game";
 
@@ -109,9 +111,38 @@ function secretSection(container: ContainerBuilder, locale: Locale, secretCreate
     const status =
         secretCreatedAt === null
             ? t(locale, "setup.secret.none")
-            : t(locale, "setup.secret.status", { time: `<t:${Math.floor(secretCreatedAt / 1000)}:R>` });
+            : t(locale, "setup.secret.status", { time: discordTime(secretCreatedAt) });
     const label = t(locale, secretCreatedAt === null ? "setup.secret.create" : "setup.secret.regenerate");
     section(container.divider(), status, button(SECRET_FIELD, label, null));
+}
+
+const PLATFORM_NAMES: Record<Platform, string> = { windows: "Windows", android: "Android" };
+
+const discordTime = (ms: number) => `<t:${Math.floor(ms / 1000)}:R>`;
+
+function devicesSection(container: ContainerBuilder, locale: Locale, devices: DeviceToken[]): void {
+    const lines = devices.map((device, index) =>
+        t(locale, "setup.devices.entry", {
+            number: index + 1,
+            platform: PLATFORM_NAMES[device.platform],
+            created: discordTime(device.createdAt),
+            lastUsed:
+                device.lastUsedAt === null ? t(locale, "setup.devices.neverUsed") : discordTime(device.lastUsedAt),
+        }),
+    );
+    const text =
+        devices.length === 0
+            ? t(locale, "setup.devices.none")
+            : [t(locale, "setup.devices.title"), ...lines].join("\n");
+    section(container.divider(), text, button(PAIR_FIELD, t(locale, "setup.devices.pair"), null));
+    if (devices.length === 0) return;
+    const removeChoices = devices.map((device, index) => ({
+        value: device.id,
+        label: t(locale, "setup.devices.option", { number: index + 1, platform: PLATFORM_NAMES[device.platform] }),
+    }));
+    container.addActionRowComponents(
+        stringSelect(DEVICE_REMOVE_FIELD, t(locale, "setup.devices.remove"), removeChoices, "") as never,
+    );
 }
 
 function generalPage(
@@ -120,6 +151,7 @@ function generalPage(
     locale: Locale,
     connected: boolean,
     secretCreatedAt: number | null,
+    devices: DeviceToken[],
 ): void {
     section(
         container,
@@ -138,6 +170,7 @@ function generalPage(
     );
     container.divider().text(t(locale, connected ? "setup.plugin.connected" : "setup.plugin.disconnected"));
     secretSection(container, locale, secretCreatedAt);
+    devicesSection(container, locale, devices);
 }
 
 function linksPage(container: ContainerBuilder, settings: GuildSettings, locale: Locale): void {
@@ -257,12 +290,13 @@ export function renderSetupPanel(
     locale: Locale,
     pluginConnected: boolean,
     secretCreatedAt: number | null,
+    devices: DeviceToken[],
 ): unknown[] {
     const container = new ContainerBuilder().title(t(locale, "setup.title")).info();
     container.addActionRowComponents(pageSelect(page, locale) as never).divider();
     switch (page) {
         case "general":
-            generalPage(container, settings, locale, pluginConnected, secretCreatedAt);
+            generalPage(container, settings, locale, pluginConnected, secretCreatedAt, devices);
             break;
         case "links":
             linksPage(container, settings, locale);

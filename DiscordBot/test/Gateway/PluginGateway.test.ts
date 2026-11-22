@@ -461,6 +461,7 @@ describe("PluginGateway", () => {
             resolver: new SelfHostSecretResolver({ secret: SECRET, guildId: GUILD }),
             router: fx.router,
             linking: fx.linking,
+            pairing: fx.pairing,
         };
         expect(() => new PluginGateway({ ...deps, pingIntervalMs: 100, pongTimeoutMs: 100 })).toThrow(
             /pongTimeoutMs \(100\) must be greater than pingIntervalMs \(100\)/,

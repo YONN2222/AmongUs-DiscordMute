@@ -134,6 +134,8 @@ export const PluginSessionInfoSchema = z.object({
     pluginVersion: z.string(),
     gameVersion: z.string(),
     protocolVersion: z.number().int(),
+    /** Missing for plugins that do not report their platform. */
+    platform: z.enum(["windows", "android"]).optional(),
 });
 export type PluginSessionInfo = z.infer<typeof PluginSessionInfoSchema>;
 

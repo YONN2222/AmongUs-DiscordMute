@@ -34,6 +34,8 @@ export async function purgeTestRows(db: Database): Promise<void> {
     await db.sequelize.query("DELETE FROM guild_settings WHERE guild_id LIKE 'test-%'");
     await db.sequelize.query("DELETE FROM tracked_messages WHERE guild_id LIKE 'test-%'");
     await db.sequelize.query("DELETE FROM guild_secrets WHERE guild_id LIKE 'test-%'");
+    await db.sequelize.query("DELETE FROM pairing_codes WHERE guild_id LIKE 'test-%'");
+    await db.sequelize.query("DELETE FROM device_tokens WHERE guild_id LIKE 'test-%'");
     await db.sequelize.query("DELETE FROM hosted_guilds WHERE guild_id LIKE 'test-%'");
     await db.sequelize.query("DELETE FROM blocks WHERE target_id LIKE 'test-%'");
     await db.sequelize.query("DELETE FROM audit_log WHERE actor_id LIKE 'test-%' OR target_id LIKE 'test-%'");

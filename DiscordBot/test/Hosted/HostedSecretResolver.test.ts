@@ -21,7 +21,12 @@ describe.each(backends)("HostedSecretResolver (%s)", (backend) => {
         beforeEach(async () => {
             db = await openBackend(backend);
             const blocks = new BlockChecker({ blocks: db.blocks, hostedGuilds: db.hostedGuilds });
-            resolver = new HostedSecretResolver({ secrets: db.guildSecrets, blocks, hostedGuilds: db.hostedGuilds });
+            resolver = new HostedSecretResolver({
+                secrets: db.guildSecrets,
+                deviceTokens: db.deviceTokens,
+                blocks,
+                hostedGuilds: db.hostedGuilds,
+            });
             guildId = uniqueId("guild");
             ownerId = uniqueId("owner");
         });
@@ -41,6 +46,7 @@ describe.each(backends)("HostedSecretResolver (%s)", (backend) => {
             const lookup = vi.fn(async (hash: string) => db.guildSecrets.findGuildByHash(hash));
             const guarded = new HostedSecretResolver({
                 secrets: { findGuildByHash: lookup },
+                deviceTokens: db.deviceTokens,
                 blocks: new BlockChecker({ blocks: db.blocks, hostedGuilds: db.hostedGuilds }),
                 hostedGuilds: db.hostedGuilds,
             });
@@ -59,6 +65,26 @@ describe.each(backends)("HostedSecretResolver (%s)", (backend) => {
             await db.hostedGuilds.markLeft(guildId, 5000);
 
             expect(await resolver.resolve(secret)).toBeNull();
+        });
+
+        it("a paired device token resolves to its guild until the bot leaves the guild", async () => {
+            await storeGuild();
+            const token = await db.deviceTokens.create(guildId, "android", 1000);
+
+            expect(await resolver.resolve(token)).toEqual({ guildId });
+            expect((await db.deviceTokens.list(guildId, 1))[0]?.lastUsedAt).not.toBeNull();
+
+            await db.hostedGuilds.markLeft(guildId, 5000);
+            expect(await resolver.resolve(token)).toBeNull();
+        });
+
+        it("a device token keeps working when the guild secret is regenerated", async () => {
+            await storeGuild();
+            const token = await db.deviceTokens.create(guildId, "android", 1000);
+            await createSecret();
+            await createSecret();
+
+            expect(await resolver.resolve(token)).toEqual({ guildId });
         });
 
         it("blocked guild resolves as blocked", async () => {

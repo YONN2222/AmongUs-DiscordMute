@@ -12,6 +12,7 @@ import { LinkingService } from "../../src/Linking/LinkingService";
 import { logger } from "../../src/Logging/Logger";
 import { MuteService, type VoiceAdapter, type VoiceMember } from "../../src/Mute/MuteService";
 import { createVoiceTargetResolver } from "../../src/Mute/VoiceTargetResolver";
+import { PairingService } from "../../src/Pairing/PairingService";
 import { PROTOCOL_VERSION } from "../../src/Protocol/PluginProtocol";
 import { InMemoryClusterRouter } from "../../src/Routing/ClusterRouter";
 import { DEFAULT_SETTINGS } from "../../src/Settings/GuildSettings";
@@ -131,6 +132,7 @@ describe("gateway to mute", () => {
             resolver: new SelfHostSecretResolver({ secret: SECRET, guildId: GUILD }),
             router,
             linking: new LinkingService(db),
+            pairing: new PairingService(db),
             routeTimeoutMs: ROUTE_TIMEOUT_MS,
             sessionEndRetryDelaysMs: [20, 20, 20],
         });

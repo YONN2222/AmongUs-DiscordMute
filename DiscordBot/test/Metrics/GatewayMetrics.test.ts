@@ -72,6 +72,13 @@ describe("gateway metrics observer", () => {
         expect(await single("discordmute_active_games")).toBe(0);
     });
 
+    it("labels plugin sessions with the platform, unknown when the plugin sends none", async () => {
+        observer.sessionStarted({ ...session("a"), platform: "android" });
+        observer.sessionStarted(session("b"));
+        expect(await single("discordmute_plugin_sessions", { platform: "android" })).toBe(1);
+        expect(await single("discordmute_plugin_sessions", { platform: "unknown" })).toBe(1);
+    });
+
     it("junk plugin version is labelled other", async () => {
         observer.sessionStarted(session("a", "<script>junk version with spaces</script>", "2026.9.29"));
         expect(

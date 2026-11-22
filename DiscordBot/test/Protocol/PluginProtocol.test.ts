@@ -61,6 +61,36 @@ describe("parsePluginMessage", () => {
         }
     });
 
+    it("hello keeps a known platform and drops an unknown one", () => {
+        const base = {
+            type: "hello",
+            protocolVersion: 3,
+            secret: "s",
+            pluginVersion: "3.1.0",
+            gameVersion: "2026.4.23",
+        };
+
+        expect(parsePluginMessage(json({ ...base, platform: "android" }))).toEqual({ ...base, platform: "android" });
+        expect(parsePluginMessage(json({ ...base, platform: "ios" }))).toEqual(base);
+    });
+
+    it("parses pair-start and pair-chat and refuses pair-start without a known platform", () => {
+        const pairStart = {
+            type: "pair-start",
+            protocolVersion: 3,
+            pluginVersion: "3.1.0",
+            gameVersion: "2026.4.23",
+            platform: "android",
+        };
+        const pairChat = { type: "pair-chat", code: "79-80-2600" };
+
+        expect(parsePluginMessage(json(pairStart))).toEqual(pairStart);
+        expect(parsePluginMessage(json(pairChat))).toEqual(pairChat);
+        expect(parsePluginMessage(json({ ...pairStart, platform: "ios" }))).toBeNull();
+        expect(parsePluginMessage(json({ ...pairStart, platform: undefined }))).toBeNull();
+        expect(parsePluginMessage(json({ type: "pair-chat", code: "x".repeat(65) }))).toBeNull();
+    });
+
     it("rejects unknown type", () => {
         expect(parsePluginMessage(json({ type: "nope" }))).toBeNull();
     });

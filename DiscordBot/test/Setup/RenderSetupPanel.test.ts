@@ -1,5 +1,6 @@
 import { ChannelType } from "discord.js";
 import { describe, expect, it } from "vitest";
+import type { DeviceToken } from "../../src/Data/Repositories/DeviceTokenRepository";
 import { DEFAULT_SETTINGS, mergeSettings } from "../../src/Settings/GuildSettings";
 import { renderSetupPanel, SETUP_PAGES } from "../../src/Setup/RenderSetupPanel";
 
@@ -18,7 +19,8 @@ const render = (
     settings = DEFAULT_SETTINGS,
     locale: "en" | "de" = "en",
     secretCreatedAt: number | null = null,
-) => flatten(renderSetupPanel(settings, page, locale, true, secretCreatedAt));
+    devices: DeviceToken[] = [],
+) => flatten(renderSetupPanel(settings, page, locale, true, secretCreatedAt, devices));
 
 const byId = (nodes: WithChildren[], id: string) => nodes.find((node) => node.custom_id === id);
 const text = (nodes: WithChildren[]) => nodes.map((node) => node.content ?? "").join("\n");
@@ -86,6 +88,30 @@ describe("renderSetupPanel", () => {
 
         expect(text(nodes)).toContain(`Plugin secret: created <t:${createdAt / 1000}:R>`);
         expect(button?.label).toBe("Generate new secret");
+    });
+
+    it("offers pairing and no remove select while no device is paired", () => {
+        const nodes = render("general");
+
+        expect(text(nodes)).toContain("No paired devices");
+        expect(byId(nodes, "setup:pair")).toBeDefined();
+        expect(byId(nodes, "setup:device-remove")).toBeUndefined();
+    });
+
+    it("lists paired devices and offers each one for removal, within the component limit", () => {
+        const devices: DeviceToken[] = Array.from({ length: 25 }, (_, index) => ({
+            id: `device-${index}`,
+            guildId: "guild",
+            platform: index === 0 ? "android" : "windows",
+            createdAt: 1_700_000_000_000,
+            lastUsedAt: index === 0 ? null : 1_700_000_100_000,
+        }));
+        const nodes = render("general", DEFAULT_SETTINGS, "en", null, devices);
+
+        expect(nodes.length).toBeLessThanOrEqual(MAX_COMPONENTS);
+        expect(text(nodes)).toContain("**1.** Android, paired <t:1700000000:R>, last used never");
+        expect(text(nodes)).toContain("**2.** Windows, paired <t:1700000000:R>, last used <t:1700000100:R>");
+        expect(byId(nodes, "setup:device-remove")?.options?.map((option) => option.value)).toHaveLength(25);
     });
 
     it("offers the voice channel select with the stored channels preselected", () => {

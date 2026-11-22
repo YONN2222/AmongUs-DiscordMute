@@ -11,6 +11,7 @@ import { configureLogger, logger, logModules, resolveLogLevel } from "../Logging
 import { createGatewayMetrics, createGatewayMetricsObserver, type GatewayMetrics } from "../Metrics/GatewayMetrics";
 import { GalacticSnapshotSource, MetricsCollector } from "../Metrics/MetricsCollector";
 import { createMetricsServer } from "../Metrics/MetricsServer";
+import { PairingService } from "../Pairing/PairingService";
 import { EXIT_CONFIG } from "../Process/ExitCodes";
 import { clusterSpawnOptions, isCompiledExecutable } from "../Process/ProcessRole";
 import { GalacticClusterRouter } from "../Routing/ClusterRouter";
@@ -20,6 +21,7 @@ import { TelemetryService, telemetryTarget } from "../Telemetry/TelemetryService
 import { startUpdateChecks } from "../Updates/UpdateChecker";
 import { errorMessage } from "../Utils/ErrorMessage";
 import { BOT_VERSION } from "../Version";
+import { DeviceTokenResolver } from "./DeviceTokenResolver";
 import { createGatewayRequestHandler } from "./GatewayRequestHandler";
 import { GuildSecretResolver } from "./GuildSecretResolver";
 import { createHostedGateway, readHostedAdminTokenOrThrow, startHourlyCleanup } from "./HostedGateway";
@@ -141,14 +143,17 @@ async function createTelemetryService(
 }
 
 /**
- * Secrets created with /setup, plus the deprecated config.json secret so existing installs keep working.
- * The config.json secret stops working for a server as soon as that server creates a secret in /setup.
+ * Secrets created with /setup, tokens of paired devices, plus the deprecated config.json secret so existing installs
+ * keep working. The config.json secret stops working for a server as soon as that server creates a secret in /setup.
  */
 export function selfHostResolver(
     cfg: Pick<Config, "guildId" | "secret">,
-    db: Pick<Database, "guildSecrets">,
+    db: Pick<Database, "guildSecrets" | "deviceTokens">,
 ): SecretResolver {
-    const resolvers: SecretResolver[] = [new GuildSecretResolver(db.guildSecrets)];
+    const resolvers: SecretResolver[] = [
+        new GuildSecretResolver(db.guildSecrets),
+        new DeviceTokenResolver(db.deviceTokens),
+    ];
     if (cfg.guildId !== undefined && cfg.secret !== undefined) {
         const hasStoredSecret = async (guildId: string) => (await db.guildSecrets.get(guildId)) !== null;
         resolvers.push(new SelfHostSecretResolver({ guildId: cfg.guildId, secret: cfg.secret }, hasStoredSecret));
@@ -300,8 +305,11 @@ export async function runGateway(
         resolver: hosted?.resolver ?? selfHostResolver(config, db),
         router: new GalacticClusterRouter(instance),
         linking: new LinkingService(db, undefined, hosted?.blocks),
+        pairing: new PairingService(db),
         observer: createGatewayMetricsObserver(gatewayMetrics),
         acceptPluginLogs: !mode.hosted,
+        // The hosted gateway is reached through Cloudflare, which puts the real client address into this header.
+        clientIpHeader: mode.hosted ? "cf-connecting-ip" : undefined,
     });
     const metricsServer = config.metrics.enabled
         ? createMetricsServer({ collector, token: config.metrics.token })

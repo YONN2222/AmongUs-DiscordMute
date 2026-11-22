@@ -12,6 +12,7 @@ import {
 } from "../../src/Gateway/Shutdown";
 import type { LinkingService } from "../../src/Linking/LinkingService";
 import { logger } from "../../src/Logging/Logger";
+import type { PairingService } from "../../src/Pairing/PairingService";
 import { EXIT_CONFIG } from "../../src/Process/ExitCodes";
 import { PROTOCOL_VERSION } from "../../src/Protocol/PluginProtocol";
 import { InMemoryClusterRouter } from "../../src/Routing/ClusterRouter";
@@ -43,6 +44,7 @@ describe("shutdownGateway", () => {
             resolver: new SelfHostSecretResolver({ secret: SECRET, guildId: GUILD }),
             router,
             linking: {} as LinkingService,
+            pairing: {} as PairingService,
         });
         const server = createServer();
         gateway.attach(server);
