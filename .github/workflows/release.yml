@@ -32,6 +32,10 @@ jobs:
           bun install --frozen-lockfile
           bun run build
 
+      - name: Check plugin against Android game libs
+        working-directory: DLL
+        run: dotnet build -c Release -f net6.0 -p:GameLibs=Android
+
       - name: Build plugin DLL
         working-directory: DLL
         run: dotnet build -c Release -f net6.0

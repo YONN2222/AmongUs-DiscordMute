@@ -10,10 +10,13 @@
     <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <NoWarn>$(NoWarn);GI002</NoWarn>
+    <!-- Releases build against Steam. `-p:GameLibs=Android` only checks that every used member exists on Android. -->
+    <GameLibs Condition="'$(GameLibs)' == ''">Steam</GameLibs>
+    <OutputPath Condition="'$(GameLibs)' == 'Android'">bin\AndroidCheck\</OutputPath>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="AmongUs.GameLibs.Steam" Version="2026.9.29" PrivateAssets="all" />
+    <PackageReference Include="AmongUs.GameLibs.$(GameLibs)" Version="2026.9.29" PrivateAssets="all" />
     <PackageReference Include="BepInEx.IL2CPP.MSBuild" Version="2.1.0-rc.1">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -21,7 +24,7 @@
     <PackageReference Include="BepInEx.Unity.IL2CPP" Version="6.0.0-be.735" Private="false" ExcludeAssets="runtime;native" />
   </ItemGroup>
 
-  <Target Name="Copy" AfterTargets="Build" Condition="'$(AmongUs)' != ''">
+  <Target Name="Copy" AfterTargets="Build" Condition="'$(AmongUs)' != '' And '$(GameLibs)' == 'Steam'">
     <Copy SourceFiles="$(OutputPath)$(AssemblyName).dll" DestinationFolder="$(AmongUs)/BepInEx/plugins/" />
   </Target>
 </Project>
