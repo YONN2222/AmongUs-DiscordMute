@@ -11,14 +11,19 @@ const guideLink = (guide: string) => trackAttrs(ANALYTICS_EVENTS.guide, { guide 
 
 const hosted = useHostedView()
 const hostedClosed = computed(() => hosted.value.status !== 'available')
-const tab = ref('self')
+// Hosted is the default whenever it is open; self-hosting only leads while hosted is down.
+const tab = ref(hostedClosed.value ? 'self' : 'hosted')
 const selfHostAction = computed(() => [
   { label: hosted.value.cta.label, color: 'neutral' as const, variant: 'outline' as const, onClick: () => { tab.value = 'self' } },
 ])
-const TABS: TabsItem[] = [
-  { label: 'Self-host', icon: 'i-lucide-server', value: 'self', slot: 'self' as const },
-  { label: 'Hosted', icon: 'i-lucide-cloud', value: 'hosted', slot: 'hosted' as const },
-]
+const HOSTED_TAB: TabsItem = { label: 'Hosted', icon: 'i-lucide-cloud', value: 'hosted', slot: 'hosted' as const }
+const SELF_TAB: TabsItem = { label: 'Self-host', icon: 'i-lucide-server', value: 'self', slot: 'self' as const }
+const tabs = computed(() => (hostedClosed.value ? [SELF_TAB, HOSTED_TAB] : [HOSTED_TAB, SELF_TAB]))
+const intro = computed(() =>
+  hostedClosed.value
+    ? `Self-hosting works today. ${hosted.value.headline}.`
+    : 'The hosted bot is the quickest way to start. Prefer your own? You can self-host it too.',
+)
 
 type Step = TimelineItem & { where: string; whereIcon: string }
 const SELF_STEPS: Step[] = [
@@ -47,11 +52,11 @@ const TIMELINE_UI = {
 
 <template>
   <SiteSection id="setup" title="Set it up" tight>
-    <template #description>Self-hosting works today. {{ hosted.headline }}.</template>
+    <template #description>{{ intro }}</template>
     <UTabs
       v-reveal
       class="setup-tabs"
-      :items="TABS"
+      :items="tabs"
       v-model="tab"
       :unmount-on-hide="false"
       :ui="{ list: 'tablist', trigger: 'tab-trigger', indicator: 'tab-indicator', leadingIcon: 'size-4', content: 'tab-content' }"
@@ -156,8 +161,14 @@ const TIMELINE_UI = {
           </template>
           <template #install-description>
             <p>
-              Install BepInEx and copy <code class="code">DiscordMute.dll</code> into <code class="code">BepInEx/plugins</code>,
-              the same way as for self-hosting.
+              Already using a mod that ships BepInEx? Skip to the next part. Otherwise get the
+              <ULink :to="BEPINEX_URL" rel="noopener" class="inline-link" v-bind="guideLink('bepinex')">64-bit BepInEx 6.0.0-be.735 (IL2CPP)</ULink> build
+              and extract it into your Among Us folder. It works for Steam, Epic Games and the Microsoft Store.
+            </p>
+            <p>
+              Then download the <ULink :to="DOWNLOAD_URL" rel="noopener" class="inline-link" v-bind="trackAttrs(ANALYTICS_EVENTS.download, { location: 'setup-hosted' })">latest release</ULink>, copy
+              <code class="code">DiscordMute.dll</code> into <code class="code">BepInEx/plugins</code>, start Among Us once and close
+              it. That creates <code class="code">BepInEx/DiscordMute/config.json</code>.
             </p>
           </template>
           <template #setup-description>

@@ -4,5 +4,5 @@ internal static class PluginInfo
 {
     public const string Id = "com.yonn2222.DiscordMute";
     public const string Name = "DiscordMute";
-    public const string Version = "3.0.0";
+    public const string Version = "3.1.0";
 }
