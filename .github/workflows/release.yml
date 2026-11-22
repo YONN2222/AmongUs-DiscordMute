@@ -63,4 +63,4 @@ jobs:
       - name: Attach zip to the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "${{ github.event.release.tag_name }}" "${{ steps.package.outputs.zip_path }}" --clobber
+        run: gh release upload "${{ github.event.release.tag_name }}" "${{ steps.package.outputs.zip_path }}" DLL/bin/Release/net6.0/DiscordMute.dll --clobber
