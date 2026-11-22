@@ -14,7 +14,6 @@ using HarmonyLib;
 namespace DiscordMute;
 
 [BepInPlugin(PluginInfo.Id, PluginInfo.Name, PluginInfo.Version)]
-[BepInProcess("Among Us.exe")]
 public class DiscordMutePlugin : BasePlugin
 {
     internal static ManualLogSource PluginLog { get; private set; }
@@ -64,29 +63,48 @@ public class DiscordMutePlugin : BasePlugin
             PluginLog.LogError($"Error loading plugin: {ex.Message}");
         }
     }
+    private static string _configPath;
+
+    /// <summary>Starlight on Android cannot write next to the game, so the config lives in its data folder there.</summary>
+    private static string DataDirectory()
+    {
+        if (!OperatingSystem.IsAndroid())
+            return Path.Combine(Paths.BepInExRootPath, "DiscordMute");
+
+        var root = Environment.GetEnvironmentVariable("STAR_DATA_PATH");
+        if (string.IsNullOrEmpty(root))
+            root = UnityEngine.Application.persistentDataPath;
+        return Path.Combine(root, "DiscordMute");
+    }
+
+    internal static void SaveConfig()
+    {
+        File.WriteAllText(_configPath, JsonSerializer.Serialize(Cfg, new JsonSerializerOptions { WriteIndented = true }));
+    }
+
     private void LoadConfig()
     {
-        var dir = Path.Combine(Paths.BepInExRootPath, "DiscordMute");
-        var path = Path.Combine(dir, "config.json");
+        var dir = DataDirectory();
+        _configPath = Path.Combine(dir, "config.json");
 
         if (!Directory.Exists(dir))
             Directory.CreateDirectory(dir);
 
-        if (!File.Exists(path))
+        if (!File.Exists(_configPath))
         {
             Cfg = new PluginConfig();
-            File.WriteAllText(path, JsonSerializer.Serialize(Cfg, new JsonSerializerOptions { WriteIndented = true }));
+            SaveConfig();
             return;
         }
 
         try
         {
-            Cfg = JsonSerializer.Deserialize<PluginConfig>(File.ReadAllText(path)) ?? new PluginConfig();
+            Cfg = JsonSerializer.Deserialize<PluginConfig>(File.ReadAllText(_configPath)) ?? new PluginConfig();
         }
         catch (Exception ex)
         {
             PluginLog.LogError(
-                $"Failed to read plugin config at '{path}', using defaults (secret 'change-me'), so the bot will reject every request. " +
+                $"Failed to read plugin config at '{_configPath}', using defaults (secret 'change-me'), so the bot will reject every request. " +
                 $"Make sure the file is valid JSON: paths need double backslashes (C:\\\\Users\\\\...) or forward slashes (C:/Users/...). Details: {ex.Message}");
             Cfg = new PluginConfig();
         }

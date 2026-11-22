@@ -36,6 +36,8 @@ internal static class PluginSocket
     private static readonly SemaphoreSlim QueueSignal = new(0, 1);
 
     private static volatile bool _ready;
+    /// <summary>The open pairing connection. Pairing sends past the queue, which only flows after a welcome.</summary>
+    private static volatile ClientWebSocket _pairingSocket;
 
     private sealed record QueuedMessage(string Json, bool Droppable);
 
@@ -84,6 +86,8 @@ internal static class PluginSocket
                 Queue.Clear();
             }
             LocalChatQueue.Pending.Clear();
+            if (PairingHandler.IsNeeded)
+                LocalChatQueue.Pending.Enqueue(PairingHandler.Hint);
             _runCts = new CancellationTokenSource();
             _ = RunAsync(_runCts.Token);
         }
@@ -127,6 +131,23 @@ internal static class PluginSocket
         return _ready;
     }
 
+    /// <returns>false when no pairing connection is open.</returns>
+    internal static bool SendPairChat(string code)
+    {
+        var socket = _pairingSocket;
+        if (socket == null || socket.State != WebSocketState.Open) return false;
+
+        var json = JsonSerializer.Serialize(new PairChatMessage { Code = code }, PluginProtocol.JsonOptions);
+        _ = SendPairChatAsync(socket, json);
+        return true;
+    }
+
+    private static async Task SendPairChatAsync(ClientWebSocket socket, string json)
+    {
+        try { await SendRawAsync(socket, json, CancellationToken.None).ConfigureAwait(false); }
+        catch (Exception ex) { DiscordMutePlugin.PluginLog.LogWarning($"Failed to send pairing code to bot: {ex.Message}"); }
+    }
+
     private static void DropOldest()
     {
         for (var node = Queue.First; node != null; node = node.Next)
@@ -155,9 +176,12 @@ internal static class PluginSocket
                         DiscordMutePlugin.PluginLog.LogError("This DiscordMute version is too old for the bot. Please update.");
                         _terminal = true;
                         return;
+                    case PluginProtocol.CloseUnauthorized when OperatingSystem.IsAndroid() && DiscordMutePlugin.Cfg.HasSecret:
+                        PairingHandler.ForgetDevice();
+                        break;
                     case PluginProtocol.CloseUnauthorized:
                         DiscordMutePlugin.PluginLog.LogError(DiscordMutePlugin.Cfg.IsHosted
-                            ? "The hosted bot rejected the secret. Run /setup in your Discord server and copy the current secret into the DiscordMute config."
+                            ? "The hosted bot rejected the secret. Run /setup in your Discord server and copy the current secret into the DiscordMute config, or clear \"secret\" there to pair this device again."
                             : "Bot rejected the secret. Check that \"secret\" in DiscordMute config matches the bot config.");
                         delay = UnauthorizedDelay;
                         break;
@@ -166,6 +190,11 @@ internal static class PluginSocket
                         return;
                     case PluginProtocol.CloseBotLeft:
                         Stop(BotLeftMessage, closeReason);
+                        return;
+                    case PluginProtocol.ClosePairingFailed:
+                        DiscordMutePlugin.PluginLog.LogError($"Pairing ended ({closeReason}).");
+                        LocalChatQueue.Pending.Enqueue(
+                            "[DiscordMute] Pairing ended (timed out or too many wrong phrases). Run /setup > Pair a device again and host a new lobby.");
                         return;
                     case PluginProtocol.CloseTooManySessions:
                         DiscordMutePlugin.PluginLog.LogWarning(
@@ -222,20 +251,34 @@ internal static class PluginSocket
         await socket.ConnectAsync(uri, token).ConfigureAwait(false);
         _botProtocolVersion = 2;
         Task senderTask = null;
+        var pairing = PairingHandler.IsNeeded;
         try
         {
             using var closeOnDeactivate = token.Register(() => _ = CloseNormallyAsync(socket));
-            DiscordMutePlugin.PluginLog.LogInfo("Connected to bot via WebSocket.");
+            DiscordMutePlugin.PluginLog.LogInfo(pairing ? "Connected to bot via WebSocket for pairing." : "Connected to bot via WebSocket.");
 
-            var hello = JsonSerializer.Serialize(new HelloMessage
-            {
-                ProtocolVersion = PluginProtocol.ProtocolVersion,
-                Secret = DiscordMutePlugin.Cfg.Secret,
-                PluginVersion = PluginProtocol.Truncate(PluginInfo.Version, PluginProtocol.MaxVersionLength),
-                GameVersion = PluginProtocol.Truncate(_gameVersion, PluginProtocol.MaxVersionLength),
-                ConnectionKey = ConnectionKey
-            }, PluginProtocol.JsonOptions);
-            await SendRawAsync(socket, hello, cts.Token).ConfigureAwait(false);
+            var pluginVersion = PluginProtocol.Truncate(PluginInfo.Version, PluginProtocol.MaxVersionLength);
+            var gameVersion = PluginProtocol.Truncate(_gameVersion, PluginProtocol.MaxVersionLength);
+            object firstMessage = pairing
+                ? new PairStartMessage
+                {
+                    ProtocolVersion = PluginProtocol.ProtocolVersion,
+                    PluginVersion = pluginVersion,
+                    GameVersion = gameVersion,
+                    Platform = PluginProtocol.Platform
+                }
+                : new HelloMessage
+                {
+                    ProtocolVersion = PluginProtocol.ProtocolVersion,
+                    Secret = DiscordMutePlugin.Cfg.Secret,
+                    PluginVersion = pluginVersion,
+                    GameVersion = gameVersion,
+                    ConnectionKey = ConnectionKey,
+                    Platform = PluginProtocol.Platform
+                };
+            await SendRawAsync(socket, JsonSerializer.Serialize(firstMessage, firstMessage.GetType(), PluginProtocol.JsonOptions),
+                cts.Token).ConfigureAwait(false);
+            if (pairing) _pairingSocket = socket;
 
             var buffer = new byte[8192];
             while (socket.State == WebSocketState.Open)
@@ -251,7 +294,15 @@ internal static class PluginSocket
                     stream.Write(buffer, 0, result.Count);
                 } while (!result.EndOfMessage);
 
-                if (HandleMessage(Encoding.UTF8.GetString(stream.ToArray())) && senderTask == null)
+                var welcome = HandleMessage(Encoding.UTF8.GetString(stream.ToArray()));
+                if (pairing)
+                {
+                    if (PairingHandler.IsNeeded) continue;
+                    await CloseNormallyAsync(socket).ConfigureAwait(false);
+                    return (0, string.Empty);
+                }
+
+                if (welcome && senderTask == null)
                 {
                     if (token.IsCancellationRequested) continue;
                     _ready = true;
@@ -263,6 +314,7 @@ internal static class PluginSocket
         }
         finally
         {
+            _pairingSocket = null;
             if (token.IsCancellationRequested)
                 await CloseNormallyAsync(socket).ConfigureAwait(false);
             else
@@ -357,6 +409,12 @@ internal static class PluginSocket
                     break;
                 case "notice":
                     if (HostGate.IsActive) HandleNotice(root);
+                    break;
+                case "paired":
+                    if (PairingHandler.IsNeeded) PairingHandler.HandlePaired(root);
+                    break;
+                case "pair-result":
+                    if (PairingHandler.IsNeeded) PairingHandler.HandlePairResult(root);
                     break;
             }
         }

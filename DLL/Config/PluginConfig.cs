@@ -5,13 +5,15 @@ namespace DiscordMute.Config;
 
 internal sealed class PluginConfig
 {
+    private const string DefaultSecret = "change-me";
+
     [JsonPropertyName("ip")]
     public string Ip { get; set; } = "localhost";
     [JsonPropertyName("botPort")]
     public int BotPort { get; set; } = 7264;
 
     [JsonPropertyName("secret")]
-    public string Secret { get; set; } = "change-me";
+    public string Secret { get; set; } = DefaultSecret;
 
     [JsonPropertyName("exe")]
     public string ExePath { get; set; } = "";
@@ -28,5 +30,8 @@ internal sealed class PluginConfig
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string Mode { get; set; }
 
-    internal bool IsHosted => string.Equals(Mode, "hosted", StringComparison.OrdinalIgnoreCase);
+    /// <summary>Android only supports the hosted bot.</summary>
+    internal bool IsHosted => OperatingSystem.IsAndroid() || string.Equals(Mode, "hosted", StringComparison.OrdinalIgnoreCase);
+
+    internal bool HasSecret => !string.IsNullOrWhiteSpace(Secret) && Secret != DefaultSecret;
 }
