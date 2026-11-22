@@ -1,6 +1,6 @@
 {
   "name": "discord-mute-bot",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "DiscordMute Bot - Among Us voice mute controller",
   "scripts": {
     "generate:commands": "bun run src/Scripts/GenerateCommandRegistry.ts",
